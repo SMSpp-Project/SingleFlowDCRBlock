@@ -1,0 +1,52 @@
+##############################################################################
+################################ makefile-s ##################################
+##############################################################################
+#                                                                            #
+#   makefile of SingleFlowDCRBlock and its dependencies, excluding SMS++     #
+#                                                                            #
+#   The makefile defines internally all external libraries required by       #
+#   SingleFlowDCRBlock, excluding the SMS++ core ones whose symbols are      #
+#   assumed to have been defined already (typically by including             #
+#   SMS++/lib/makefile). Accordingly, all necessary OBJ, H, -I directives,   #
+#   external libraries  + -L< libdirs > are added to the corresponding       #
+#   SFDCR* macros.                                                           #
+#                                                                            #
+#   Input:  $(CC)       = compiler command                                   #
+#           $(SW)       = compiler options                                   #
+#           $(SMS++INC) = the -I$( core SMS++ directory )                    #
+#           $(SMS++OBJ) = the core SMS++ library                             #
+#           $(SFDCRSDR) = the directory where SingleFlowDCRBlock source is   #
+#                                                                            #
+#   Output: $(SFDCROBJ) = the final object(s) / library                      #
+#           $(SFDCRLIB) = external libraries + -L< libdirs >                 #
+#           $(SFDCRH)   = the .h files to include for SingleFlowDCRBlock     #
+#           $(SFDCRINC) = the -I$( SingleFlowDCRBlock directory )            #
+#                                                                            #
+#                              Antonio Frangioni                             #
+#                         Dipartimento di Informatica                        #
+#                             Universita' di Pisa                            #
+#                                                                            #
+##############################################################################
+
+# define & include the necessary modules- - - - - - - - - - - - - - - - - - -
+# if a module is not used in the current configuration, just comment out the
+# corresponding include line
+# each module outputs some macros to be used here:
+# *OBJ is the final object/library
+# *H   is the list of all include files
+# *INC is the -I< include directories >
+
+# include the makefile requiring all external modules in input
+include $(SFDCRSDR)/makefile
+
+# macros to be exported - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+# append external -I directives to SFDCRINC, SFDCROBJ and SFDCRH as defined
+# by the makefile, thus the := assignment has to be used (use GNU make)
+SFDCROBJ := $(SFDCROBJ)
+SFDCRINC := $(SFDCRINC)
+
+# external libraries for SingleFlowDCRBlock
+SFDCRLIB = 
+
+########################### End of makefile-s ################################

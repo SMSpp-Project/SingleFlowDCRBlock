@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+for what in goto net; do
+
+  # 8*
+  for j in 8 32; do
+    for h in 1 2 3 4 5; do
+
+      ./dmx2nc4 ../data/dmx/${what}8_${j}_${h}.dmx -0.5 -0.5 -0.5 -0.5
+
+    done
+  done
+
+  # 10*
+  for j in 8 64; do
+    for h in 1 2 3 4 5; do
+
+      ./dmx2nc4 ../data/dmx/${what}10_${j}_${h}.dmx -0.5 -0.5 -0.5 -0.5
+
+    done
+  done
+
+  # 12 - 16*
+  for i in 12 14 16; do
+    for j in 8; do
+      for h in 1 2 3 4 5; do
+
+        ./dmx2nc4 ../data/dmx/${what}${i}_${j}_${h}.dmx -0.5 -0.5 -0.5 -0.5
+
+      done
+    done
+  done
+done
+
+mv ../data/dmx/*.nc4 ../data/nc4
