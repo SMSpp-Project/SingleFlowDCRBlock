@@ -1,0 +1,59 @@
+##############################################################################
+############################# makefile-libCPLEX ##############################
+##############################################################################
+#                                                                            #
+#   makefile of libCPLEX                                                     #
+#                                                                            #
+#   Input:  $(CPLEX_ROOT), the directory where Cplex is installed            #
+#                                                                            #
+#   Output: accordingly, there is no *H and *OBJ in output, since there is   #
+#           no need to check for changes in the .h and rebuild the .o / .a   #
+#                                                                            #
+#           $(libCPLEXLIB) = external libraries + -L< libdirs > for libCPLEX #
+#           $(libCPLEXINC) = the -I$(include directories) for libCPLEX       #
+#                                                                            #
+#                             Antonio Frangioni                              #
+#                        Dipartimento di Informatica                         #
+#                            Universita' di Pisa                             #
+#                                                                            #
+##############################################################################
+
+# internal macros - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+# external libraries that Cplex needs
+ifeq ($(UNAME_S),Darwin)
+    libCPLEXEXTLIB =
+else
+    libCPLEXEXTLIB = -lpthread
+endif
+
+# basic CPLEX directory without quotes, if any
+#libCPLEXBSCDIR = $(subst $\",,$(CPLEX_ROOT))/cplex
+libCPLEXBSCDIR = /Applications/CPLEX_Studio2211/cplex
+
+# lib Cplex directory
+#ifeq ($(UNAME_S),Linux)
+#    libCPLEXINCDIR = $(libCPLEXBSCDIR)/lib/x86-64_linux/static_pic
+#endif
+#ifeq ($(UNAME_S),Darwin)
+#    libCPLEXINCDIR = $(libCPLEXBSCDIR)/lib/x86-64_osx/static_pic
+#endif
+#ifeq ($(UNAME_S),Windows)
+#    libCPLEXINCDIR = $(libCPLEXBSCDIR)/lib/x64_windows_msvc14/stat_mda
+#endif
+
+libCPLEXINCDIR = $(libCPLEXBSCDIR)/lib/arm64_osx/static_pic
+
+# Cplex lib
+ifeq ($(UNAME_S),Windows)
+    libCPLEX = -lcplex12100
+else
+    libCPLEX = -lcplex
+endif
+
+# macros to be exported - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+libCPLEXLIB = -L"$(libCPLEXINCDIR)" -lilocplex $(libCPLEX) $(libCPLEXEXTLIB)
+libCPLEXINC = -I"$(libCPLEXBSCDIR)/include"
+
+######################### End of makefile-libCPLEX ###########################

@@ -10,6 +10,14 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
+ * \author Laura Galli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \author Luca Mencarelli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
  * \copyright &copy; by Antonio Frangioni
  */
 /*--------------------------------------------------------------------------*/
@@ -44,7 +52,7 @@ namespace SMSpp_di_unipi_it
 {
  class SingleFlowDCRBlock;     // forward declaration of SingleFlowDCRBlock
 
- class MCFSolution;  // forward declaration of MCFSolution
+ class DCRSolution;  // forward declaration of DCRSolution
 
 /*--------------------------------------------------------------------------*/
 /*----------------------- SingleFlowDCRBlock-RELATED TYPES ---------------------------*/
@@ -80,7 +88,7 @@ namespace SMSpp_di_unipi_it
 /*--------------------------------------------------------------------------*/
 /// implementation of the Block concept for the (linear) Min-Cost Flow problem
 /** The SingleFlowDCRBlock class implements the Block concept [see Block.h] for the
- * (linear) Min-Cost Flow (MCF) problem.
+ * (linear) Min-Cost Flow (DCR) problem.
  *
  * The data of the problem consist of a (directed) graph G = ( N , A ) with
  * n = |N| nodes and m = |A| (directed) arcs. Each node `i' has a deficit
@@ -199,7 +207,7 @@ public:
  * By re-defining the types in this section, some (but not all) solution
  * algorithms may be able to work with the "smallest" choice of data type 
  * that is capable of properly representing the data of the instances to be
- * solved. This may be relevant due to an important property of MCF problems:
+ * solved. This may be relevant due to an important property of DCR problems:
  * *if all arc capacities and node deficits are integer, then there exists an
  * integral optimal primal solution*, and *if all arc costs are integer,
  * then there exists an integral optimal dual solution*. Even more
@@ -222,7 +230,7 @@ public:
  * choice is to use the "worst case scenario" where FNumber == CNumber ==
  * OFNumber == double, although the data types are left there and it is
  * therefore in principle possible to change this. Note, however, that the
- * above integrality property only holds for *linear* MCF problems. Should
+ * above integrality property only holds for *linear* DCR problems. Should
  * the class be extended, by even allowing arc costs to be convex quadratic
  * (the simplest possible nonlinear extension), then a single arc with a
  * nonzero quadratic cost coefficient implies that optimal flows and
@@ -271,7 +279,7 @@ public:
 /*------------------------------- FRIENDS ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
- friend MCFSolution;  ///< make MCFSolution friend
+ friend DCRSolution;  ///< make DCRSolution friend
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- PUBLIC METHODS OF THE CLASS ------------------------*/
@@ -302,8 +310,8 @@ public:
 /** @name Other initializations
  *  @{ */
 
- /// loads the MCF instance from memory
- /** Loads the MCF instance from memory. The parameters are what you expect:
+ /// loads the DCR instance from memory
+ /** Loads the DCR instance from memory. The parameters are what you expect:
   *
   * - n    is the current number of nodes of the network
   *
@@ -360,10 +368,18 @@ public:
   * Like load( std::istream & ), if there is any Solver attached to this
   * SingleFlowDCRBlock then a NBModification (the "nuclear option") is issued. */
 
+/*
  void load( Index n , Index m , c_Subset & pEn , c_Subset & pSn ,
 	    c_Vec_FNumber & pU = {} , c_Vec_CNumber & pC = {} ,
 	    c_Vec_FNumber & pB = {} ,
 	    Index dn = 0 , Index dm = 0 , Index mdn = 0 , Index mdm = 0 );
+*/
+ void load( Index n , Index m , c_Subset & pEn , c_Subset & pSn ,
+	    c_Vec_FNumber & pU = {} , c_Vec_CNumber & pC = {} ,
+	    Index dn = 0 , Index dm = 0 , Index mdn = 0 , Index mdm = 0 ,
+      c_Vec_FNumber & pNodeDelays = {} , c_Vec_FNumber & pLinkDelays = {} , 
+      c_Vec_FNumber & pFlowBursts  = {} , c_Vec_FNumber & pFlowDeadlines  = {} ,
+      c_Vec_FNumber & pMTU  = {} , c_Vec_FNumber & prho  = {} );
 
 /*--------------------------------------------------------------------------*/
  /// extends Block::deserialize( netCDF::NcGroup )
@@ -445,10 +461,10 @@ public:
  void deserialize( const netCDF::NcGroup & group ) override;
 
 /*--------------------------------------------------------------------------*/
- /// loads the MCF instance from file in DIMACS standard format
+ /// loads the DCR instance from file in DIMACS standard format
  /** Protected method for loading a SingleFlowDCRBlock out of a std::istream (which is
   * what operator>> is dispatched to. The std::istream is assumed to contain
-  * the description of a MCF instance in DIMACS standard format, which is 
+  * the description of a DCR instance in DIMACS standard format, which is 
   * the following. The first line must be
   *
   *      p min <number of nodes> <number of arcs>
@@ -483,9 +499,11 @@ public:
 
  void load( std::istream &input , char frmt = 0 ) override;
 
+ void load_dcr( std::istream &input , Index NNodes, Index NArcs );
+
 /*--------------------------------------------------------------------------*/
- /// generate the abstract variables of the MCF
- /** Method that generates the abstract Variable of the MCF. These are:
+ /// generate the abstract variables of the DCR
+ /** Method that generates the abstract Variable of the DCR. These are:
   *
   * - if ms = get_NStaticArcs() > 0, a std::vector< ColVariable > with
   *   exactly ms entries, the entry a = 0, ...,  ms - 1 corresponding to the
@@ -504,8 +522,8 @@ public:
  void generate_abstract_variables( Configuration *stvv = nullptr ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// generate the static constraint of the MCF
- /** Method that generates the abstract constraint of the MCF. These are:
+ /// generate the static constraint of the DCR
+ /** Method that generates the abstract constraint of the DCR. These are:
   *
   * - if ns = get_NStaticNodes() > 0, a std::vector< FRowConstraint > with
   *   exactly ns entries, the entry i = 0, ..., ns - 1 being the flow
@@ -574,8 +592,8 @@ public:
  void generate_abstract_constraints( Configuration *stcc = nullptr ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// generate the objective of the MCF
- /** Method that generates the objective of the MCF. Although this would seem
+ /// generate the objective of the DCR
+ /** Method that generates the objective of the DCR. Although this would seem
   * to be an exceedingly simple object, there is still a nontrivial decision
   * to be made about it, i.e., whether it is represented as a "sparse"
   * LinearFunction or a "dense" one. This is governed by objc: if
@@ -624,6 +642,8 @@ public:
   * while processing the corresponding "abstract" Modification. */
 
  void generate_objective( Configuration *objc = nullptr ) override;
+
+ void generate_dynamic_constraints( Configuration *stcc = nullptr ) override;
 
 /** @} ---------------------------------------------------------------------*/
 /*-------------- Methods for reading the data of the SingleFlowDCRBlock --------------*/
@@ -802,6 +822,35 @@ public:
    else
     return( const_cast< ColVariable * >(
 		           &( *std::prev( dx.end() , get_NArcs() - i ) ) ) );
+
+ }
+
+/*--------------------------------------------------------------------------*/
+
+ [[nodiscard]] Index p2i_r( const Variable * var ) const {
+  auto i = p2i_r_s( var );
+  if( ( i >= 0 ) && ( i < int( get_NStaticArcs() ) ) )
+   return( i );
+
+  i = get_NStaticArcs();
+  for( auto dri = dx.begin() ; dri != dr.end() ; ++i , ++dri )
+   if( &(*dri) == static_cast< const ColVariable * >( var ) )
+    return( i );
+
+  throw( std::invalid_argument( "invalid arc pointer" ) );
+  return( 0 );
+  }
+
+ [[nodiscard]] ColVariable * i2p_r( Index i ) const {
+  if( i < get_NStaticArcs() )
+   return( const_cast< ColVariable * >( & r[ i ] ) );
+  else
+   if( i - get_NStaticArcs() < get_NArcs() - i )
+    return( const_cast< ColVariable * >(
+		   &( *std::next( dr.begin() , i - get_NStaticArcs() ) ) ) );
+   else
+    return( const_cast< ColVariable * >(
+		           &( *std::prev( dr.end() , get_NArcs() - i ) ) ) );
   }
 
 /*--------------------------------------------------------------------------*/
@@ -966,11 +1015,11 @@ public:
  /** Returns the deficit of node i. Note that "node names" here go from 0 to
   * get_NNodes() - 1, despite the fact that get_SN() and get_EN() report node
   * "names" between 1 and get_NNodes(). */
-
+ 
  [[nodiscard]] FNumber get_B( Index i ) const {
   return( B.empty() ? 0 : B[ i ] );
   }
-
+  
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- Methods for checking the Block ---------------------*/
 /*--------------------------------------------------------------------------*/
@@ -1242,8 +1291,8 @@ public:
 /** @name Methods for handling Solution
  *  @{ */
 
- /// returns a MCFSolution representing the current solution of this SingleFlowDCRBlock
- /** Returns a MCFSolution representing the current solution status of this
+ /// returns a DCRSolution representing the current solution of this SingleFlowDCRBlock
+ /** Returns a DCRSolution representing the current solution status of this
   * SingleFlowDCRBlock. What kind of solution is saved depends on the integer value ws,
   * obtained as follows:
   *
@@ -1272,13 +1321,13 @@ public:
   * Note that SingleFlowDCRBlock may not contain some or all of the required solution,
   * if the corresponding Variable/Constraint have not been constructed yet:
   * this throws an exception, unless emptys = true, in which case the
-  * MCFSolution object is only prepped for getting a solution, but it is not
+  * DCRSolution object is only prepped for getting a solution, but it is not
   * really getting one now.
   *
-  * Note that, although the method clearly returns a MCFSolution, formally
+  * Note that, although the method clearly returns a DCRSolution, formally
   * the return type is Solution *. This is because it is not possible to
-  * forward declare MCFSolution as a derived class from Solution, nor to
-  * define MCFSolution before SingleFlowDCRBlock because the former uses some type
+  * forward declare DCRSolution as a derived class from Solution, nor to
+  * define DCRSolution before SingleFlowDCRBlock because the former uses some type
   * information declared in the latter. */ 
 
  Solution * get_Solution( Configuration *solc = nullptr ,
@@ -1325,6 +1374,40 @@ public:
    return( x[ arc ].get_value() );
   else
    return( std::next( dx.begin() , arc - get_NStaticArcs() )->get_value() );
+  }
+
+/*--------------------------------------------------------------------------*/
+ /// gets a contiguous interval of the reserve solution
+ /** Method to get the flow solution; upon return, the current value of the
+  * flow solution for the i-th arc in \p rng is written in *( FSol + i ).
+  * Note that if the right extreme of the range is >= get_NArcs() it is
+  * ignored. */
+
+ void get_r( Vec_FNumber_it FSol , Range rng = Range( 0 , Inf< Index >() ) )
+  const;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// gets the reserve solution for an arbitrary subset of arcs
+ /** Method to get the flow solution; upon return, the current value of the
+  * flow solution for arc nms[ i ] for all 0 <= i <  nms.size() is written
+  * in *( FSol + i ). Note that
+  *
+  *     nms IS ASSUMED TO BE ORDERED BY INCREASING Index */
+
+ void get_r( Vec_FNumber_it FSol , c_Subset & nms ) const;
+
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// gets the reserve solution of the given arc
+
+  FNumber get_r( Index arc ) const {
+  if( arc >= get_NArcs() )
+   throw( std::invalid_argument( "invalid arc name" ) );
+
+  if( arc < get_NStaticArcs() )
+   return( r[ arc ].get_value() );
+  else
+   return( std::next( dr.begin() , arc - get_NStaticArcs() )->get_value() );
   }
 
 /*--------------------------------------------------------------------------*/
@@ -1610,7 +1693,7 @@ public:
 /** @} ---------------------------------------------------------------------*/
 /*------------- METHODS FOR ADDING / REMOVING / CHANGING DATA --------------*/
 /*--------------------------------------------------------------------------*/
-/** @name Changing the data of the MCF instance
+/** @name Changing the data of the DCR instance
  *
  * All the methods in this section have two parameters issueMod and issueAMod
  * which control if and how the, respectively, "physical Modification" and
@@ -1783,8 +1866,8 @@ public:
   *
   * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is issued. */
 
- void chg_dfcts( c_Vec_FNumber_it NDfct , Range rng = INFRange ,
-		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
+// void chg_dfcts( c_Vec_FNumber_it NDfct , Range rng = INFRange ,
+//		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// change the deficits of an arbitrary subset of nodes
@@ -1800,9 +1883,9 @@ public:
   * See chg_dfcts( range ) for Modification issued (except that, of course,
   * the "physical" one is a SingleFlowDCRBlockSbstMod). */
 
- void chg_dfcts( c_Vec_FNumber_it NDfct ,
-		 Subset && nms , bool ordered = false ,
-		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
+// void chg_dfcts( c_Vec_FNumber_it NDfct ,
+//		 Subset && nms , bool ordered = false ,
+//		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// changes the deficit of the given node
@@ -1814,8 +1897,8 @@ public:
   * Note that this can issue only one Modification; the "physical" one is a
   * SingleFlowDCRBlockRngdMod with rng = [ arc ). */
 
- void chg_dfct( FNumber NDfct , Index nde ,
-		ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
+// void chg_dfct( FNumber NDfct , Index nde ,
+//		ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*--------------------------------------------------------------------------*/
  /// closes a contiguous interval of arcs
@@ -2076,6 +2159,13 @@ public:
  Vec_FNumber U;                  ///< vector of arc upper capacities
  Vec_FNumber B;                  ///< vector of node deficits
 
+ Vec_CNumber NodeDelays;
+ Vec_CNumber LinkDelays;
+ Vec_CNumber FlowBursts;
+ Vec_CNumber FlowDeadlines; 
+ Vec_CNumber MTU; 
+ Vec_CNumber rho; 
+
  unsigned char AR;               ///< bit-wise coded: what abstract is there
 
  static constexpr unsigned char HasVar = 1;
@@ -2091,12 +2181,26 @@ public:
  double f_cond_upper;            ///< conditional upper bound, can be +INF
  
  std::vector< ColVariable > x;     ///< the static flow variables
+ std::vector< ColVariable > r;     ///< the static reserve variables
+ std::vector< ColVariable > r_min; ///< the static reserve_min variables
+ std::vector< ColVariable > theta; ///< the static theta variables
+ std::vector< ColVariable > theta_min; ///< the static theta_min variables
  std::vector< FRowConstraint> E;   ///< the static flow conservation constrs.
- std::vector< LB0Constraint > UB;  ///< the static bound constraints
+ std::vector< LB0Constraint > UB;  ///< the static bound constraints on flow
+ std::vector< LB0Constraint > UBr; ///< the static bound constraints on reserve
+ std::vector< LB0Constraint > UB_rmin; ///< the static lower bound constraints on reserve min
+ std::vector< UB0Constraint > LB_rmin; ///< the static upper bound constraints on reserve min
  
  std::list< ColVariable > dx;      ///< the dynamic flow variables
+ std::list< ColVariable > dr;      ///< the dynamic reserve variables
+ std::list< ColVariable > dtheta;  ///< the dynamic theta variables
  std::list< FRowConstraint > dE;   ///< the dynamic flow conservation constrs.
- std::list< LB0Constraint > dUB;   ///< the dynamic bound constraints
+ std::list< LB0Constraint > dUB;   ///< the dynamic bound constraints on flow
+ std::list< LB0Constraint > dUBr;  ///< the dynamic bound constraints on reserve
+
+ std::list< FRowConstraint > PC_cuts;  /// the perspective dynamic cuts constraints
+ std::list< FRowConstraint > DCR_cnst; /// the DCR constraint
+
 
  FRealObjective c;               ///< the (linear) objective function
 
@@ -2176,13 +2280,13 @@ public:
 
   register_method< SingleFlowDCRBlock , MF_dbl_it , Subset &&, bool >(
    "SingleFlowDCRBlock::chg_ucaps" , & SingleFlowDCRBlock::chg_ucaps );
-
+/*
   register_method< SingleFlowDCRBlock , MF_dbl_it , Range >( "SingleFlowDCRBlock::chg_dfcts" ,
 						   & SingleFlowDCRBlock::chg_dfcts );
 
   register_method< SingleFlowDCRBlock , MF_dbl_it , Subset && , bool >(
    "SingleFlowDCRBlock::chg_dfcts" , & SingleFlowDCRBlock::chg_dfcts );
-
+*/
   register_method< SingleFlowDCRBlock , Range >( "SingleFlowDCRBlock::close_arcs" ,
 				       & SingleFlowDCRBlock::close_arcs );
 
@@ -2201,6 +2305,11 @@ public:
 
  int p2i_x_s( const Variable * var ) const {
   return( std::distance( x.data() ,
+			 static_cast< const ColVariable * >( var ) ) );
+  }
+
+  int p2i_r_s( const Variable * var ) const {
+  return( std::distance( r.data() ,
 			 static_cast< const ColVariable * >( var ) ) );
   }
 
@@ -2285,7 +2394,7 @@ class SingleFlowDCRBlockMod : public Modification
 /*---------------------------- PUBLIC TYPES --------------------------------*/
  /// public enum for the types of SingleFlowDCRBlockMod
  
- enum MCFB_mod_type {
+ enum DCRB_mod_type {
   eChgCost = 0 ,   ///< change the arc costs
   eChgCaps     ,   ///< change the arc capacities
   eChgDfct     ,   ///< change the node deficits
@@ -2308,7 +2417,7 @@ class SingleFlowDCRBlockMod : public Modification
 
 /*-------------------- PUBLIC METHODS OF THE CLASS ------------------------*/
 
- /// returns the [MCF]Block to which the SingleFlowDCRBlockMod refers
+ /// returns the [DCR]Block to which the SingleFlowDCRBlockMod refers
 
  Block * get_Block( void ) const override  { return( f_Block ); }
 
@@ -2459,12 +2568,12 @@ class SingleFlowDCRBlockSbstMod : public SingleFlowDCRBlockMod
  };  // end( class( SingleFlowDCRBlockSbstMod ) )
 
 /*--------------------------------------------------------------------------*/
-/*-------------------------- CLASS MCFSolution -----------------------------*/
+/*-------------------------- CLASS DCRSolution -----------------------------*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------- GENERAL NOTES --------------------------------*/
 /*--------------------------------------------------------------------------*/
 /// a solution of a SingleFlowDCRBlock
-/** The MCFSolution class, derived from Solution, represents a solution of a
+/** The DCRSolution class, derived from Solution, represents a solution of a
  * SingleFlowDCRBlock, i.e.:
  *
  * - an m-vector of FNumber for the arc flow values;
@@ -2480,27 +2589,27 @@ class SingleFlowDCRBlockSbstMod : public SingleFlowDCRBlockMod
  * constraints (a.k.a. Reduced Costs) can be cheaply computed out of the
  * potentials. This may not be appropriate in all cases, as one may want to
  * deal with unfeasible dual solutions; if this will ever be the case, the
- * MCFSolution class will have to be changed accordingly.
+ * DCRSolution class will have to be changed accordingly.
  *
- * Note that the vectors are (in principle, both) optional: a MCFSolution
+ * Note that the vectors are (in principle, both) optional: a DCRSolution
  * may have them empty, according to how it is created by a call to
  * SingleFlowDCRBlock::get_Solution(). If a vector is empty it is never read() or
  * write()-n from/to the SingleFlowDCRBlock. There is no support for changing this
- * during the life of the MCFSolution.
+ * during the life of the DCRSolution.
  *
- * It is useful to remark that some special cases of MCF would actually have
+ * It is useful to remark that some special cases of DCR would actually have
  * "special" solutions ("less general" ones in the parlance of Solution). In
  * particular:
  *
  * - if all capacities are Inf< FNumber >() and there is only one source or sink
- *   node, then the MCF problem is in fact a Shortest Path (sub-)Tree one, and
+ *   node, then the DCR problem is in fact a Shortest Path (sub-)Tree one, and
  *   its solutions can be represented by means of a predecessor function;
  *
  * - if all (finite) capacities and node deficits are integer, then there
- *   always exist optimal flow solutions of MCF that are integer;
+ *   always exist optimal flow solutions of DCR that are integer;
  *
  * - if all arc costs are integer, then there always exist optimal potential
- *   solutions of MCF that are integer.
+ *   solutions of DCR that are integer.
  *
  * Thus, SingleFlowDCRBlock would have scope for different kinds of Solution objects.
  * The currently implemented one is the "most general" one, so that the
@@ -2508,7 +2617,7 @@ class SingleFlowDCRBlockSbstMod : public SingleFlowDCRBlockMod
  * specialized Solution for the specific cases are left for future
  * development. */
 
-class MCFSolution : public Solution {
+class DCRSolution : public Solution {
 
 /*--------------------------------------------------------------------------*/
 /*----------------------- PUBLIC PART OF THE CLASS -------------------------*/
@@ -2520,9 +2629,9 @@ class MCFSolution : public Solution {
 
  friend SingleFlowDCRBlock;  ///< make SingleFlowDCRBlock friend
 
-/*---------------- CONSTRUCTING AND DESTRUCTING MCFSolution ----------------*/
+/*---------------- CONSTRUCTING AND DESTRUCTING DCRSolution ----------------*/
 
- explicit MCFSolution( void ) { }  /// constructor, it has nothing to do
+ explicit DCRSolution( void ) { }  /// constructor, it has nothing to do
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
@@ -2530,46 +2639,46 @@ class MCFSolution : public Solution {
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
- ~MCFSolution() = default;  ///< destructor: it is virtual, and empty
+ ~DCRSolution() = default;  ///< destructor: it is virtual, and empty
 
-/*------------- METHODS DESCRIBING THE BEHAVIOR OF A MCFSolution -----------*/
+/*------------- METHODS DESCRIBING THE BEHAVIOR OF A DCRSolution -----------*/
 
  void read( const Block * block ) override final;
 
  void write( Block * block ) override final;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// serialize a MCFSolution into a netCDF::NcGroup
- /** Serialize a MCFSolution into a netCDF::NcGroup, with the following
+ /// serialize a DCRSolution into a netCDF::NcGroup
+ /** Serialize a DCRSolution into a netCDF::NcGroup, with the following
   * format:
   *
   * - The dimension "NumNodes" containing the number of nodes. The dimension
   *   is optional, if it is not specified then the corresponding variable
-  *   "Potentials" is not read (the MCFSolution object does not contain any
+  *   "Potentials" is not read (the DCRSolution object does not contain any
   *   node potentials).
   *
   * - The dimension "NumArcs" containing the number of arcs. The dimension
   *   is optional, if it is not specified then the corresponding variable
-  *   "Potentials" is not read (the MCFSolution object does not contain any
+  *   "Potentials" is not read (the DCRSolution object does not contain any
   *   flow solution).
   *
   * - The variable "FlowSolution", of type double and indexed over the
   *   dimension NumArcs. The variable is optional, if it is not specified
-  *   then the MCFSolution object does not contain any flow solution.
+  *   then the DCRSolution object does not contain any flow solution.
   *
   * - The variable "Potentials", of type double and indexed over the
   *   dimension NumNodes. The variable is optional, if it is not specified
-  *   then the MCFSolution object does not contain any node potentials. */
+  *   then the DCRSolution object does not contain any node potentials. */
  
  void serialize( netCDF::NcGroup & group ) const override final;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
- MCFSolution * scale( double factor ) const override final;
+ DCRSolution * scale( double factor ) const override final;
 
  void sum( const Solution * solution , double multiplier ) override final;
 
- MCFSolution * clone( bool empty = false ) const override final;
+ DCRSolution * clone( bool empty = false ) const override final;
 
 /*-------------------- PROTECTED PART OF THE CLASS -------------------------*/
 
@@ -2578,7 +2687,7 @@ class MCFSolution : public Solution {
 /*-------------------------- PROTECTED METHODS -----------------------------*/
 
  void print( std::ostream &output ) const override final {
-  output << "MCFSolution [" << this << "]: " << v_x.size() << " flows and "
+  output << "DCRSolution [" << this << "]: " << v_x.size() << " flows and "
 	 << v_pi.size() << " potentials" << std::endl;
   }
 
@@ -2598,7 +2707,7 @@ class MCFSolution : public Solution {
 
 /*--------------------------------------------------------------------------*/
 
- };  // end( class( MCFSolution ) )
+ };  // end( class( DCRSolution ) )
 
 /** @} end( group( SingleFlowDCRBlock_CLASSES ) ) --------------------------*/
 /*--------------------------------------------------------------------------*/

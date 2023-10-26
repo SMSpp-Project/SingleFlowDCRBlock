@@ -34,8 +34,17 @@
 # *INC is the -I< include directories >
 
 # define input macros for SMS++ complete makefile, then include it
-SMS++SDR = $(SFDCRSDR)/../SMS++
+SMS++SDR = $(SFDCRSDR)/../smspp
 include $(SMS++SDR)/lib/makefile-inc
+
+# define input macros for libMCFCl complete makefile, then include it
+# signal that *_ROOT values for external libraries need not be read by
+# the MCFClass makefiles since they are defined already by SMS++
+MCFC_NO_PATHS = 0
+libMCFClDIR = $(SFDCRSDR)/MCFClass
+include $(libMCFClDIR)/lib/makefile-inc
+
+MILPINC = $(SFDCRSDR)/../milpsolver/include
 
 # include the makefile requiring all external modules in input
 include $(SFDCRSDR)/makefile
@@ -44,10 +53,10 @@ include $(SFDCRSDR)/makefile
 
 # append external -I directives to SFDCRINC, SFDCROBJ and SFDCRH as defined
 # by the makefile, thus the := assignment has to be used (use GNU make)
-SFDCROBJ := $(SFDCROBJ) $(SMS++OBJ)
-SFDCRINC := $(SFDCRINC) $(SMS++INC)
+SFDCROBJ := $(SFDCROBJ) $(SMS++OBJ) $(libMCFClOBJ)
+SFDCRINC := $(SFDCRINC) $(SMS++INC) $(libMCFClINC) -I$(MILPINC)
 
 # external libraries for SingleFlowDCRBlock
-SFDCRLIB = $(SMS++LIB)
+SFDCRLIB = $(SMS++LIB) $(libMCFClLIB) -I$(MILPINC)
 
 ############################ End of makefile #################################

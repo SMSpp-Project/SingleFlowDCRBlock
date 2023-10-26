@@ -1,0 +1,22 @@
+### possible local definitions of external libraries, not to be seen outside
+extlib/makefile-paths
+
+CS2
+MCFZIB
+**/*~
+**/*.o
+**/*.a
+**/.DS_Store
+**/*.dSYM
+.DS_Store
+*.sw[oprst]
+????-*.patch
+/TAGS
+XCode/
+test/MCFSolve
+test/TestMCF
+
+build/
+
+# CMake
+cmake-build-*/

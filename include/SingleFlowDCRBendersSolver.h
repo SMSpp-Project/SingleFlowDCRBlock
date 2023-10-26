@@ -27,7 +27,11 @@
 
 #include "CDASolver.h"
 
-#include "MCFBlock.h"
+#include "SingleFlowDCRBlock.h"
+
+#include "MCFClass.h"
+
+#include "MILPSolver.h"
 
 /*--------------------------------------------------------------------------*/
 /*-------------------------- NAMESPACE & USING -----------------------------*/
@@ -47,13 +51,13 @@ namespace SMSpp_di_unipi_it
  *  @{ */
 
 /*--------------------------------------------------------------------------*/
-/*-------------------------- CLASS SingleFlowDCRBendersSolver -------------------------------*/
+/*-------------------------- CLASS SingleFlowDCRBendersSolver --------------*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------- GENERAL NOTES --------------------------------*/
 /*--------------------------------------------------------------------------*/
-/// CDASolver for MCFBlock
+/// CDASolver for SingleFlowDCRBlock
 /** The SingleFlowDCRBendersSolver implements the Solver interface for Min-Cost Flow problems
- * described by a MCFBlock. Because the linear MCF problem is a Linear Program
+ * described by a SingleFlowDCRBlock. Because the linear MCF problem is a Linear Program
  * it has a(n exact) dual, and therefore SingleFlowDCRBendersSolver implements the CDASolver
  * interface for also giving out dual information.
  *
@@ -251,16 +255,16 @@ public:
   Solver::set_Block( block );  // attach to the new Block
 
   if( block ) {  // this is not just resetting everything
-   auto MCFB = dynamic_cast< MCFBlock * >( block );
+   auto MCFB = dynamic_cast< SingleFlowDCRBlock * >( block );
    if( ! MCFB )
     throw( std::invalid_argument(
-		         "SingleFlowDCRBendersSolver:set_Block: block must be a MCFBlock" ) );
+		         "SingleFlowDCRBendersSolver:set_Block: block must be a SingleFlowDCRBlock" ) );
 
    bool owned = MCFB->is_owned_by( f_id );
    if( ( ! owned ) && ( ! MCFB->read_lock() ) )
-    throw( std::logic_error( "cannot acquire read_lock on MCFBlock" ) );
+    throw( std::logic_error( "cannot acquire read_lock on SingleFlowDCRBlock" ) );
 
-   // load the new MCFBlock into the :MCFClass object
+   // load the new SingleFlowDCRBlock into the :MCFClass object
    MCFC::LoadNet( MCFB->get_MaxNNodes() , MCFB->get_MaxNArcs() ,
 		  MCFB->get_NNodes() , MCFB->get_NArcs() ,
 		  MCFB->get_U().empty() ? nullptr : MCFB->get_U().data() ,
@@ -276,7 +280,7 @@ public:
    //       make this work (or maybe not).
    // MCFC::PreProcess();
 
-   // once done, read_unlock the MCFBlock (if it was read-lock()-ed)
+   // once done, read_unlock the SingleFlowDCRBlock (if it was read-lock()-ed)
    if( ! owned )
     MCFB->read_unlock();
 
@@ -314,10 +318,10 @@ public:
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- METHODS FOR SOLVING THE Block ----------------------*/
 /*--------------------------------------------------------------------------*/
-/** @name Solving the MCF encoded by the current MCFBlock
+/** @name Solving the MCF encoded by the current SingleFlowDCRBlock
  *  @{ */
 
- /// (try to) solve the MCF encoded in the MCFBlock
+ /// (try to) solve the MCF encoded in the SingleFlowDCRBlock
 
  int compute( bool changedvars = true ) override
  {
@@ -327,7 +331,7 @@ public:
 
   lock();  // first of all, acquire self-lock
   
-  if( ! f_Block )           // there is no [MCFBlock] to solve
+  if( ! f_Block )           // there is no [SingleFlowDCRBlock] to solve
    return( kBlockLocked );  // return error 
 
   bool owned = f_Block->is_owned_by( f_id );       // check if already locked
@@ -409,10 +413,10 @@ public:
  virtual bool is_dual_feasible( void ) override { return( true ); }
 */
 /*--------------------------------------------------------------------------*/
- /// write the "current" flow in the x ColVariable of the MCFBlock
- /** Write the "current" flow in the x ColVariable of the MCFBlock. To keep
-  * the same format as MCFBlock::get_Solution() and
-  * MCFBlock::map[forward/back]_Modification(), the Configuration *solc can
+ /// write the "current" flow in the x ColVariable of the SingleFlowDCRBlock
+ /** Write the "current" flow in the x ColVariable of the SingleFlowDCRBlock. To keep
+  * the same format as SingleFlowDCRBlock::get_Solution() and
+  * SingleFlowDCRBlock::map[forward/back]_Modification(), the Configuration *solc can
   * be used to "partly" save it. In particular, if solc != nullptr, it is
   * a SimpleConfiguration< int >, and solc->f_value == 2, then *nothing is
   * done*, since the Configuration is meant to say "only save/map the dual
@@ -427,19 +431,19 @@ public:
   if( tsolc && ( tsolc->f_value == 2 ) )
    return;
 
-  auto MCFB = static_cast< MCFBlock * >( f_Block );
-  MCFBlock::Vec_FNumber X( MCFB->get_NArcs() );
+  auto MCFB = static_cast< SingleFlowDCRBlock * >( f_Block );
+  SingleFlowDCRBlock::Vec_FNumber X( MCFB->get_NArcs() );
   this->MCFGetX( X.data() );
   MCFB->set_x( X.begin() );
   }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// write the "current" dual solution in the Constraint of the MCFBlock
+ /// write the "current" dual solution in the Constraint of the SingleFlowDCRBlock
  /** Write the "current" dual solution, i.e., node potentials and flow
   * reduced costs, in the dual variables of the Constraint (respectively,
-  * the flow conservation constraints and bound ones) of the MCFBlock. To
-  * keep the same format as MCFBlock::get_Solution() and
-  * MCFBlock::map[forward/back]_Modification(), the Configuration *solc can
+  * the flow conservation constraints and bound ones) of the SingleFlowDCRBlock. To
+  * keep the same format as SingleFlowDCRBlock::get_Solution() and
+  * SingleFlowDCRBlock::map[forward/back]_Modification(), the Configuration *solc can
   * be used to "partly" save it. In particular, if solc != nullptr, it is
   * a SimpleConfiguration< int >, and solc->f_value == 1, then *nothing is
   * done*, since the Configuration is meant to say "only save/map the primal
@@ -454,12 +458,12 @@ public:
   if( tsolc && ( tsolc->f_value == 1 ) )
    return;
 
-  auto MCFB = static_cast< MCFBlock * >( f_Block );
-  MCFBlock::Vec_CNumber Pi( MCFB->get_NNodes() );
+  auto MCFB = static_cast< SingleFlowDCRBlock * >( f_Block );
+  SingleFlowDCRBlock::Vec_CNumber Pi( MCFB->get_NNodes() );
   this->MCFGetPi( Pi.data() );
   MCFB->set_pi( Pi.begin() );
   
-  MCFBlock::Vec_FNumber RC( MCFB->get_NArcs() );
+  SingleFlowDCRBlock::Vec_FNumber RC( MCFB->get_NArcs() );
   this->MCFGetRC( RC.data() );
   MCFB->set_rc( RC.begin() );
   }
@@ -486,11 +490,11 @@ public:
  bool has_dual_direction( void ) override { return( true ); }
 
 /*--------------------------------------------------------------------------*/
- /// write the current direction in the x ColVariable of the MCFBlock
+ /// write the current direction in the x ColVariable of the SingleFlowDCRBlock
  /** Write the unbounded primal direction, i.e., augmenting cycle with
   * negative cost and unbounded capacity, in the x ColVariable of the
-  * MCFBlock. To keep the same format as MCFBlock::get_Solution() and
-  * MCFBlock::map[forward/back]_Modification(), the Configuration *solc can
+  * SingleFlowDCRBlock. To keep the same format as SingleFlowDCRBlock::get_Solution() and
+  * SingleFlowDCRBlock::map[forward/back]_Modification(), the Configuration *solc can
   * be used to "partly" save it. In particular, if solc != nullptr, it is
   * a SimpleConfiguration< int >, and solc->f_value == 2, then *nothing is done*,
   * since the Configuration is meant to say "only save/map the dual
@@ -512,12 +516,12 @@ public:
   }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// write the current dual direction in the Constraint of the MCFBlock
+ /// write the current dual direction in the Constraint of the SingleFlowDCRBlock
  /** Write the current unbounded dual direction, i.e., a cut separating two
   * shores to that the residual demand in one is greater than the capacity
   * across them, in the Constraint of the Block, in particular in the dual
   * variables of the flow conservation ones. To keep the same format as
-  * MCFBlock::get_Solution() and MCFBlock::map[forward/back]_Modification(),
+  * SingleFlowDCRBlock::get_Solution() and SingleFlowDCRBlock::map[forward/back]_Modification(),
   * the Configuration *solc can be used to "partly" save it. In particular, if
   * solc != nullptr, it is a SimpleConfiguration< int >, and solc->f_value == 1,
   * then *nothing is done*, since the Configuration is meant to say "only
@@ -740,7 +744,7 @@ public:
 
  /** The only reason why SingleFlowDCRBendersSolver::add_Modification() needs be defined is to
   * properly react to NBModification. Indeed, the correct reaction is to
-  * *immediately* reload the MCFBlock, besides clearing the list of
+  * *immediately* reload the SingleFlowDCRBlock, besides clearing the list of
   * Modification as Solver::add_Modification() already does. The issue is
   * that if arcs/nodes are added/deleted after the NBModification is issued
   * but before it is processed, then the number of nodes/arcs at the moment
@@ -749,22 +753,22 @@ public:
   * (because the name of, say, a newly created arc depends on the current
   * state and/or number of the arcs).
   *
-  * Important note: THIS VERSION ONLY WORKS PROPERLY IF THE MCFBlock IS
+  * Important note: THIS VERSION ONLY WORKS PROPERLY IF THE SingleFlowDCRBlock IS
   * "FRESHLY MINTED", I.E., THERE ARE NO CLOSED OR DELETED ARCS.
   *
-  * This should ordinarily always happen, as whenever the MCFBlock is changed
+  * This should ordinarily always happen, as whenever the SingleFlowDCRBlock is changed
   * the NBModification is immediately issued. The problem may come if the
-  * MCFBlock is a R3Block of another MCFBlock which is loaded and then
-  * further modified, and the NBModification to this MCFBlock is generated by
+  * SingleFlowDCRBlock is a R3Block of another SingleFlowDCRBlock which is loaded and then
+  * further modified, and the NBModification to this SingleFlowDCRBlock is generated by
   * a map_forward_Modification() of the NBModification to the original
-  * MCFBlock: then, this MCFBlock may be copied from a MCFBlock that has
+  * SingleFlowDCRBlock: then, this SingleFlowDCRBlock may be copied from a SingleFlowDCRBlock that has
   * closed or deleted arcs and this method would not work. */
 
  void add_Modification( sp_Mod &mod ) override {
   if( std::dynamic_pointer_cast< const NBModification >( mod ) ) {
-   // this is the "nuclear option": the MCFBlock has been re-loaded, so
+   // this is the "nuclear option": the SingleFlowDCRBlock has been re-loaded, so
    // the MCFClass solver also has to (immediately)
-   auto MCFB = static_cast< MCFBlock * >( f_Block );
+   auto MCFB = static_cast< SingleFlowDCRBlock * >( f_Block );
    MCFC::LoadNet( MCFB->get_MaxNNodes() , MCFB->get_MaxNArcs() ,
 		  MCFB->get_NNodes() , MCFB->get_NArcs() ,
 		  MCFB->get_U().empty() ? nullptr : MCFB->get_U().data() ,
@@ -973,7 +977,7 @@ void SingleFlowDCRBendersSolver< MCFC >::process_outstanding_Modification( void 
 template< class MCFC >
 void SingleFlowDCRBendersSolver< MCFC >::guts_of_poM( c_p_Mod mod )
 {
- auto MCFB = static_cast< MCFBlock * >( f_Block );
+ auto MCFB = static_cast< SingleFlowDCRBlock * >( f_Block );
 
  // process Modification - - - - - - - - - - - - - - - - - - - - - - - - - - -
  //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -989,17 +993,17 @@ void SingleFlowDCRBendersSolver< MCFC >::guts_of_poM( c_p_Mod mod )
   return;
   }
 
- // MCFBlockRngdMod- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ // SingleFlowDCRBlockRngdMod- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  /* Note: in the following we can assume that C, B and U are nonempty. This
   * is because they can be empty only if they are so when the object is
   * loaded. But if a Modification has been issued they are no longer empty (a
   * Modification changin nothing from the "empty" state is not issued). */
 
- if( auto tmod = dynamic_cast< const MCFBlockRngdMod * >( mod ) ) {
+ if( auto tmod = dynamic_cast< const SingleFlowDCRBlockRngdMod * >( mod ) ) {
   auto rng = tmod->rng();
 
   switch( tmod->type() ) {
-   case( MCFBlockMod::eChgCost ):
+   case( SingleFlowDCRBlockMod::eChgCost ):
     if( rng.second == rng.first + 1 ) {
      if( ! MCFB->is_deleted( rng.first ) )
       MCFC::ChgCost( rng.first , MCFB->get_C( rng.first ) );
@@ -1008,7 +1012,7 @@ void SingleFlowDCRBendersSolver< MCFC >::guts_of_poM( c_p_Mod mod )
      if( std::any_of( MCFB->get_C().data() + rng.first ,
 		      MCFB->get_C().data() + rng.second ,
 		      []( auto ci ) { return( std::isnan( ci ) ); } ) ) {
-      MCFBlock::Vec_CNumber NCost( MCFB->get_C().data() + rng.first ,
+      SingleFlowDCRBlock::Vec_CNumber NCost( MCFB->get_C().data() + rng.first ,
 				   MCFB->get_C().data() + rng.second );
       for( auto & ci : NCost )
        if( std::isnan( ci ) )
@@ -1022,7 +1026,7 @@ void SingleFlowDCRBendersSolver< MCFC >::guts_of_poM( c_p_Mod mod )
      }
     return;
 
-   case( MCFBlockMod::eChgCaps ):
+   case( SingleFlowDCRBlockMod::eChgCaps ):
     if( rng.second == rng.first + 1 ) {
      if( ! MCFB->is_deleted( rng.first ) )
       MCFC::ChgUCap( rng.first , MCFB->get_U( rng.first ) );
@@ -1031,30 +1035,30 @@ void SingleFlowDCRBendersSolver< MCFC >::guts_of_poM( c_p_Mod mod )
      MCFC::ChgUCaps( MCFB->get_U().data() + rng.first , nullptr ,
 		     rng.first , rng.second );
     return;
-
-   case( MCFBlockMod::eChgDfct ):
+/*
+   case( SingleFlowDCRBlockMod::eChgDfct ):
     if( rng.second == rng.first + 1 )
      MCFC::ChgDfct( rng.first , MCFB->get_B( rng.first ) );
     else
      MCFC::ChgDfcts( MCFB->get_B().data() + rng.first , nullptr ,
 		     rng.first , rng.second );
     return;
-
-   case( MCFBlockMod::eOpenArc ):
+*/
+   case( SingleFlowDCRBlockMod::eOpenArc ):
     for( ; rng.first < rng.second ; ++rng.first )
      if( ( ! MCFB->is_deleted( rng.first ) ) &&
 	 ( ! MCFC::IsDeletedArc( rng.first ) ) )
       MCFC::OpenArc( rng.first );
     return;
 
-   case( MCFBlockMod::eCloseArc ):
+   case( SingleFlowDCRBlockMod::eCloseArc ):
     for( ; rng.first < rng.second ; ++rng.first )
      if( ( ! MCFB->is_deleted( rng.first ) ) &&
 	 ( ! MCFC::IsDeletedArc( rng.first ) ) )
       MCFC::CloseArc( rng.first );
     return;
 
-   case( MCFBlockMod::eAddArc ): {
+   case( SingleFlowDCRBlockMod::eAddArc ): {
     auto ca = MCFB->get_C( rng.first );
     auto arc = MCFC::AddArc( MCFB->get_SN( rng.first ) ,
 			     MCFB->get_EN( rng.first ) ,
@@ -1065,25 +1069,25 @@ void SingleFlowDCRBendersSolver< MCFC >::guts_of_poM( c_p_Mod mod )
     return;
     }
 
-   case( MCFBlockMod::eRmvArc ):
+   case( SingleFlowDCRBlockMod::eRmvArc ):
     MCFC::DelArc( rng.second - 1 );
     return;
 
-   default: throw( std::invalid_argument( "unknown MCFBlockRngdMod type" ) );
+   default: throw( std::invalid_argument( "unknown SingleFlowDCRBlockRngdMod type" ) );
    }
   }
 
- // MCFBlockSbstMod- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- if( auto tmod = dynamic_cast< const MCFBlockSbstMod * >( mod ) ) {
+ // SingleFlowDCRBlockSbstMod- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ if( auto tmod = dynamic_cast< const SingleFlowDCRBlockSbstMod * >( mod ) ) {
   switch( tmod->type() ) {
-   case( MCFBlockMod::eOpenArc ):
+   case( SingleFlowDCRBlockMod::eOpenArc ):
     for( auto arc : tmod->nms() )
      if( ( ! MCFB->is_deleted( arc ) ) &&
 	 ( ! MCFC::IsDeletedArc( arc ) ) )
       MCFC::OpenArc( arc );
     return;
 
-   case( MCFBlockMod::eCloseArc ):
+   case( SingleFlowDCRBlockMod::eCloseArc ):
     for( auto arc : tmod->nms() )
      if( ( ! MCFB->is_deleted( arc ) ) &&
 	 ( ! MCFC::IsDeletedArc( arc ) ) )
@@ -1096,10 +1100,10 @@ void SingleFlowDCRBendersSolver< MCFC >::guts_of_poM( c_p_Mod mod )
   // arcs for which the operations make no sense;
                                                      ;
   switch( tmod->type() ) {
-   case( MCFBlockMod::eChgCost ): {
-    MCFBlock::Subset nmsI;
+   case( SingleFlowDCRBlockMod::eChgCost ): {
+    SingleFlowDCRBlock::Subset nmsI;
     nmsI.reserve( tmod->nms().size() + 1 );
-    MCFBlock::Vec_CNumber NCost;
+    SingleFlowDCRBlock::Vec_CNumber NCost;
     NCost.reserve( tmod->nms().size() );
     auto & C = MCFB->get_C();
     for( auto i : tmod->nms() )
@@ -1107,16 +1111,16 @@ void SingleFlowDCRBendersSolver< MCFC >::guts_of_poM( c_p_Mod mod )
       NCost.push_back( ci );
       nmsI.push_back( i );
       }
-    nmsI.push_back( Inf< MCFBlock::Index >() );
+    nmsI.push_back( Inf< SingleFlowDCRBlock::Index >() );
 
     MCFC::ChgCosts( NCost.data() , nmsI.data() );
     return;
     }
 
-   case( MCFBlockMod::eChgCaps ): {
-    MCFBlock::Subset nmsI;
+   case( SingleFlowDCRBlockMod::eChgCaps ): {
+    SingleFlowDCRBlock::Subset nmsI;
     nmsI.reserve( tmod->nms().size() + 1 );
-    MCFBlock::Vec_FNumber NCap;
+    SingleFlowDCRBlock::Vec_FNumber NCap;
     NCap.reserve( tmod->nms().size() );
     auto & C = MCFB->get_C();
     auto & U = MCFB->get_U();
@@ -1125,26 +1129,26 @@ void SingleFlowDCRBendersSolver< MCFC >::guts_of_poM( c_p_Mod mod )
       NCap.push_back( U[ i ] );
       nmsI.push_back( i );
       }
-    nmsI.push_back( Inf< MCFBlock::Index >() );
+    nmsI.push_back( Inf< SingleFlowDCRBlock::Index >() );
 
     MCFC::ChgUCaps( NCap.data() , nmsI.data() );
     return;
     }
-
-   case( MCFBlockMod::eChgDfct ): {
-    MCFBlock::Vec_FNumber NDfct( tmod->nms().size() );
-    MCFBlock::Subset nmsI( tmod->nms().size() + 1 );
+/*
+   case( SingleFlowDCRBlockMod::eChgDfct ): {
+    SingleFlowDCRBlock::Vec_FNumber NDfct( tmod->nms().size() );
+    SingleFlowDCRBlock::Subset nmsI( tmod->nms().size() + 1 );
     *copy( tmod->nms().begin() , tmod->nms().end() , nmsI.begin() ) =
-                                                   Inf< MCFBlock::Index >();
+                                                   Inf< SingleFlowDCRBlock::Index >();
     auto B = MCFB->get_B();
-    for( MCFBlock::Index i = 0 ; i < NDfct.size() ; i++ )
+    for( SingleFlowDCRBlock::Index i = 0 ; i < NDfct.size() ; i++ )
      NDfct[ i ] = B[ nmsI[ i ] ];
 
     MCFC::ChgDfcts( NDfct.data() , nmsI.data() );
     return;
     }
-
-   default: throw( std::invalid_argument( "unknown MCFBlockSbstMod type" ) );
+*/
+   default: throw( std::invalid_argument( "unknown SingleFlowDCRBlockSbstMod type" ) );
    }
   }
 

@@ -36,6 +36,13 @@
 #                                                                            #
 ##############################################################################
 
+# define the set of MCFSolver< :MCFClass > that will be available by
+# uncommenting the -DHAVE_* below corresponding to the :MCFClass; see
+# MCFSolver.h for details. note that, obviously, the :MCFClass selected
+# here must have been compiled in the MCFClass library
+MCFClssSlvr = -DHAVE_MFSMX -DHAVE_CPLEX -DHAVE_RELAX
+# -DHAVE_CSCL2 -DHAVE_MFZIB -DHAVE_SPTRE
+
 # macros to be exported - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 SFDCROBJ = $(SFDCRSDR)/obj/SingleFlowDCRBlock.o \
@@ -53,14 +60,17 @@ clean::
 
 # dependencies: every .o from its .cpp + every recursively included .h- - - -
 
+all: $(SFDCROBJ)
+#all : $(SFDCRSDR)/obj/SingleFlowDCRBlock.o
+
 $(SFDCRSDR)/obj/SingleFlowDCRBlock.o: $(SFDCRSDR)/src/SingleFlowDCRBlock.cpp \
 	$(SFDCRSDR)/include/SingleFlowDCRBlock.h $(SMS++OBJ)
 	$(CC) -c $(SFDCRSDR)/src/SingleFlowDCRBlock.cpp -o $@ \
 	$(SFDCRINC) $(SMS++INC) $(SW)
 
 $(SFDCRSDR)/obj/SingleFlowDCRBendersSolver.o: \
-	$(SFDCRSDR)/src/SingleFlowDCRBendersSolver.cpp $(SFDCRH) $(SMS++OBJ)
+	$(SFDCRSDR)/src/SingleFlowDCRBendersSolver.cpp $(SFDCRH) $(SMS++OBJ) $(MILPOBJ)
 	$(CC) -c $(SFDCRSDR)/src/SingleFlowDCRBendersSolver.cpp -o $@ \
-	$(SFDCRINC) $(SMS++INC) $(SW)
+	$(SFDCRINC) $(SMS++INC) $(libMCFClINC) -I$(MILPINC) $(MCFClssSlvr) $(SW)
 
 ########################## End of makefile ###################################

@@ -8,6 +8,14 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
+ * \author Laura Galli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \author Luca Mencarelli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
  * \copyright &copy; by Antonio Frangioni
  */
 /*--------------------------------------------------------------------------*/
@@ -17,7 +25,6 @@
 /*--------------------------------------------------------------------------*/
 
 #include "SingleFlowDCRBlock.h"
-
 #include <iomanip>
 
 /*--------------------------------------------------------------------------*/
@@ -190,9 +197,9 @@ static void copyidx( std::vector< T > & vec , c_Subset & nms ,
 
 SMSpp_insert_in_factory_cpp_1( SingleFlowDCRBlock );
 
-// register MCFSolution to the Solution factory
+// register DCRSolution to the Solution factory
 
-SMSpp_insert_in_factory_cpp_0( MCFSolution );
+SMSpp_insert_in_factory_cpp_0( DCRSolution );
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------- METHODS OF SingleFlowDCRBlock --------------------------*/
@@ -200,10 +207,18 @@ SMSpp_insert_in_factory_cpp_0( MCFSolution );
 /*-------------------------- OTHER INITIALIZATIONS -------------------------*/
 /*--------------------------------------------------------------------------*/
 
+/*
 void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pEn , c_Subset & pSn ,
 		     c_Vec_FNumber & pU , c_Vec_CNumber & pC ,
 		     c_Vec_FNumber & pB , Index dn , Index dm ,
 		     Index mdn , Index mdm )
+*/
+
+void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pEn , c_Subset & pSn ,
+		     c_Vec_FNumber & pU , c_Vec_CNumber & pC ,
+		     Index dn , Index dm , Index mdn , Index mdm ,
+         c_Vec_FNumber & pNodeDelays , c_Vec_FNumber & pLinkDelays , c_Vec_FNumber & pFlowBursts , 
+         c_Vec_FNumber & pFlowDeadlines , c_Vec_FNumber & pMTU , c_Vec_FNumber & prho )
 {
  // sanity checks - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -219,8 +234,29 @@ void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pEn , c_Subset & p
  if( ( pU.size() > 0 ) && ( pU.size() < m ) )
   throw( std::invalid_argument( "pU nonempty but too small" ) );
 
+/*
  if( ( pB.size() > 0 ) && ( pB.size() < n ) )
   throw( std::invalid_argument( "pB nonempty but too small" ) );
+*/
+
+ if( ( pNodeDelays.size() > 0 ) && ( pNodeDelays.size() < n ) )
+  throw( std::invalid_argument( "pNodeDelays nonempty but too small" ) );
+
+ if( ( pLinkDelays.size() > 0 ) && ( pLinkDelays.size() < m ) )
+  throw( std::invalid_argument( "pLinkDelays nonempty but too small" ) );
+
+ if( ( pFlowBursts.size() > 0 ) && ( pFlowBursts.size() < 1 ) )
+  throw( std::invalid_argument( "pFlowBursts nonempty but too small" ) );
+
+ if( ( pFlowDeadlines.size() > 0 ) && ( pFlowDeadlines.size() < 1 ) )
+  throw( std::invalid_argument( "pFlowDeadlines nonempty but too small" ) );
+
+ if( ( pMTU.size() > 0 ) && ( pMTU.size() < 1 ) )
+  throw( std::invalid_argument( "pMTU nonempty but too small" ) );
+
+ if( ( prho.size() > 0 ) && ( prho.size() < 1 ) )
+  throw( std::invalid_argument( "prho nonempty but too small" ) );
+
 
  // erase previous instance, if any- - - - - - - - - - - - - - - - - - - - - -
 
@@ -265,6 +301,7 @@ void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pEn , c_Subset & p
  else
   U.clear();
 
+/*
  if( std::any_of( pB.begin() , pB.begin() + n ,
 		  []( c_FNumber bi ) { return( bi != 0 ); } ) ) {
   B.resize( MaxNNodes );
@@ -272,6 +309,55 @@ void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pEn , c_Subset & p
   }
  else
   B.clear();
+*/
+
+ if( std::any_of( pNodeDelays.begin() , pNodeDelays.begin() + n ,
+		  []( c_FNumber NodeDelaysi ) { return( NodeDelaysi < Inf< FNumber >() ); } ) ) {
+  NodeDelays.resize( MaxNNodes );
+  std::copy( pNodeDelays.begin() , pNodeDelays.begin() + n , NodeDelays.begin() );
+  }
+ else
+  NodeDelays.clear();
+
+ if( std::any_of( pLinkDelays.begin() , pLinkDelays.begin() + m ,
+		  []( c_FNumber LinkDelaysi ) { return( LinkDelaysi < Inf< FNumber >() ); } ) ) {
+  LinkDelays.resize( MaxNArcs );
+  std::copy( pLinkDelays.begin() , pLinkDelays.begin() + m , LinkDelays.begin() );
+  }
+ else
+  LinkDelays.clear();
+
+ if( std::any_of( pFlowBursts.begin() , pFlowBursts.begin() + 1 ,
+		  []( c_FNumber FlowBurstsi ) { return( FlowBurstsi < Inf< FNumber >() ); } ) ) {
+  FlowBursts.resize( 1 );
+  std::copy( pFlowBursts.begin() , pFlowBursts.begin() + m , FlowBursts.begin() );
+  }
+ else
+  FlowBursts.clear();
+
+ if( std::any_of( pFlowDeadlines.begin() , pFlowDeadlines.begin() + 1 ,
+		  []( c_FNumber FlowDeadlinesi ) { return( FlowDeadlinesi < Inf< FNumber >() ); } ) ) {
+  FlowDeadlines.resize( 1 );
+  std::copy( pFlowDeadlines.begin() , pFlowDeadlines.begin() + m , FlowDeadlines.begin() );
+  }
+ else
+  FlowDeadlines.clear();
+
+ if( std::any_of( pMTU.begin() , pMTU.begin() + 1 ,
+		  []( c_FNumber MTUi ) { return( MTUi < Inf< FNumber >() ); } ) ) {
+  MTU.resize( 1 );
+  std::copy( pMTU.begin() , pMTU.begin() + m , MTU.begin() );
+  }
+ else
+  MTU.clear();
+
+ if( std::any_of( prho.begin() , prho.begin() + 1 ,
+		  []( c_FNumber rhoi ) { return( rhoi < Inf< FNumber >() ); } ) ) {
+  rho.resize( 1 );
+  std::copy( prho.begin() , prho.begin() + m , rho.begin() );
+  }
+ else
+  MTU.clear();
 
  // allocate flow variables - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -336,6 +422,7 @@ void SingleFlowDCRBlock::load( std::istream & input , char frmt )
  // read problem data - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  Index i = 0;  // arc counter
+ int jdeficit = 0; // deficit counter
  for(;;) {
   if( ! ( input >> eatDMXcomments >> c ) )  // read next descriptor
    break;                                   // if none, end
@@ -348,12 +435,22 @@ void SingleFlowDCRBlock::load( std::istream & input , char frmt )
 
     if( ( j < 1 ) || ( j > NNodes ) )
      throw( std::invalid_argument( "invalid node name" ) );
-
+    
     FNumber Dfctj;
     if( ! ( input >> Dfctj ) )
      throw( std::invalid_argument( "error reading deficit" ) );
 
-    B[ j - 1 ] -= Dfctj;
+    //B[ j - 1 ] -= Dfctj;
+
+    if( Dfctj > 0 )
+     B[ j - 1 ] -= 1;
+    if( Dfctj < 0 )
+     B[ j - 1 ] -= -1;
+
+    if( jdeficit > 1 )
+     throw( std::invalid_argument( "too many deficits" ) );
+    
+    jdeficit++;
     break;
 
    case( 'a' ):  // description of an arc
@@ -390,8 +487,10 @@ void SingleFlowDCRBlock::load( std::istream & input , char frmt )
     if( LB > 0 ) {
      if( U[ i ] < Inf< SingleFlowDCRBlock::FNumber >() )
       U[ i ] -= LB;
+     /*
      B[ SN[ i ] - 1 ] += LB;
      B[ EN[ i ] - 1 ] -= LB;
+     */
      }
     i++;
     break; 
@@ -430,6 +529,9 @@ void SingleFlowDCRBlock::load( std::istream & input , char frmt )
    C[ j ] = 0;
    }
 
+ //const char *const FN = 0;
+ //load_dcr( FN , NNodes, NArcs );
+
  // issue Modification- - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // note: this is a NBModification, the "nuclear option"
 
@@ -437,6 +539,62 @@ void SingleFlowDCRBlock::load( std::istream & input , char frmt )
   add_Modification( std::make_shared< NBModification >( this ) );
 
  }  // end( SingleFlowDCRBlock::load( istream ) )
+
+/*--------------------------------------------------------------------------*/
+
+void SingleFlowDCRBlock::load_dcr( std::istream & inFile , Index NNodes, Index NArcs )
+{
+ // read file .dcr (parameters for DCR part of the problem)
+ /*
+ int l = strlen( FN );
+ char *Name = new char[ l + 5 ];  // temporary string containing the constant
+ strcpy( Name , FN );             // part of the pathname + space for `.dcr'
+ strcpy( Name + l , ".dcr" );
+
+ std::ifstream inFile( Name );
+ if( ! inFile.is_open() )
+	throw( std::invalid_argument( "invalid cannot open .dcr file" ) );
+ */	
+
+ NodeDelays.resize( NNodes );
+ LinkDelays.resize( NArcs );
+ FlowBursts.resize( 1 );
+ FlowDeadlines.resize( 1 );
+ MTU.resize( 1 );
+ rho.resize( 1 );
+
+ Index i,j;
+ //read node delays
+ for(i = 0; i < NNodes; i++){
+  if( ! ( inFile >> NodeDelays[ i ] ) )
+     throw( std::invalid_argument( "error reading node delays" ) );
+ }
+
+ //read link delays
+ for(j = 0; j < NArcs; j++){
+  if( ! ( inFile >> LinkDelays[ j ] ) )
+     throw( std::invalid_argument( "error reading link delays" ) );
+ }
+ 		
+ //read flow burst and deadlines
+ if( ! ( inFile >> FlowBursts[ 0 ] ) )
+     throw( std::invalid_argument( "error reading flow bursts" ) );
+
+ if( ! ( inFile >> FlowDeadlines[ 0 ] ) )
+     throw( std::invalid_argument( "error reading flow deadlines" ) ); 
+			
+//read MTU;
+ if( ! ( inFile >> MTU[ 0 ] ) )
+     throw( std::invalid_argument( "error reading MTU" ) ); 
+
+//read rho;
+ if( ! ( inFile >> rho[ 0 ] ) )
+     throw( std::invalid_argument( "error reading rho" ) ); 
+
+ //inFile.close();
+ //delete [] Name;
+
+} // end SingleFlowDCRBlock::load_dcr( const char *const FN , int NNodes, int NArcs )
 
 /*--------------------------------------------------------------------------*/
 
@@ -518,7 +676,7 @@ void SingleFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
 		   []( c_FNumber ui ) { return( ui == Inf< FNumber >() ); } ) )
    U.clear();
   }
-
+/*
  netCDF::NcVar dfc = group.getVar( "B" );
  if( ! dfc.isNull() ) {
   B.resize( MaxNNodes );
@@ -528,7 +686,7 @@ void SingleFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
 		   []( c_FNumber bi ) { return( bi == 0 ); } ) )
    B.clear();
   }
-
+*/
  f_cond_lower = dNAN;  // reset conditional bounds
 
  // allocate flow variables - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -564,6 +722,28 @@ void SingleFlowDCRBlock::generate_abstract_variables( Configuration *stvv )
    var.is_positive( true , eNoBlck );
 
   add_static_variable( x );
+
+  r.resize( get_NStaticArcs() );
+  for( auto & var : r )
+   var.is_positive( true , eNoBlck );
+
+  add_static_variable( r );
+
+  theta.resize( get_NStaticArcs() );
+  for( auto & var : theta )
+   var.is_positive( true , eNoBlck );
+
+  r_min.resize( 1 );
+  for( auto & var : r )
+   var.is_positive( true , eNoBlck );
+
+  add_static_variable( r_min );
+
+  theta_min.resize( 1 );
+  for( auto & var : theta_min )
+   var.is_positive( true , eNoBlck );
+
+  add_static_variable( theta );
   }
 
  if( MayHaveDynX() ) {
@@ -572,11 +752,57 @@ void SingleFlowDCRBlock::generate_abstract_variables( Configuration *stvv )
    var.is_positive( true , eNoBlck );
 
   add_dynamic_variable( dx );
+
+  dr.resize( get_NArcs() - get_NStaticArcs() );
+  for( auto & var : dr )
+   var.is_positive( true , eNoBlck );
+
+  add_dynamic_variable( dr );
+
+  dtheta.resize( get_NArcs() - get_NStaticArcs() );
+  for( auto & var : dtheta )
+   var.is_positive( true , eNoBlck );
+
+  add_dynamic_variable( dtheta );
   } 
 
  AR |= HasVar;
 
  }  // end( SingleFlowDCRBlock::generate_abstract_variables )
+
+/*--------------------------------------------------------------------------*/
+
+void SingleFlowDCRBlock::generate_dynamic_constraints( Configuration *stcc )
+{
+ int j;
+
+ for(j = 0; j < NArcs; j++){
+  std::list< FRowConstraint > cut( 1 ); 
+  LinearFunction::v_coeff_pair v_var;
+  v_var.push_back( std::make_pair( &theta[ j ] , -MTU[ 0 ] ));
+  v_var.push_back( std::make_pair( &x[j] , 2 * x[j].get_value() /  r[j].get_value() ));
+  v_var.push_back( std::make_pair( &r[j] , - (std::pow( x[j].get_value() , 2 ) / std::pow( r[j].get_value() , 2))));
+  LinearFunction* Funct = new LinearFunction( std::move( v_var ));
+  cut.front().set_lhs( -Inf< double >() );
+  cut.front().set_rhs( 0.0 ); 
+  cut.front().set_function( Funct );
+  add_dynamic_constraints( PC_cuts , cut , eNoBlck );
+
+  std::list< FRowConstraint > cut_min( 1 ); 
+  LinearFunction::v_coeff_pair v_var_min;
+  v_var_min.push_back( std::make_pair( &theta_min[ 0 ] , -1.0 ));
+  v_var_min.push_back( std::make_pair( &r_min[ 0 ] , ( 1.0 / std::pow( r[j].get_value() , 2))));
+  LinearFunction* Funct_min = new LinearFunction( std::move( v_var_min ));
+  cut_min.front().set_lhs( -Inf< double >() );
+  cut_min.front().set_rhs( ( FlowBursts[ 0 ] - 1.0 ) / r_min[0].get_value() ); 
+  cut_min.front().set_function( Funct_min );
+  add_dynamic_constraints( PC_cuts , cut_min , eNoBlck );
+  }
+ add_dynamic_constraint( PC_cuts , "PC_DCR_cuts" );
+
+ std::cout << " WITH DCR CONSTRAINTS ";
+
+ }// end( SingleFlowDCRBlock::generate_dynamic_constraints )
 
 /*--------------------------------------------------------------------------*/
 
@@ -655,6 +881,22 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
   AR |= HasFlw;
   }
 
+ // generate the DCR constraint- - - - - - - - - - - - - - - - - - - - - -
+ 
+ DCR_cnst.resize( 1 );
+ LinearFunction::v_coeff_pair v_var;
+ for( Index j = 0 ; j < get_NArcs() ; ++j ) {
+  v_var.push_back( std::make_pair( &theta[ j ] , 1.0 ));
+  v_var.push_back( std::make_pair( &x[ j ] , LinkDelays[ j ] ));
+  }
+ LinearFunction* Funct = new LinearFunction( std::move( v_var ));
+ DCR_cnst.front().set_lhs( FlowDeadlines[ 0 ] );
+ DCR_cnst.front().set_rhs( 0.0 ); 
+ DCR_cnst.front().set_function( Funct );
+ 
+ add_dynamic_constraint( DCR_cnst );
+
+
  // generate the bound constraints- - - - - - - - - - - - - - - - - - - - - -
 
  if( AR & HasBnd )  // bound constraints there already
@@ -674,6 +916,22 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
    return;
   }
 
+  double U_max = 0.0 ;
+  for( Index i = 0 ; i < get_NStaticArcs() ; ++i )
+    U_max = std::max( U_max , U[ i ] );
+
+  UB_rmin.resize( 1 );
+  UB_rmin[ 0 ].set_variable( & r_min[ 0 ] , eNoBlck );
+  UB_rmin[ 0 ].set_rhs( U_max , eNoBlck );
+
+  add_static_constraint( UB_rmin );
+
+  LB_rmin.resize( 1 );
+  LB_rmin[ 0 ].set_variable( & r_min[ 0 ] , eNoBlck );
+  LB_rmin[ 0 ].set_lhs( rho[ 0 ] , eNoBlck );
+
+  add_static_constraint( LB_rmin );
+
  // static part
  if( HasStaticX() ) {
   UB.resize( get_NStaticArcs() );
@@ -681,7 +939,7 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
    UB[ i ].set_variable( & x[ i ] , eNoBlck );
    UB[ i ].set_rhs( U[ i ] , eNoBlck );
    }
-
+  
   add_static_constraint( UB );
   }
 
@@ -694,7 +952,7 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
   for( auto & cnst : dUB ) {
    cnst.set_variable( &(*(dxi++)) , eNoBlck );
    cnst.set_rhs( *(ui++) , eNoBlck );
-   }
+  }
 
   add_dynamic_constraint( dUB );
   }
@@ -721,23 +979,23 @@ void SingleFlowDCRBlock::generate_objective( Configuration *objc )
  // construct a "dense" LinearFunction- - - - - - - - - - - - - - - - - - - -
 
  Index i = 0;
- auto Cit = C.begin();
+ //auto Cit = C.begin();
 
  // static part
  if( HasStaticX() )
   for( ; i < get_NStaticArcs() ; ++i ) {
-   p[ i ].first = &x[ i ];
-   auto ci = *(Cit++);
-   p[ i ].second = std::isnan( ci ) ? 0 : ci;
+   p[ i ].first = &r[ i ];
+   //auto ci = *(Cit++);
+   p[ i ].second = 1.0; //std::isnan( ci ) ? 0 : ci;
    }
 
  // dynamic part
  if( HasDynamicX() ) {
-  auto dxi = dx.begin();
-  for( ; i < get_NArcs() ; ++i ) {
-   p[ i ].first = &(*(dxi++));
-   auto ci = *(Cit++);
-   p[ i ].second = std::isnan( ci ) ? 0 : ci;
+  auto dri = dr.begin();
+  for( ; i < get_NArcs() - get_NStaticArcs() ; ++i ) {
+   p[ i ].first = &(*(dri++));
+   //auto ci = *(Cit++);
+   p[ i ].second = 1.0; //std::isnan( ci ) ? 0 : ci;
    }
   }
 
@@ -774,13 +1032,14 @@ bool SingleFlowDCRBlock::flow_feasible( c_FNumber feps , bool useabstract )
   // do it using the physical representation- - - - - - - - - - - - - - - - -
 
   Index i = 0;
-  Vec_FNumber tB = B;
+  
+  //Vec_FNumber tB = B;
 
   // static part
   for( ; i < get_NStaticArcs() ; ++i ) {
    c_FNumber xi = x[ i ].get_value();
-   tB[ SN[ i ] - 1 ] += xi;
-   tB[ EN[ i ] - 1 ] -= xi;
+   //tB[ SN[ i ] - 1 ] += xi;
+   //tB[ EN[ i ] - 1 ] -= xi;
    }
 
   // dynamic part
@@ -789,17 +1048,18 @@ bool SingleFlowDCRBlock::flow_feasible( c_FNumber feps , bool useabstract )
    for( ; i < get_NArcs() ; ++i , ++dxi )
     if( ! is_deleted( i ) ) {
      c_FNumber xi = dxi->get_value();
-     tB[ SN[ i ] - 1 ] += xi;
-     tB[ EN[ i ] - 1 ] -= xi;
+     //tB[ SN[ i ] - 1 ] += xi;
+     //tB[ EN[ i ] - 1 ] -= xi;
      }
    }
-
+  /*
   for( Index i = 0 ; i < get_NNodes() ; ++i ) {
    c_FNumber slck = B[ i ] == 0 ? std::abs( tB[ i ] )
                                 : std::abs( tB[ i ] / B[ i ] );
    if( slck > feps )
     return( false );
    }
+  */
   }
 
  return( true );
@@ -1188,22 +1448,31 @@ Block * SingleFlowDCRBlock::get_R3_Block( Configuration *r3bc , Block * base  ,
  if( r3bc != nullptr )
   throw( std::invalid_argument( "non-nullptr R3B Configuration" ) );
 
- SingleFlowDCRBlock *MCFB;
+ SingleFlowDCRBlock *DCRB;
  if( base ) {
-  MCFB = dynamic_cast< SingleFlowDCRBlock * >( base );
-  if( ! MCFB )
+  DCRB = dynamic_cast< SingleFlowDCRBlock * >( base );
+  if( ! DCRB )
    throw( std::invalid_argument( "base is not a SingleFlowDCRBlock" ) );
   }
  else
-  MCFB = new SingleFlowDCRBlock( father );
+  DCRB = new SingleFlowDCRBlock( father );
 
- MCFB->load( get_NNodes() , get_NArcs() , EN , SN , U , C , B ,
+/*
+ DCRB->load( get_NNodes() , get_NArcs() , EN , SN , U , C , B ,
 	     get_NNodes() - get_NStaticNodes() ,
 	     get_NArcs() - get_NStaticArcs() ,
 	     get_MaxNNodes() - get_NStaticNodes() ,
 	     get_MaxNArcs() - get_NStaticArcs() );
+*/
+
+ DCRB->load( get_NNodes() , get_NArcs() , EN , SN , U , C ,
+	     get_NNodes() - get_NStaticNodes() ,
+	     get_NArcs() - get_NStaticArcs() ,
+	     get_MaxNNodes() - get_NStaticNodes() ,
+	     get_MaxNArcs() - get_NStaticArcs() ,
+       NodeDelays , LinkDelays , FlowBursts , FlowDeadlines );
  
- return( MCFB );
+ return( DCRB );
 
  }  // end( SingleFlowDCRBlock::get_R3_Block )
 
@@ -1215,8 +1484,8 @@ void SingleFlowDCRBlock::map_back_solution( Block *R3B , Configuration *r3bc ,
  // process Configuration - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
- auto MCFB = dynamic_cast< SingleFlowDCRBlock * >( R3B );
- if( ! MCFB )
+ auto DCRB = dynamic_cast< SingleFlowDCRBlock * >( R3B );
+ if( ! DCRB )
   throw( std::invalid_argument( "R3B is not a SingleFlowDCRBlock" ) );
  if( r3bc != nullptr )
   throw( std::invalid_argument( "non-nullptr R3B Configuration" ) );
@@ -1234,23 +1503,23 @@ void SingleFlowDCRBlock::map_back_solution( Block *R3B , Configuration *r3bc ,
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  if( ( wsol != 2 ) && ( AR & HasVar ) ) {  // ... if any
-  if( MCFB->get_NStaticArcs() != get_NStaticArcs() )
+  if( DCRB->get_NStaticArcs() != get_NStaticArcs() )
    throw( std::invalid_argument( "incompatible static flow size" ) );
 
   // static part
   if( HasStaticX() )
-   for( auto xi = x.begin() , r3bxi = MCFB->x.begin() ; xi != x.end() ;
+   for( auto xi = x.begin() , r3bxi = DCRB->x.begin() ; xi != x.end() ;
 	++xi , ++r3bxi )
     if( ! xi->is_fixed() )
      xi->set_value( r3bxi->get_value() );
  
   // dynamic part
-  // note that if MCFB->dx is longer than this->dx the last part is
+  // note that if DCRB->dx is longer than this->dx the last part is
   // ignored, while if the converse happens it is filled with zeros
   if( HasDynamicX() ) {
    auto dxi = dx.begin();
-   for( auto r3bdxi = MCFB->dx.begin() ;
-	( dxi != dx.end() ) && ( r3bdxi != MCFB->dx.end() ) ;
+   for( auto r3bdxi = DCRB->dx.begin() ;
+	( dxi != dx.end() ) && ( r3bdxi != DCRB->dx.end() ) ;
 	++dxi , ++r3bdxi )
     if( ! dxi->is_fixed() )
      dxi->set_value( r3bdxi->get_value() );
@@ -1268,22 +1537,22 @@ void SingleFlowDCRBlock::map_back_solution( Block *R3B , Configuration *r3bc ,
 
   // map back the potentials- - - - - - - - - - - - - - - - - - - - - - - - -
 
-  if( MCFB->get_NStaticNodes() != get_NStaticNodes() )
+  if( DCRB->get_NStaticNodes() != get_NStaticNodes() )
    throw( std::invalid_argument( "incompatible static potential size" ) );
 
   // static part
   if( HasStaticE() )
-   for( auto ei = E.begin() , r3bei = MCFB->E.begin() ; ei != E.end() ; )
+   for( auto ei = E.begin() , r3bei = DCRB->E.begin() ; ei != E.end() ; )
     (ei++)->set_dual( (r3bei++)->get_dual() );
  
   // dynamic part
-  // note that if MCFB->dE is longer than this->dE the last part is
+  // note that if DCRB->dE is longer than this->dE the last part is
   // ignored, while if the converse happens it is filled with zeros
   if( HasDynamicE() ) {
    auto dei = dE.begin();
 
-   for( auto r3bdei = MCFB->dE.begin() ;
-	( dei != dE.end() ) && ( r3bdei != MCFB->dE.end() ) ; )
+   for( auto r3bdei = DCRB->dE.begin() ;
+	( dei != dE.end() ) && ( r3bdei != DCRB->dE.end() ) ; )
     (dei++)->set_dual( (r3bdei++)->get_dual() );
  
    while( dei != dE.end() )
@@ -1292,31 +1561,31 @@ void SingleFlowDCRBlock::map_back_solution( Block *R3B , Configuration *r3bc ,
 
   // map back the reduced costs - - - - - - - - - - - - - - - - - - - - - - -
 
-  if( MCFB->get_NStaticArcs() != get_NStaticArcs() )
+  if( DCRB->get_NStaticArcs() != get_NStaticArcs() )
    throw( std::invalid_argument( "incompatible static reduced cost size" ) );
 
   // static part
   if( HasStaticX() && ( ! UB.empty() ) ) {
-   if( MCFB->UB.empty() ) {
+   if( DCRB->UB.empty() ) {
     for( auto & cnst : UB )
      cnst.set_dual();
     }
    else
-    for( auto drci = UB.begin() , r3bdrci = MCFB->UB.begin() ;
+    for( auto drci = UB.begin() , r3bdrci = DCRB->UB.begin() ;
 	 drci != UB.end() ; )
       (drci++)->set_dual( (r3bdrci++)->get_dual() );
    }
 
   // dynamic part
   if( HasDynamicX() && ( ! dUB.empty() ) ) {
-   if( MCFB->dUB.empty() ) {
+   if( DCRB->dUB.empty() ) {
     for( auto & cnst : dUB )
      cnst.set_dual();
     }
    else {
     auto drci = dUB.begin();
-    for( auto r3bdrci = MCFB->dUB.begin() ;
-	 ( drci != dUB.end() ) && ( r3bdrci != MCFB->dUB.end() ) ;
+    for( auto r3bdrci = DCRB->dUB.begin() ;
+	 ( drci != dUB.end() ) && ( r3bdrci != DCRB->dUB.end() ) ;
 	 ++drci , ++r3bdrci )
      drci->set_dual( r3bdrci->get_dual() );
  
@@ -1335,8 +1604,8 @@ void SingleFlowDCRBlock::map_forward_solution( Block *R3B , Configuration *r3bc 
  // process Configuration - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
- auto MCFB = dynamic_cast< SingleFlowDCRBlock * >( R3B );
- if( ! MCFB )
+ auto DCRB = dynamic_cast< SingleFlowDCRBlock * >( R3B );
+ if( ! DCRB )
   throw( std::invalid_argument( "R3B is not a SingleFlowDCRBlock" ) );
  if( r3bc != nullptr )
   throw( std::invalid_argument( "non-nullptr R3B Configuration" ) );
@@ -1354,28 +1623,28 @@ void SingleFlowDCRBlock::map_forward_solution( Block *R3B , Configuration *r3bc 
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  if( ( wsol != 1 ) && ( AR & HasFlw ) ) {  // ... if any
-  if( MCFB->get_NStaticArcs() != get_NStaticArcs() )
+  if( DCRB->get_NStaticArcs() != get_NStaticArcs() )
    throw( std::invalid_argument( "incompatible static flow size" ) );
 
   // static part
-  if( MCFB->HasStaticX() )
-   for( auto xi = x.begin() , r3bxi = MCFB->x.begin() ; xi != x.end() ;
+  if( DCRB->HasStaticX() )
+   for( auto xi = x.begin() , r3bxi = DCRB->x.begin() ; xi != x.end() ;
 	++xi , ++r3bxi )
     if( ! r3bxi->is_fixed() )
      r3bxi->set_value( xi->get_value() );
  
   // dynamic part
-  // note that if this->dx is longer than MCFB->dx the last part is
+  // note that if this->dx is longer than DCRB->dx the last part is
   // ignored, while if the converse happens it is filled with zeros
-  if( MCFB->HasDynamicX() ) {
-   auto r3bdxi = MCFB->dx.begin();
+  if( DCRB->HasDynamicX() ) {
+   auto r3bdxi = DCRB->dx.begin();
    for( auto dxi = dx.begin();
-	( dxi != dx.end() ) && ( r3bdxi != MCFB->dx.end() ) ;
+	( dxi != dx.end() ) && ( r3bdxi != DCRB->dx.end() ) ;
 	++dxi , ++r3bdxi )
     if( ! r3bdxi->is_fixed() )
      r3bdxi->set_value( dxi->get_value() );
 
-   for( ; r3bdxi != MCFB->dx.end() ; ++r3bdxi )
+   for( ; r3bdxi != DCRB->dx.end() ; ++r3bdxi )
     if( ! r3bdxi->is_fixed() )
      r3bdxi->set_value();
    }
@@ -1387,59 +1656,59 @@ void SingleFlowDCRBlock::map_forward_solution( Block *R3B , Configuration *r3bc 
  if( ( wsol != 1 ) && ( AR & HasFlw ) ) {  // ... if any
   // map forward the potentials - - - - - - - - - - - - - - - - - - - - - - -
 
-  if( MCFB->get_NStaticNodes() != get_NStaticNodes() )
+  if( DCRB->get_NStaticNodes() != get_NStaticNodes() )
    throw( std::invalid_argument( "incompatible static potential size" ) );
 
   // static part
-  if( MCFB->HasStaticE() )
-   for( auto ei = E.begin() , r3bei = MCFB->E.begin() ; ei != E.end() ; )
+  if( DCRB->HasStaticE() )
+   for( auto ei = E.begin() , r3bei = DCRB->E.begin() ; ei != E.end() ; )
     (r3bei++)->set_dual( (ei++)->get_dual() );
  
   // dynamic part
-  // note that if this->dE is longer than MCFB->dE the last part is
+  // note that if this->dE is longer than DCRB->dE the last part is
   // ignored, while if the converse happens it is filled with zeros
-  if( MCFB->HasDynamicE() ) {
-   auto r3bdei = MCFB->dE.begin();
+  if( DCRB->HasDynamicE() ) {
+   auto r3bdei = DCRB->dE.begin();
 
    for( auto dei = dE.begin() ;
-	( dei != dE.end() ) && ( r3bdei != MCFB->dE.end() ) ; )
+	( dei != dE.end() ) && ( r3bdei != DCRB->dE.end() ) ; )
     (r3bdei++)->set_dual( (dei++)->get_dual() );
  
-   while( r3bdei != MCFB->dE.end() )
+   while( r3bdei != DCRB->dE.end() )
     (r3bdei++)->set_dual( 0 );
    }
 
   // map forward the reduced costs- - - - - - - - - - - - - - - - - - - - - -
 
-  if( MCFB->get_NStaticArcs() != get_NStaticArcs() )
+  if( DCRB->get_NStaticArcs() != get_NStaticArcs() )
    throw( std::invalid_argument( "incompatible static reduced cost size" ) );
 
   // static part
-  if( MCFB->HasStaticX() && ( ! MCFB->UB.empty() ) ) {
+  if( DCRB->HasStaticX() && ( ! DCRB->UB.empty() ) ) {
    if( UB.empty() ) {
-    for( auto & cnst : MCFB->UB )
+    for( auto & cnst : DCRB->UB )
      cnst.set_dual( 0 );
     }
    else
-    for( auto drci = UB.begin() , r3bdrci = MCFB->UB.begin() ;
+    for( auto drci = UB.begin() , r3bdrci = DCRB->UB.begin() ;
 	 drci != UB.end() ; )
       (r3bdrci++)->set_dual( (drci++)->get_dual() );
    }
 
   // dynamic part
-  if( MCFB->HasDynamicX() && ( ! MCFB->dUB.empty() ) ) {
+  if( DCRB->HasDynamicX() && ( ! DCRB->dUB.empty() ) ) {
    if( UB.empty() ) {
-    for( auto & cnst : MCFB->dUB )
+    for( auto & cnst : DCRB->dUB )
      cnst.set_dual( 0 );
     }
    else {
-    auto r3bdrci = MCFB->dUB.begin();
+    auto r3bdrci = DCRB->dUB.begin();
 
     for( auto drci = dUB.begin() ;
-	 ( drci != dUB.end() ) && ( r3bdrci != MCFB->dUB.end() ) ; )
+	 ( drci != dUB.end() ) && ( r3bdrci != DCRB->dUB.end() ) ; )
      (r3bdrci++)->set_dual( (drci++)->get_dual() );
  
-    while( r3bdrci != MCFB->dUB.end() )
+    while( r3bdrci != DCRB->dUB.end() )
      (r3bdrci++)->set_dual( 0 );
     }
    }
@@ -1456,8 +1725,8 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
  if( mod->concerns_Block() )  // an abstract Modification
   return( false );            // none of my business
  
- auto MCFB = dynamic_cast< SingleFlowDCRBlock * >( R3B );
- if( ! MCFB )
+ auto DCRB = dynamic_cast< SingleFlowDCRBlock * >( R3B );
+ if( ! DCRB )
   throw( std::invalid_argument( "R3B is not a SingleFlowDCRBlock" ) );
  if( r3bc != nullptr )
   throw( std::invalid_argument( "non-nullptr R3B Configuration" ) );
@@ -1472,22 +1741,22 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
     "this" to use fields/methods of the class. */
 
  std::function< bool( c_p_Mod ) > guts_of_mfM;
- guts_of_mfM = [ this , & guts_of_mfM , & MCFB , & iPM , & iPA ]( c_p_Mod mod
+ guts_of_mfM = [ this , & guts_of_mfM , & DCRB , & iPM , & iPA ]( c_p_Mod mod
 								  ) {
   // process Modification- - - - - - - - - - - - - - - - - - - - - - - - - - -
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   /* This requires to patiently sift through the possible Modification types
      to find what this Modification exactly is, and call the appropriate
-     method of either MCFB, for a "physical Modification", or of the "abstract
-     representation" of MCFB for an "abstract Modification". */
+     method of either DCRB, for a "physical Modification", or of the "abstract
+     representation" of DCRB for an "abstract Modification". */
 
   //!! std::cout << *mod << std::endl;
   
   // GroupModification - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   if( auto tmod = dynamic_cast< const GroupModification * >( mod ) ) {
    // open or nest the two channels
-   iPM = make_par( par2mod( iPM ) , MCFB->open_channel( par2chnl( iPM ) ) );
-   iPA = make_par( par2mod( iPA ) , MCFB->open_channel( par2chnl( iPA ) ) );
+   iPM = make_par( par2mod( iPM ) , DCRB->open_channel( par2chnl( iPM ) ) );
+   iPA = make_par( par2mod( iPA ) , DCRB->open_channel( par2chnl( iPA ) ) );
 
    bool ok = true;
    for( const auto & submod : tmod->sub_Modifications() )
@@ -1495,8 +1764,8 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
      ok = false;
 
    // close or un-nest the channels
-   MCFB->close_channel( par2chnl( iPM ) );
-   MCFB->close_channel( par2chnl( iPA ) );
+   DCRB->close_channel( par2chnl( iPM ) );
+   DCRB->close_channel( par2chnl( iPA ) );
 
    return( ok );
    }
@@ -1512,26 +1781,26 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
     case( SingleFlowDCRBlockMod::eChgCost ):
      #ifndef NDEBUG
       if( ( tmod->rng().second > get_NArcs() ) ||
-	  ( tmod->rng().second > MCFB->get_NArcs() ) )
+	  ( tmod->rng().second > DCRB->get_NArcs() ) )
        throw( std::logic_error(
 		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
      #endif
      if( tmod->rng().second == tmod->rng().first + 1 )
-      MCFB->chg_cost( C[ tmod->rng().first ] , tmod->rng().first ,
+      DCRB->chg_cost( C[ tmod->rng().first ] , tmod->rng().first ,
 		      iPM , iPA );
      else
-      MCFB->chg_costs( C.begin() + tmod->rng().first , tmod->rng() ,
+      DCRB->chg_costs( C.begin() + tmod->rng().first , tmod->rng() ,
 		       iPM , iPA );
      break;
     case( SingleFlowDCRBlockMod::eChgCaps ):
      #ifndef NDEBUG
       if( ( tmod->rng().second > get_NArcs() ) ||
-	  ( tmod->rng().second > MCFB->get_NArcs() ) )
+	  ( tmod->rng().second > DCRB->get_NArcs() ) )
        throw( std::logic_error(
 		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
      #endif
      if( tmod->rng().second == tmod->rng().first + 1 )
-      MCFB->chg_ucap( U.empty() ? Inf< FNumber >() : U[ tmod->rng().first ] ,
+      DCRB->chg_ucap( U.empty() ? Inf< FNumber >() : U[ tmod->rng().first ] ,
 		      tmod->rng().first , iPM , iPA );
      else
       if( U.empty() ) {
@@ -1540,21 +1809,22 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
        for( Index i = tmod->rng().first ; i < tmod->rng().second ; ++i )
 	*(NCit++) = U[ i ];
 
-       MCFB->chg_ucaps( NCap.begin() , tmod->rng() , iPM , iPA );
+       DCRB->chg_ucaps( NCap.begin() , tmod->rng() , iPM , iPA );
        }
       else
-       MCFB->chg_ucaps( U.begin() + tmod->rng().first , tmod->rng() ,
+       DCRB->chg_ucaps( U.begin() + tmod->rng().first , tmod->rng() ,
 			iPM , iPA );
      break;
+    /*
     case( SingleFlowDCRBlockMod::eChgDfct ):
      #ifndef NDEBUG
       if( ( tmod->rng().second > get_NNodes() ) ||
-	  ( tmod->rng().second > MCFB->get_NNodes() ) )
+	  ( tmod->rng().second > DCRB->get_NNodes() ) )
        throw( std::logic_error(
 		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
      #endif
      if( tmod->rng().second == tmod->rng().first + 1 )
-      MCFB->chg_dfct( B.empty() ? 0 : B[ tmod->rng().first ] ,
+      DCRB->chg_dfct( B.empty() ? 0 : B[ tmod->rng().first ] ,
 		      tmod->rng().first , iPM , iPA );
      else
       if( B.empty() ) {
@@ -1563,35 +1833,36 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
        for( Index i = tmod->rng().first ; i < tmod->rng().second ; ++i )
 	*(NDit++) = B[ i ];
 
-       MCFB->chg_ucaps( NDfct.begin() , tmod->rng() , iPM , iPA );
+       DCRB->chg_ucaps( NDfct.begin() , tmod->rng() , iPM , iPA );
        }
       else
-       MCFB->chg_dfcts( B.begin() + tmod->rng().first , tmod->rng() ,
+       DCRB->chg_dfcts( B.begin() + tmod->rng().first , tmod->rng() ,
 			iPM , iPA );
      break;
+    */
     case( SingleFlowDCRBlockMod::eOpenArc ):
      #ifndef NDEBUG
       if( ( tmod->rng().second > get_NArcs() ) ||
-	  ( tmod->rng().second > MCFB->get_NArcs() ) )
+	  ( tmod->rng().second > DCRB->get_NArcs() ) )
        throw( std::logic_error(
 		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
      #endif
      if( tmod->rng().second == tmod->rng().first + 1 )
-      MCFB->open_arc( tmod->rng().first , iPM , iPA );
+      DCRB->open_arc( tmod->rng().first , iPM , iPA );
      else
-      MCFB->open_arcs( tmod->rng() , iPM , iPA );
+      DCRB->open_arcs( tmod->rng() , iPM , iPA );
      break;
     case( SingleFlowDCRBlockMod::eCloseArc ):
      #ifndef NDEBUG
       if( ( tmod->rng().second > get_NArcs() ) ||
-	  ( tmod->rng().second > MCFB->get_NArcs() ) )
+	  ( tmod->rng().second > DCRB->get_NArcs() ) )
        throw( std::logic_error(
 		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
      #endif
      if( tmod->rng().second == tmod->rng().first + 1 )
-      MCFB->close_arc( tmod->rng().first , iPM , iPA );
+      DCRB->close_arc( tmod->rng().first , iPM , iPA );
      else
-      MCFB->close_arcs( tmod->rng() , iPM , iPA );
+      DCRB->close_arcs( tmod->rng() , iPM , iPA );
      break;
     case( SingleFlowDCRBlockMod::eAddArc ):
      #ifndef NDEBUG
@@ -1599,7 +1870,7 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
        throw( std::logic_error(
 		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
      #endif
-     if( MCFB->add_arc( get_SN( tmod->rng().first ) ,
+     if( DCRB->add_arc( get_SN( tmod->rng().first ) ,
 			get_EN( tmod->rng().first ) ,
 			get_C( tmod->rng().first ) ,
 			get_U( tmod->rng().first ) , iPM , iPA )
@@ -1608,11 +1879,11 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
      break;
     case( SingleFlowDCRBlockMod::eRmvArc ):
      #ifndef NDEBUG
-      if( tmod->rng().first > MCFB->get_NArcs() )
+      if( tmod->rng().first > DCRB->get_NArcs() )
        throw( std::logic_error(
 		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
      #endif
-     MCFB->remove_arc( tmod->rng().second - 1 , iPM , iPA );
+     DCRB->remove_arc( tmod->rng().second - 1 , iPM , iPA );
      break;
     default:
      throw( std::invalid_argument( "unknown SingleFlowDCRBlockRngdMod type" ) );
@@ -1623,7 +1894,7 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
   // SingleFlowDCRBlockSbstMod - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   /* Note that tmod->nms() need be copied, since the chg_*() methods
    * *in principle* "consume" the names vector. This is actually not true
-   * if MCFB will *not* issue a physical modification, which one may
+   * if DCRB will *not* issue a physical modification, which one may
    * actually know beforehand, but it has to be done anyway because the
    * SingleFlowDCRBlockSbstMod only provides read-only access to the vector.
    * However, tmod->nms() is guaranteed to be ordered. */
@@ -1633,7 +1904,7 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
     case( SingleFlowDCRBlockMod::eChgCost ): {
      #ifndef NDEBUG
       if( ( tmod->nms().back() >= get_NArcs() ) ||
-	  ( tmod->nms().back() >= MCFB->get_NArcs() ) )
+	  ( tmod->nms().back() >= DCRB->get_NArcs() ) )
        throw( std::logic_error(
 		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
      #endif
@@ -1641,14 +1912,14 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
      for( Index i = 0 ; i < NCost.size() ; i++ )
       NCost[ i ] = C[ tmod->nms()[ i ] ];
 
-     MCFB->chg_costs( NCost.begin() , Subset( tmod->nms() ) , true ,
+     DCRB->chg_costs( NCost.begin() , Subset( tmod->nms() ) , true ,
 		      iPM , iPA );
      break;
      }
     case( SingleFlowDCRBlockMod::eChgCaps ): {
      #ifndef NDEBUG
       if( ( tmod->nms().back() >= get_NArcs() ) ||
-	  ( tmod->nms().back() >= MCFB->get_NArcs() ) )
+	  ( tmod->nms().back() >= DCRB->get_NArcs() ) )
        throw( std::logic_error(
 		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
      #endif
@@ -1657,14 +1928,15 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
       for( Index i = 0 ; i < NCap.size() ; i++ )
        NCap[ i ] = U[ tmod->nms()[ i ] ];
 
-     MCFB->chg_ucaps( NCap.begin() , Subset( tmod->nms() ) , true ,
+     DCRB->chg_ucaps( NCap.begin() , Subset( tmod->nms() ) , true ,
 		      iPM , iPA );
      break;
      }
+    /*
     case( SingleFlowDCRBlockMod::eChgDfct ): {
      #ifndef NDEBUG
       if( ( tmod->nms().back() >= get_NNodes() ) ||
-	  ( tmod->nms().back() >= MCFB->get_NNodes() ) )
+	  ( tmod->nms().back() >= DCRB->get_NNodes() ) )
        throw( std::logic_error(
 		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
      #endif
@@ -1673,27 +1945,28 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
       for( Index i = 0 ; i < NDfct.size() ; i++ )
        NDfct[ i ] = B[ tmod->nms()[ i ] ];
 
-     MCFB->chg_dfcts( NDfct.begin() , Subset( tmod->nms() ) , true ,
+     DCRB->chg_dfcts( NDfct.begin() , Subset( tmod->nms() ) , true ,
 		      iPM , iPA );
      break;
      }
+    */
     case( SingleFlowDCRBlockMod::eOpenArc ):
      #ifndef NDEBUG
       if( ( tmod->nms().back() >= get_NArcs() ) ||
-	  ( tmod->nms().back() >= MCFB->get_NArcs() ) )
+	  ( tmod->nms().back() >= DCRB->get_NArcs() ) )
        throw( std::logic_error(
 		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
      #endif
-    MCFB->open_arcs( Subset( tmod->nms() ) , true , iPM , iPA );
+    DCRB->open_arcs( Subset( tmod->nms() ) , true , iPM , iPA );
      break;
     case( SingleFlowDCRBlockMod::eCloseArc ):
      #ifndef NDEBUG
       if( ( tmod->nms().back() >= get_NArcs() ) ||
-	  ( tmod->nms().back() >= MCFB->get_NArcs() ) )
+	  ( tmod->nms().back() >= DCRB->get_NArcs() ) )
        throw( std::logic_error(
 		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
      #endif
-    MCFB->close_arcs( Subset( tmod->nms() ) , true , iPM , iPA );
+    DCRB->close_arcs( Subset( tmod->nms() ) , true , iPM , iPA );
      break;
     default:
      throw( std::invalid_argument( "unknown SingleFlowDCRBlockSbstMod type" ) );
@@ -1707,11 +1980,12 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
   // be otherwise, can it?
 
   if( auto tmod = dynamic_cast< const NBModification * >( mod ) ) {
-   MCFB->load( get_NNodes() , get_NArcs() , EN , SN , U , C , B ,
+   DCRB->load( get_NNodes() , get_NArcs() , EN , SN , U , C ,
 	       get_NNodes() - get_NStaticNodes() ,
 	       get_NArcs() - get_NStaticArcs() ,
 	       get_MaxNNodes() - get_NStaticNodes() ,
-	       get_MaxNArcs() - get_NStaticArcs() );
+	       get_MaxNArcs() - get_NStaticArcs() ,
+         NodeDelays , LinkDelays , FlowBursts , FlowDeadlines );
    return( true );
    }
 
@@ -1736,11 +2010,11 @@ bool SingleFlowDCRBlock::map_back_Modification( Block *R3B , c_p_Mod mod ,
   * back a Modification to this from R3B is the same as mapping forward a
   * Modification from R3B to this. */
 
- auto MCFB = dynamic_cast< SingleFlowDCRBlock * >( R3B );
- if( ! MCFB )
+ auto DCRB = dynamic_cast< SingleFlowDCRBlock * >( R3B );
+ if( ! DCRB )
   throw( std::invalid_argument( "R3B is not a SingleFlowDCRBlock" ) );
 
- return( MCFB->map_forward_Modification( this , mod , r3bc , issuePMod ,
+ return( DCRB->map_forward_Modification( this , mod , r3bc , issuePMod ,
 					 issueAMod ) );
 
  }  // end( SingleFlowDCRBlock::map_back_Modification )
@@ -1758,7 +2032,7 @@ Solution * SingleFlowDCRBlock::get_Solution( Configuration * solc , bool emptys 
  if( auto tsolc = dynamic_cast< SimpleConfiguration< int > * >( solc ) )
   wsol = tsolc->f_value;
 
- auto *sol = new MCFSolution();
+ auto *sol = new DCRSolution();
 
  if( wsol != 2 )
   sol->v_x.resize( get_NArcs() );
@@ -2124,6 +2398,7 @@ void SingleFlowDCRBlock::print( std::ostream  & output , char vlvl ) const
 	 << " arcs" << std::endl;
 
   if( ! vlvl ) {     // print the graph
+
    if( ! B.empty() )
     for( Index i = 0 ; i < get_NNodes() ; ++i )
      if( B[ i ] != 0 )
@@ -2155,7 +2430,7 @@ void SingleFlowDCRBlock::print( std::ostream  & output , char vlvl ) const
    for( Index i = 0 ; i < get_NNodes() ; ++i )
     if( B[ i ] != 0 )
      output << "n\t" << i + 1 << "\t" << - B[ i ] << std::endl;
-
+  
   // print arc descriptors in DIMACS standard format
   for( Index i = 0 ; i < get_NArcs() ; ++i ) {
    output << "a\t" << SN[ i ] << "\t" << EN[ i ] << "\t0\t";
@@ -2212,10 +2487,10 @@ void SingleFlowDCRBlock::serialize( netCDF::NcGroup & group ) const
 
  if( ! U.empty() )
   ( group.addVar( "U" , netCDF::NcDouble() , na ) ).putVar( U.data() );
-
+/*
  if( ! B.empty() )
   ( group.addVar( "B" , netCDF::NcDouble() , nn ) ).putVar( B.data() );
-
+*/
  }  // end( SingleFlowDCRBlock::serialize )
 
 /*--------------------------------------------------------------------------*/
@@ -2652,6 +2927,7 @@ void SingleFlowDCRBlock::chg_ucap( FNumber NCap , Index arc ,
 
 /*--------------------------------------------------------------------------*/
 
+/*
 void SingleFlowDCRBlock::chg_dfcts( c_Vec_CNumber_it NDfct , Range rng ,
 			  ModParam issueMod , ModParam issueAMod )
 {
@@ -2717,9 +2993,9 @@ void SingleFlowDCRBlock::chg_dfcts( c_Vec_CNumber_it NDfct , Range rng ,
  #endif
 
  }  // end( SingleFlowDCRBlock::chg_dfcts( range ) )
-
+*/
 /*--------------------------------------------------------------------------*/
-
+/*
 void SingleFlowDCRBlock::chg_dfcts( c_Vec_CNumber_it NDfct , Subset && nms ,
 			  bool ordered ,
 			  ModParam issueMod , ModParam issueAMod )
@@ -2831,9 +3107,9 @@ void SingleFlowDCRBlock::chg_dfcts( c_Vec_CNumber_it NDfct , Subset && nms ,
  #endif
 
  }  // end( SingleFlowDCRBlock::chg_dfcts( subset ) )
-
+*/
 /*--------------------------------------------------------------------------*/
-
+/*
 void SingleFlowDCRBlock::chg_dfct( FNumber NDfct , Index nde ,
 			 ModParam issueMod , ModParam issueAMod )
 {
@@ -2872,7 +3148,7 @@ void SingleFlowDCRBlock::chg_dfct( FNumber NDfct , Index nde ,
  #endif
 
  }  // end( SingleFlowDCRBlock::chg_dfct )
-
+*/
 /*--------------------------------------------------------------------------*/
 
 void SingleFlowDCRBlock::close_arcs( Range rng ,
@@ -3466,16 +3742,28 @@ void SingleFlowDCRBlock::guts_of_destructor( void )
  // clear the bound constraints
  Constraint::clear( UB );   // static
  Constraint::clear( dUB );  // dynamic
+ Constraint::clear( UBr );
+ Constraint::clear( dUBr );
 
  // clear the flow conservation constraints
  Constraint::clear( E );   // static
  Constraint::clear( dE );  // dynamic
+
+ Constraint::clear( UB_rmin );
+ Constraint::clear( PC_cuts );
+ Constraint::clear( DCR_cnst );
 
  c.clear();  // clear the Objective
 
  // delete all Variable
  dx.clear();  // dynamic
  x.clear();   // static
+ r.clear();
+ dr.clear();
+ theta.clear();
+ dtheta.clear();
+ r_min.clear();
+ theta_min.clear();
 
  // explicitly reset all Constraint and Variable
  // this is done for the case where this method is called prior to re-loading
@@ -3585,7 +3873,7 @@ void SingleFlowDCRBlock::guts_of_add_Modification( p_Mod mod , ChnlName chnl )
 	     make_par( eNoBlck , chnl ) , eDryRun );
    return;
    }
-
+/*  
   if( tmod->type() == RowConstraintMod::eChgBTS ) {
    auto cp = static_cast< FRowConstraint * const >( tmod->constraint() );
    if( ! cp )
@@ -3593,6 +3881,22 @@ void SingleFlowDCRBlock::guts_of_add_Modification( p_Mod mod , ChnlName chnl )
 
    chg_dfct( cp->get_rhs() , p2i_e( cp ) ,
 	     make_par( eNoBlck , chnl ) , eDryRun );
+   return;
+   }
+*/
+/*
+  if( tmod->type() == RowConstraintMod::eChgLHS ) {
+   std::cout << "LHS";
+   return;
+   }
+
+  if( tmod->type() == RowConstraintMod::eChgBTS ) {
+   std::cout << "BTS";  
+   return;
+   }
+*/
+
+  if( tmod->type() == RowConstraintMod::eRowConstModLastParam ) {
    return;
    }
 
@@ -3877,10 +4181,10 @@ void SingleFlowDCRBlock::CheckAbsVSPhys( void )
 #endif
 
 /*--------------------------------------------------------------------------*/
-/*-------------------------- METHODS OF MCFSolution ------------------------*/
+/*-------------------------- METHODS OF DCRSolution ------------------------*/
 /*--------------------------------------------------------------------------*/
 
-void MCFSolution::deserialize( const netCDF::NcGroup & group )
+void DCRSolution::deserialize( const netCDF::NcGroup & group )
 {
  netCDF::NcDim na = group.getDim( "NumArcs" );
  if( na.isNull() )
@@ -3907,85 +4211,85 @@ void MCFSolution::deserialize( const netCDF::NcGroup & group )
    ps.getVar( v_pi.data() );
    }
   }
- }  // end( MCFSolution::deserialize )
+ }  // end( DCRSolution::deserialize )
 
 /*--------------------------------------------------------------------------*/
 
-void MCFSolution::read( const Block * block )
+void DCRSolution::read( const Block * block )
 {
- auto MCFB = dynamic_cast< const SingleFlowDCRBlock * >( block );
- if( ! MCFB )
+ auto DCRB = dynamic_cast< const SingleFlowDCRBlock * >( block );
+ if( ! DCRB )
   throw( std::invalid_argument( "block is not a SingleFlowDCRBlock" ) );
 
  // read flows- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  if( ! v_x.empty() ) {
-  if( v_x.size() < MCFB->get_NArcs() )
-   v_x.resize( MCFB->get_NArcs() );
+  if( v_x.size() < DCRB->get_NArcs() )
+   v_x.resize( DCRB->get_NArcs() );
 
-  MCFB->get_x( v_x.begin() );
+  DCRB->get_x( v_x.begin() );
   }
 
  // read potentials - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- if( MCFB->E.empty() && MCFB->dE.empty() )  // no potentials available
+ if( DCRB->E.empty() && DCRB->dE.empty() )  // no potentials available
   return;
 
  if( ! v_pi.empty() ) {
-  if( v_pi.size() < MCFB->get_NNodes() )
-   v_pi.resize( MCFB->get_NNodes() );
+  if( v_pi.size() < DCRB->get_NNodes() )
+   v_pi.resize( DCRB->get_NNodes() );
 
-  MCFB->get_pi( v_pi.begin() );
+  DCRB->get_pi( v_pi.begin() );
   }
- }  // end( MCFSolution::read )
+ }  // end( DCRSolution::read )
 
 /*--------------------------------------------------------------------------*/
 
-void MCFSolution::write( Block * block ) 
+void DCRSolution::write( Block * block ) 
 {
- auto MCFB = dynamic_cast< SingleFlowDCRBlock * >( block );
- if( ! MCFB )
+ auto DCRB = dynamic_cast< SingleFlowDCRBlock * >( block );
+ if( ! DCRB )
   throw( std::invalid_argument( "block is not a SingleFlowDCRBlock" ) );
 
  // write flows - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  if( ! v_x.empty() ) {
-  if( v_x.size() < MCFB->get_NStaticArcs() )
+  if( v_x.size() < DCRB->get_NStaticArcs() )
    throw( std::invalid_argument( "incompatible flow size" ) );
 
-  MCFB->set_x( v_x.begin() );
+  DCRB->set_x( v_x.begin() );
   }
 
  // write potentials- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  if( v_pi.empty() )  // no potentials to write
   return;
 
- if( MCFB->E.empty() && MCFB->dE.empty() )  // no Constraint to write to
+ if( DCRB->E.empty() && DCRB->dE.empty() )  // no Constraint to write to
   return;
 
- if( v_pi.size() < MCFB->get_NStaticNodes() )
+ if( v_pi.size() < DCRB->get_NStaticNodes() )
   throw( std::invalid_argument( "incompatible potential size" ) );
 
- MCFB->set_pi( v_pi.begin() );
+ DCRB->set_pi( v_pi.begin() );
 
  // write reduced costs (if any)- - - - - - - - - - - - - - - - - - - - - - -
   
- if( MCFB->UB.empty() && MCFB->dUB.empty() )  // no bounds to write to
+ if( DCRB->UB.empty() && DCRB->dUB.empty() )  // no bounds to write to
   return;
 
  SingleFlowDCRBlock::Index i = 0;
 
  // static part
- for( auto ubi = MCFB->UB.begin() ; ubi != MCFB->UB.end() ; ++i )
-  (ubi++)->set_dual( MCFB->get_C( i ) + v_pi[ MCFB->SN[ i ] - 1 ]
-		                      - v_pi[ MCFB->EN[ i ] - 1 ] );
+ for( auto ubi = DCRB->UB.begin() ; ubi != DCRB->UB.end() ; ++i )
+  (ubi++)->set_dual( DCRB->get_C( i ) + v_pi[ DCRB->SN[ i ] - 1 ]
+		                      - v_pi[ DCRB->EN[ i ] - 1 ] );
  // dynamic part
- for( auto dubi = MCFB->dUB.begin() ;
-      ( dubi != MCFB->dUB.end() ) && ( i < MCFB->get_NArcs() ) ; ++i )
-  (dubi++)->set_dual( MCFB->get_C( i ) + v_pi[ MCFB->SN[ i ] - 1 ]
-		                       - v_pi[ MCFB->EN[ i ] - 1 ] );
- }  // end( MCFSolution::write )
+ for( auto dubi = DCRB->dUB.begin() ;
+      ( dubi != DCRB->dUB.end() ) && ( i < DCRB->get_NArcs() ) ; ++i )
+  (dubi++)->set_dual( DCRB->get_C( i ) + v_pi[ DCRB->SN[ i ] - 1 ]
+		                       - v_pi[ DCRB->EN[ i ] - 1 ] );
+ }  // end( DCRSolution::write )
 
 /*--------------------------------------------------------------------------*/
 
-void MCFSolution::serialize( netCDF::NcGroup & group ) const
+void DCRSolution::serialize( netCDF::NcGroup & group ) const
 {
  // always call the method of the base class first
  Solution::serialize( group );
@@ -4009,13 +4313,13 @@ void MCFSolution::serialize( netCDF::NcGroup & group ) const
  ( group.addVar( "Potentials" , netCDF::NcDouble() , nn ) ).putVar(
 					     startp , countpn , v_pi.data() );
  
- }  // end( MCFSolution::serialize )
+ }  // end( DCRSolution::serialize )
 
 /*--------------------------------------------------------------------------*/
 
-MCFSolution * MCFSolution::scale( double factor ) const
+DCRSolution * DCRSolution::scale( double factor ) const
 {
- auto * sol = MCFSolution::clone( true );
+ auto * sol = DCRSolution::clone( true );
 
  if( ! v_x.empty() )
   for( SingleFlowDCRBlock::Index i = 0 ; i < v_x.size() ; ++i )
@@ -4027,38 +4331,38 @@ MCFSolution * MCFSolution::scale( double factor ) const
 
  return( sol );
 
- }  // end( MCFSolution::scale )
+ }  // end( DCRSolution::scale )
 
 /*--------------------------------------------------------------------------*/
 
-void MCFSolution::sum( const Solution * solution , double multiplier )
+void DCRSolution::sum( const Solution * solution , double multiplier )
 {
- auto MCFS = dynamic_cast< const MCFSolution * >( solution );
- if( ! MCFS )
-  throw( std::invalid_argument( "solution is not a MCFSolution" ) );
+ auto DCRS = dynamic_cast< const DCRSolution * >( solution );
+ if( ! DCRS )
+  throw( std::invalid_argument( "solution is not a DCRSolution" ) );
 
  if( ! v_x.empty() ) {
-  if( v_x.size() != MCFS->v_x.size() )
+  if( v_x.size() != DCRS->v_x.size() )
    throw( std::invalid_argument( "incompatible flow size" ) );
 
   for( SingleFlowDCRBlock::Index i = 0 ; i < v_x.size() ; ++i )
-   v_x[ i ] += MCFS->v_x[ i ] * multiplier;
+   v_x[ i ] += DCRS->v_x[ i ] * multiplier;
   }
 
  if( ! v_pi.empty() ) {
-  if( v_pi.size() != MCFS->v_pi.size()  )
+  if( v_pi.size() != DCRS->v_pi.size()  )
    throw( std::invalid_argument( "incompatible potential size" ) );
 
   for( SingleFlowDCRBlock::Index i = 0 ; i < v_pi.size() ; ++i )
-   v_pi[ i ] += MCFS->v_pi[ i ] * multiplier;
+   v_pi[ i ] += DCRS->v_pi[ i ] * multiplier;
   }
- }  // end( MCFSolution::sum )
+ }  // end( DCRSolution::sum )
 
 /*--------------------------------------------------------------------------*/
 
-MCFSolution * MCFSolution::clone( bool empty ) const
+DCRSolution * DCRSolution::clone( bool empty ) const
 {
- auto *sol = new MCFSolution();
+ auto *sol = new DCRSolution();
 
  if( empty ) {
   if( ! v_x.empty() )
@@ -4074,7 +4378,7 @@ MCFSolution * MCFSolution::clone( bool empty ) const
 
  return( sol );
 
- }  // end( MCFSolution::clone )
+ }  // end( DCRSolution::clone )
 
 /*--------------------------------------------------------------------------*/
 /*------------------- End File SingleFlowDCRBlock.cpp ----------------------*/

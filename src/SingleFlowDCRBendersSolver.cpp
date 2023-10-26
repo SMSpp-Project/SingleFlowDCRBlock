@@ -22,6 +22,30 @@
 
 #include "SingleFlowDCRBendersSolver.h"
 
+#ifdef HAVE_CSCL2
+ #include "CS2.h"
+#endif
+
+#ifdef HAVE_CPLEX
+ #include "MCFCplex.h"
+#endif
+
+#ifdef HAVE_MFSMX
+ #include "MCFSimplex.h"
+#endif
+
+#ifdef HAVE_MFZIB
+ #include "MCFZIB.h"
+#endif
+
+#ifdef HAVE_RELAX
+ #include "RelaxIV.h"
+#endif
+
+#ifdef HAVE_SPTRE
+ #include "SPTree.h"
+#endif
+
 /*--------------------------------------------------------------------------*/
 /*------------------------- NAMESPACE AND USING ----------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -32,9 +56,31 @@ using namespace SMSpp_di_unipi_it;
 /*----------------------------- STATIC MEMBERS -----------------------------*/
 /*--------------------------------------------------------------------------*/
 
-// register SingleFlowDCRBendersSolver to the Solver factory
+// register the various MCFSolver< * > to the Solver factory
 
-SMSpp_insert_in_factory_cpp_0_t( SingleFlowDCRBendersSolver );
+#ifdef HAVE_CSCL2
+ SMSpp_insert_in_factory_cpp_0_t( SingleFlowDCRBendersSolver< CS2 > );
+#endif
+
+#ifdef HAVE_CPLEX
+ SMSpp_insert_in_factory_cpp_0_t( SingleFlowDCRBendersSolver< MCFCplex > );
+#endif
+
+#ifdef HAVE_MFSMX
+ SMSpp_insert_in_factory_cpp_0_t( SingleFlowDCRBendersSolver< MCFSimplex > );
+#endif
+
+#ifdef HAVE_MFZIB
+ SMSpp_insert_in_factory_cpp_0_t( SingleFlowDCRBendersSolver< MCFZIB > );
+#endif
+
+#ifdef HAVE_RELAX
+ SMSpp_insert_in_factory_cpp_0_t( SingleFlowDCRBendersSolver< RelaxIV > );
+#endif
+
+#ifdef HAVE_SPTRE
+ SMSpp_insert_in_factory_cpp_0_t( SingleFlowDCRBendersSolver< SPTree > );
+#endif
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
