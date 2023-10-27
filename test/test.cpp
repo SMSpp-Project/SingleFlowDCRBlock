@@ -8,6 +8,14 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
+ * \author Laura Galli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \author Luca Mencarelli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
  * \copyright &copy; by Antonio Frangioni
  */
 /*--------------------------------------------------------------------------*/
@@ -75,7 +83,8 @@ using namespace MCFClass_di_unipi_it;
 using namespace SMSpp_di_unipi_it;
 
 SingleFlowDCRBlock * oMCFB = nullptr;    // original SingleFlowDCRBlock
-MCFClass * mcf;                          // the MCFClass object
+
+/*--------------------------------------------------------------------------*/
 
 static void load( char * fn ){
 
@@ -84,8 +93,6 @@ static void load( char * fn ){
    cerr << "Can't open dmx file " << fn << endl;
    exit( 1 );
   }
-
- //mcf->LoadDMX( iFile );  // load the MCFClass
 
  iFile.clear();
  iFile.seekg( 0 );       // rewind the file
@@ -131,10 +138,6 @@ int main( int argc , char **argv )
  assert( oMCFB );
 
  load( argv[ 1 ] );
-
- oMCFB->generate_abstract_constraints();
- oMCFB->generate_dynamic_constraints();
- oMCFB->generate_objective();
  
  bsc->apply( oMCFB );
  bsc->clear();  // keep the clear()-ed BlockSolverConfig for final cleanup
@@ -148,6 +151,10 @@ int main( int argc , char **argv )
 
  Solver * slvr = oMCFB->get_registered_solvers().front();
  int rtrn = slvr->compute( false );
+ if( slvr->has_var_solution() ){
+  std::cout << "Feasible! \n";
+  std::cout << "Solution value: " << slvr->get_lb() << "\n";
+ }
  
  }  // end( main )
 

@@ -2188,8 +2188,11 @@ public:
  std::vector< FRowConstraint> E;   ///< the static flow conservation constrs.
  std::vector< LB0Constraint > UB;  ///< the static bound constraints on flow
  std::vector< LB0Constraint > UBr; ///< the static bound constraints on reserve
- std::vector< LB0Constraint > UB_rmin; ///< the static lower bound constraints on reserve min
- std::vector< UB0Constraint > LB_rmin; ///< the static upper bound constraints on reserve min
+ std::vector< BoxConstraint > Box_rmin; ///< the static bounds constraints on reserve min
+ std::vector< FRowConstraint > DCR_cnst; /// the DCR constraint
+ std::vector< FRowConstraint > Indicator_cnst_rmin; /// the static indicator constraints on reserve min
+ std::vector< FRowConstraint > Indicator_cnst_r1; /// the first static indicator constraints on reserve
+ std::vector< FRowConstraint > Indicator_cnst_r2; /// the second static indicator constraints on reserve
  
  std::list< ColVariable > dx;      ///< the dynamic flow variables
  std::list< ColVariable > dr;      ///< the dynamic reserve variables
@@ -2197,10 +2200,7 @@ public:
  std::list< FRowConstraint > dE;   ///< the dynamic flow conservation constrs.
  std::list< LB0Constraint > dUB;   ///< the dynamic bound constraints on flow
  std::list< LB0Constraint > dUBr;  ///< the dynamic bound constraints on reserve
-
- std::list< FRowConstraint > PC_cuts;  /// the perspective dynamic cuts constraints
- std::list< FRowConstraint > DCR_cnst; /// the DCR constraint
-
+ //std::list< FRowConstraint > PC_cuts;  /// the perspective dynamic cuts constraints
 
  FRealObjective c;               ///< the (linear) objective function
 
