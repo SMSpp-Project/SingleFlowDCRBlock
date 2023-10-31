@@ -2200,7 +2200,8 @@ public:
  std::list< FRowConstraint > dE;   ///< the dynamic flow conservation constrs.
  std::list< LB0Constraint > dUB;   ///< the dynamic bound constraints on flow
  std::list< LB0Constraint > dUBr;  ///< the dynamic bound constraints on reserve
- //std::list< FRowConstraint > PC_cuts;  /// the perspective dynamic cuts constraints
+ std::list< FRowConstraint > PC_cuts;  /// the perspective dynamic cuts constraints
+ std::list< FRowConstraint > PC_cuts_min;  /// the perspective dynamic cuts constraints
 
  FRealObjective c;               ///< the (linear) objective function
 

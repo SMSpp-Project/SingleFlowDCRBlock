@@ -94,8 +94,8 @@ static void load( char * fn ){
    exit( 1 );
   }
 
- iFile.clear();
- iFile.seekg( 0 );       // rewind the file
+ //iFile.clear();
+ //iFile.seekg( 0 );       // rewind the file
 
  string fn1 = fn;
  ifstream iFile1( fn1.substr(0,fn1.find_last_of('.'))+".dcr" );
@@ -153,9 +153,8 @@ int main( int argc , char **argv )
  int rtrn = slvr->compute( false );
  if( slvr->has_var_solution() ){
   std::cout << "Feasible! \n";
+  }
   std::cout << "Solution value: " << slvr->get_lb() << "\n";
- }
- 
  }  // end( main )
 
 /*--------------------------------------------------------------------------*/

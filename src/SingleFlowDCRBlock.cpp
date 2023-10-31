@@ -440,13 +440,13 @@ void SingleFlowDCRBlock::load( std::istream & input , char frmt )
     if( ! ( input >> Dfctj ) )
      throw( std::invalid_argument( "error reading deficit" ) );
 
-    B[ j - 1 ] -= Dfctj;
-/*
+    //B[ j - 1 ] = -Dfctj;
+
     if( Dfctj < 0 )
      B[ j - 1 ] = -1;
     if( Dfctj > 0 )
      B[ j - 1 ] = 1;
-*/
+
     if( jdeficit > 1 )
      throw( std::invalid_argument( "too many deficits" ) );
     
@@ -719,54 +719,52 @@ void SingleFlowDCRBlock::generate_abstract_variables( Configuration *stvv )
  if( HasStaticX() ) {
   x.resize( get_NStaticArcs() );
   for( auto & var : x ){
-   var.is_integer( true , eNoBlck );
-   var.is_positive( true, eNoBlck );
-   var.is_unitary( true, eNoBlck );
+   var.set_type( ColVariable::kBinary );
   }
 
   add_static_variable( x );
 
   r.resize( get_NStaticArcs() );
   for( auto & var : r )
-   var.is_positive( true , eNoBlck );
+   var.set_type( ColVariable::kNonNegative );
 
   add_static_variable( r );
 
   theta.resize( get_NStaticArcs() );
   for( auto & var : theta )
-   var.is_positive( true , eNoBlck );
+   var.set_type( ColVariable::kNonNegative );
 
   add_static_variable( theta );
   }
 
   r_min.resize( 1 );
   for( auto & var : r_min )
-   var.is_positive( true , eNoBlck );
+   var.set_type( ColVariable::kNonNegative );
 
   add_static_variable( r_min );
 
   theta_min.resize( 1 );
   for( auto & var : theta_min )
-   var.is_positive( true , eNoBlck );
+   var.set_type( ColVariable::kNonNegative );
 
   add_static_variable( theta_min );
 
  if( MayHaveDynX() ) {
   dx.resize( get_NArcs() - get_NStaticArcs() );
   for( auto & var : dx )
-   var.is_positive( true , eNoBlck );
+   var.set_type( ColVariable::kNonNegative );
 
   add_dynamic_variable( dx );
 
   dr.resize( get_NArcs() - get_NStaticArcs() );
   for( auto & var : dr )
-   var.is_positive( true , eNoBlck );
+   var.set_type( ColVariable::kNonNegative );
 
   add_dynamic_variable( dr );
 
   dtheta.resize( get_NArcs() - get_NStaticArcs() );
   for( auto & var : dtheta )
-   var.is_positive( true , eNoBlck );
+   var.set_type( ColVariable::kNonNegative );
 
   add_dynamic_variable( dtheta );
   } 
@@ -779,37 +777,72 @@ void SingleFlowDCRBlock::generate_abstract_variables( Configuration *stvv )
 
 void SingleFlowDCRBlock::generate_dynamic_constraints( Configuration *stcc )
 {
+
  int j;
+ double tol = 1e-6;  // threshold parameter for P/C separation
+ double eps = 1e-4;  // tolerance value to consider a binary variable
 
- for(j = 0; j < NArcs; j++){
-  std::list< FRowConstraint > cut( 1 ); 
-  LinearFunction::v_coeff_pair v_var;
-  v_var.push_back( std::make_pair( &theta[ j ] , -1.0 ));
-  v_var.push_back( std::make_pair( &x[j] , - ( MTU[ 0 ] * 2 * x[j].get_value() /  r[j].get_value() )));
-  v_var.push_back( std::make_pair( &r[j] , MTU[ 0 ] * ( std::pow( x[j].get_value() , 2 ) / std::pow( r[j].get_value() , 2))));
-  LinearFunction* Funct = new LinearFunction( std::move( v_var ));
-  cut.front().set_lhs( -Inf< double >() );
-  cut.front().set_rhs( - ( MTU[ 0 ] * 2 * std::pow( x[j].get_value() , 2 ) /  r[j].get_value() )); 
-  cut.front().set_function( Funct );
-  add_dynamic_constraint( cut );
+ auto extract_parameters = [ & tol , & eps ]( Configuration * c )
+   -> bool {
+   if( auto tc = dynamic_cast< SimpleConfiguration< double > * >( c ) ) {
+    tol = tc->f_value;
+    return( true );
+   }
+   if( auto tc = dynamic_cast<
+    SimpleConfiguration< std::pair< double , double > > * >( c ) ) {
+    tol = tc->f_value.first;
+    eps = tc->f_value.second;
+    return( true );
+   }
+   return( false );
+  };
+
+  if( ( ! extract_parameters( stcc ) ) && f_BlockConfig )
+   // if the given Configuration is not valid, try the one from the BlockConfig
+   extract_parameters( f_BlockConfig->f_dynamic_constraints_Configuration );
+
+ LinearFunction::v_coeff_pair v_var;
+ for(j = 0; j < NArcs; j++)
+  if( r[ j ].get_value() > eps ) {
+    if( theta[ j ].get_value() <
+         MTU[ 0 ] * ( std::pow( x[ j ].get_value() , 2 ) /
+          r[j].get_value() ) - tol ) {
+            std::list< FRowConstraint > cut( 1 ); 
+            v_var.push_back( std::make_pair( &theta[ j ] , -1.0 ));
+            v_var.push_back( std::make_pair( &x[j] , MTU[ 0 ] * 2 * x[ j ].get_value() /  r[ j ].get_value() ));
+            v_var.push_back( std::make_pair( &r[j] , - MTU[ 0 ] * ( ( std::pow( x[ j ].get_value() , 2 ) / std::pow( r[ j ].get_value() , 2)))));
+            LinearFunction* Funct = new LinearFunction( std::move( v_var ));
+            cut.front().set_lhs( -Inf< double >() );
+            cut.front().set_rhs( ( 0.0 )); 
+            cut.front().set_function( Funct );
+            add_dynamic_constraints( PC_cuts , cut , eNoBlck );
+  }
  }
+ add_dynamic_constraint( PC_cuts , "PC_cuts" );  
 
-  std::list< FRowConstraint > cut_min( 1 ); 
-  LinearFunction::v_coeff_pair v_var_min;
-  v_var_min.push_back( std::make_pair( &theta_min[ 0 ] , -1.0 ));
-  v_var_min.push_back( std::make_pair( &r_min[ 0 ] , ( FlowBursts[ 0 ] / std::pow( r[j].get_value() , 2))));
-  LinearFunction* Funct_min = new LinearFunction( std::move( v_var_min ));
-  cut_min.front().set_lhs( -Inf< double >() );
-  cut_min.front().set_rhs( 0.0 ); 
-  cut_min.front().set_function( Funct_min );
-  add_dynamic_constraint( cut_min );
-
+LinearFunction::v_coeff_pair v_var_min;
+//if( r_min[ 0 ].get_value() > eps ) {
+    if( theta_min[ 0 ].get_value() <
+        ( FlowBursts[ 0 ] /
+          r_min[ 0 ].get_value() ) - tol ) {
+            std::list< FRowConstraint > cut_min( 1 ); 
+            v_var_min.push_back( std::make_pair( &theta_min[ 0 ] , -1.0 ));
+            v_var_min.push_back( std::make_pair( &r_min[ 0 ] , -( FlowBursts[ 0 ] / std::pow( r_min[ 0 ].get_value() , 2))));
+            LinearFunction* Funct_min = new LinearFunction( std::move( v_var_min ));
+            cut_min.front().set_lhs( -Inf< double >() );
+            cut_min.front().set_rhs( -2.0 * FlowBursts[ 0 ] / r_min[ 0 ].get_value() ); 
+            cut_min.front().set_function( Funct_min );
+            add_dynamic_constraints( PC_cuts_min , cut_min , eNoBlck );
+   }
+  //}
+  add_dynamic_constraint( PC_cuts_min , "PC_cuts_min" );
  }// end( SingleFlowDCRBlock::generate_dynamic_constraints )
 
 /*--------------------------------------------------------------------------*/
 
 void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
 {
+
  if( ! ( AR & HasFlw ) ) {
   // count number of nonzeroes in each constraint, i.e., #FS( i ) + #BS( i )
   Subset count( get_NNodes() );
@@ -884,20 +917,20 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
   AR |= HasFlw;
 
  // generate the DCR constraint- - - - - - - - - - - - - - - - - - - - - -
- 
+
  DCR_cnst.resize( 1 );
  LinearFunction::v_coeff_pair v_var;
  for( Index j = 0 ; j < get_NArcs() ; ++j ) {
-  v_var.push_back( std::make_pair( &theta_min[ 0 ] ,  1 / get_NArcs() ));
   v_var.push_back( std::make_pair( &theta[ j ] ,  1.0 ));
-  v_var.push_back( std::make_pair( &x[ j ] , LinkDelays[ j ] ));
+  v_var.push_back( std::make_pair( &x[ j ] , MTU[ 0 ] / U[ j ] + LinkDelays[ j ] + NodeDelays[ SN[ j ] ]));
   }
+ v_var.push_back( std::make_pair( &theta_min[ 0 ] ,  1.0 ));
  LinearFunction* Funct = new LinearFunction( std::move( v_var ));
  DCR_cnst[ 0 ].set_rhs( FlowDeadlines[ 0 ] );
  DCR_cnst[ 0 ].set_lhs( -Inf< double >() ); 
  DCR_cnst[ 0 ].set_function( Funct );
  
- //add_static_constraint( DCR_cnst );
+ add_static_constraint( DCR_cnst );
 
  int j;
  double U_max = 0.0 ;
@@ -907,6 +940,7 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
  // generate the indicator constraints- - - - - - - - - - - - - - - - - - - - - -
  
  Indicator_cnst_rmin.resize( NArcs );
+ 
  for(j = 0; j < NArcs; j++){
   LinearFunction::v_coeff_pair v_var;
   v_var.push_back( std::make_pair( &r_min[ 0 ] , 1.0 ));
@@ -965,12 +999,12 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
    return;
   }
 
-  Box_rmin.resize( 1 );
-  Box_rmin[ 0 ].set_variable( & r_min[ 0 ] , eNoBlck );
-  Box_rmin[ 0 ].set_rhs( U_max , eNoBlck );
-  Box_rmin[ 0 ].set_lhs( rho[ 0 ] , eNoBlck );
+ Box_rmin.resize( 1 );
+ Box_rmin[ 0 ].set_variable( & r_min[ 0 ] , eNoBlck );
+ Box_rmin[ 0 ].set_rhs( U_max , eNoBlck );
+ Box_rmin[ 0 ].set_lhs( rho[ 0 ] , eNoBlck );
 
-  add_static_constraint( Box_rmin );
+ add_static_constraint( Box_rmin );
 
  // static part
  if( HasStaticX() ) {
@@ -3795,6 +3829,8 @@ void SingleFlowDCRBlock::guts_of_destructor( void )
  Constraint::clear( Indicator_cnst_rmin ); 
  Constraint::clear( Indicator_cnst_r1 );
  Constraint::clear( Indicator_cnst_r2 );
+ Constraint::clear( PC_cuts );
+ Constraint::clear( PC_cuts_min );
 
  c.clear();  // clear the Objective
 

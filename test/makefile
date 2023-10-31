@@ -21,7 +21,7 @@ DIR = .
 # debug switches with address sanitizer and extra pedantic warning
 #SW = -g3 -glldb -fno-inline -std=c++17 -ferror-limit=1 -fsanitize=undefined -fsanitize=address -fno-omit-frame-pointer -Wpedantic -Wextra -Wno-unused-parameter
 # production switches
-SW = -O3 -std=c++17 -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION
+SW = -O3 -std=c++17 -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION 
 #-DNDEBUG -DCLANG_1200_0_32_27_PATCH -ferror-limit=1 
 
 # compiler
@@ -69,7 +69,7 @@ MOBJ =  $(SFDCROBJ)
 MLIB =  $(SFDCRLIB) 
 
 $(DIR)/$(NAME): $(MOBJ) $(DIR)/test.o  
-	$(CC) -o $(DIR)/$(NAME) ../../milpsolver/obj/MILPSolver.o ../../milpsolver/obj/CPXMILPSolver.o $^ $(MLIB) $(SW)
+	$(CC) -o $(DIR)/$(NAME) ../../milpsolver/obj/MILPSolver.o ../../milpsolver/obj/CPXMILPSolver.o $^ $(MLIB) $(SW) -lpthread -lm 
 
 # dependencies: every .o from its .C + every recursively included .h- - - - -
 
