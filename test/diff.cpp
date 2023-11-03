@@ -26,9 +26,9 @@ int main( int argc , char **argv )
    iFile1 >> first;
    iFile2 >> second;
    //cout << first-second << "\n";
-   if( diff < abs( first - second ))
+   if( diff < abs( first - second ) && second < 10e6 )
      diff = abs( first - second );
-   if( abs( first - second ) > 2 ){
+   if( abs( first - second ) / first > 0.0001 ){
     std::cout << first << " " << second << "\n";
     //break;
    }

@@ -965,7 +965,7 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
   Indicator_cnst_r1[ j ].set_function( Funct );
  }
 
- //add_static_constraint( Indicator_cnst_r1 );
+ add_static_constraint( Indicator_cnst_r1 );
 
  Indicator_cnst_r2.resize( NArcs );
  for(j = 0; j < NArcs; j++){
@@ -978,7 +978,7 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
   Indicator_cnst_r2[ j ].set_function( Funct );
  }
 
- //add_static_constraint( Indicator_cnst_r2 );
+ add_static_constraint( Indicator_cnst_r2 );
 
  // generate the bound constraints- - - - - - - - - - - - - - - - - - - - - -
 
