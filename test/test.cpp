@@ -86,28 +86,18 @@ SingleFlowDCRBlock * oMCFB = nullptr;    // original SingleFlowDCRBlock
 
 /*--------------------------------------------------------------------------*/
 
-static void load( char * fn ){
-
- ifstream iFile( fn );
- if( ! iFile ) {
-   cerr << "Can't open dmx file " << fn << endl;
-   exit( 1 );
-  }
+static void load( string fndmx, string fndcr ){
 
  //iFile.clear();
  //iFile.seekg( 0 );       // rewind the file
 
- string fn1 = fn;
- ifstream iFile1( fn1.substr(0,fn1.find_last_of('.'))+".dcr" );
- if( ! iFile1 ) {
-   cerr << "Can't open dcr file " << fn << endl;
-   exit( 1 );
-  }
- oMCFB->load( iFile );
+ ifstream fndmx1(fndmx);
+ ifstream fndcr1(fndcr);
+ oMCFB->load( fndmx1 );
  Index NNodes = oMCFB->get_NNodes();
  Index NArcs = oMCFB->get_NArcs();
  try {  
-   oMCFB->load_dcr( iFile1 , NNodes , NArcs );
+   oMCFB->load_dcr( fndcr1 , NNodes , NArcs );
   } 
   catch(...) {
     cerr << "Error: dcr file error!" << endl;
@@ -120,41 +110,110 @@ static void load( char * fn ){
 int main( int argc , char **argv )
 {
 
-// load the problem- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+ int i, j, source, destination, commodity;
+ int SN, EN, numberArc, numberComm;
+ int NComm, NNodes, NArcs;
+ float rho, rho1, mtu, FlowBursts, FlowDeadline;
+ float capacity, cost;
+ string fn = argv[ 1 ];
 
- // attach the Solver to the Block- - - - - - - - - - - - - - - - - - - - - -
- // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
- // do it by using a single a BlockSolverConfig, read from file
+ ifstream iNode( fn.substr(0,fn.find_last_of('.'))+".nod" );
+ ifstream iFile2( fn.substr(0,fn.find_last_of('.'))+".sup" );
+ ifstream iFile3( fn.substr(0,fn.find_last_of('.'))+".param" );
+
+ string fn1 = fn;
+
+ iNode >> NComm; 
+ iNode >> NNodes;
+ iNode >> NArcs;
+
+ iFile3 >> mtu;
  
- auto bsc = dynamic_cast< BlockSolverConfig * >(
-		               Configuration::deserialize( "MILPPar.txt" ) );
- if( ! bsc ) {
-  cerr << "Error: configuration file not a BlockSolverConfig" << endl;
-  exit( 1 );    
+ for(j=0; j<NComm; j++){
+
+  ifstream iFile1( fn1.substr(0,fn1.find_last_of('.'))+".dcr" );
+  ifstream iArc( fn.substr(0,fn.find_last_of('.'))+".arc" );
+
+  ofstream foutdmx("output.dmx");
+  ofstream foutdcr("output.dcr");
+
+  iFile2 >> source;
+  iFile2 >> commodity;
+  iFile2 >> rho;
+  iFile2 >> destination;
+  iFile2 >> commodity;
+  iFile2 >> rho1;
+
+  iFile3 >> FlowBursts >> FlowDeadline;
+
+  while (!iFile1.eof()) {
+   string buffer;
+   getline(iFile1, buffer);
+   foutdcr << buffer << '\n';
+  }
+  
+  foutdcr << FlowBursts << '\n';
+  foutdcr << FlowDeadline  << '\n';
+  foutdcr << mtu  << '\n';
+  foutdcr << rho  << '\n';
+  iFile1.close();
+  foutdcr.close();
+
+  foutdmx << "p min " << NNodes << " " << NArcs << "\n";
+  foutdmx << "n " << source << " 1\n";
+  foutdmx << "n " << destination << " -1\n";
+  
+  for(i=0; i<NArcs; i++){
+   iArc >> numberArc;
+   iArc >> SN;
+   iArc >> EN;
+   iArc >> numberComm;
+   iArc >> cost;
+   iArc >> capacity;
+   iArc >> numberArc;
+   foutdmx << "a " << SN << " " << EN << " -1 " << capacity << " " << cost << "\n";
   }
 
- oMCFB = dynamic_cast< SingleFlowDCRBlock * >( Block::new_Block( "SingleFlowDCRBlock" ) );
- assert( oMCFB );
+  foutdmx.close();
+  iArc.close();
 
- load( argv[ 1 ] );
- 
- bsc->apply( oMCFB );
- bsc->clear();  // keep the clear()-ed BlockSolverConfig for final cleanup
-
- // check Solvers - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
- if( oMCFB->get_registered_solvers().empty() ) {
-  cerr << "Error: BlockSolverConfig did not register any Solver" << endl;
-  exit( 1 );    
+  auto bsc = dynamic_cast< BlockSolverConfig * >(Configuration::deserialize( "MILPPar.txt" ) );
+  if( ! bsc ) {
+   cerr << "Error: configuration file not a BlockSolverConfig" << endl;
+   exit( 1 );    
   }
 
- Solver * slvr = oMCFB->get_registered_solvers().front();
- int rtrn = slvr->compute( false );
- if( slvr->has_var_solution() ){
-  std::cout << "Feasible! \n";
+  oMCFB = dynamic_cast< SingleFlowDCRBlock * >( Block::new_Block( "SingleFlowDCRBlock" ) );
+  assert( oMCFB );
+
+  load( "output.dmx", "output.dcr" );
+  
+  bsc->apply( oMCFB );
+  bsc->clear();  // keep the clear()-ed BlockSolverConfig for final cleanup
+
+  // check Solvers - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+  if( oMCFB->get_registered_solvers().empty() ) {
+    cerr << "Error: BlockSolverConfig did not register any Solver" << endl;
+    exit( 1 );    
+    }
+
+  Solver * slvr = oMCFB->get_registered_solvers().front();
+  int rtrn = slvr->compute( false );
+  std::cout << slvr->get_lb() << "\n";
+  /*
+  if( !slvr->has_var_solution() ){
+    break;
+    }
+  */
+    
   }
-  std::cout << "Solution value: " << slvr->get_lb() << "\n";
+
+
+  iFile2.close();
+  iFile3.close();
+  iNode.close();
+  
  }  // end( main )
 
 /*--------------------------------------------------------------------------*/
