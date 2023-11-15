@@ -264,7 +264,7 @@ void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pEn , c_Subset & p
   guts_of_destructor();
 		   
  // copy over problem data - - - - - - - - - - - - - - - - - - - - - - - - - -
-
+ 
  NNodes = n;
  NArcs = m;
  MaxNNodes = NNodes + ( mdn > dn ? mdn - dn : 0 );

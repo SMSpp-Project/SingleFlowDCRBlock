@@ -46,12 +46,14 @@ MCFClssSlvr = -DHAVE_MFSMX -DHAVE_CPLEX -DHAVE_RELAX
 # macros to be exported - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 SFDCROBJ = $(SFDCRSDR)/obj/SingleFlowDCRBlock.o \
-	$(SFDCRSDR)/obj/SingleFlowDCRBendersSolver.o
+	$(SFDCRSDR)/obj/SingleFlowDCRBendersSolver.o \
+	$(SFDCRSDR)/obj/MultiFlowDCRBlock.o
 
 SFDCRINC = -I$(SFDCRSDR)/include
 
 SFDCRH   = $(SFDCRSDR)/include/SingleFlowDCRBlock.h \
-	$(SFDCRSDR)/include/SingleFlowDCRBendersSolver.h
+	$(SFDCRSDR)/include/SingleFlowDCRBendersSolver.h \
+	$(SFDCRSDR)/include/MultiFlowDCRBlock.h
 
 # clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -71,6 +73,11 @@ $(SFDCRSDR)/obj/SingleFlowDCRBlock.o: $(SFDCRSDR)/src/SingleFlowDCRBlock.cpp \
 $(SFDCRSDR)/obj/SingleFlowDCRBendersSolver.o: \
 	$(SFDCRSDR)/src/SingleFlowDCRBendersSolver.cpp $(SFDCRH) $(SMS++OBJ) $(MILPOBJ)
 	$(CC) -c $(SFDCRSDR)/src/SingleFlowDCRBendersSolver.cpp -o $@ \
+	$(SFDCRINC) $(SMS++INC) $(libMCFClINC) -I$(MILPINC) $(MCFClssSlvr) $(SW)
+
+$(SFDCRSDR)/obj/MultiFlowDCRBlock.o: \
+	$(SFDCRSDR)/src/MultiFlowDCRBlock.cpp $(SFDCRH) $(SMS++OBJ) $(MILPOBJ)
+	$(CC) -c $(SFDCRSDR)/src/MultiFlowDCRBlock.cpp -o $@ \
 	$(SFDCRINC) $(SMS++INC) $(libMCFClINC) -I$(MILPINC) $(MCFClssSlvr) $(SW)
 
 ########################## End of makefile ###################################
