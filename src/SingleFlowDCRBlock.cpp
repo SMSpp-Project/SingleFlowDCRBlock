@@ -720,6 +720,7 @@ void SingleFlowDCRBlock::generate_abstract_variables( Configuration *stvv )
   x.resize( get_NStaticArcs() );
   for( auto & var : x ){
    var.set_type( ColVariable::kBinary );
+   //var.set_type( ColVariable::kNonNegative );
   }
 
   add_static_variable( x );
@@ -1015,6 +1016,16 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
    }
   
   //add_static_constraint( UB );
+  }
+
+  if( HasStaticX() ) {
+  UB.resize( get_NStaticArcs() );
+  for( Index i = 0 ; i < get_NStaticArcs() ; ++i ) {
+   UB[ i ].set_variable( & x[ i ] , eNoBlck );
+   UB[ i ].set_rhs( 1.0 , eNoBlck );
+   }
+  
+  add_static_constraint( UB );
   }
 
  // dynamic part

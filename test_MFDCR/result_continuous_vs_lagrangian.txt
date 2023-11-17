@@ -1,0 +1,126 @@
+MultiFlowDCRBlock with 1 commodities, 16 nodes and 36 arcs
+0
+0
+MultiFlowDCRBlock with 2 commodities, 16 nodes and 36 arcs
+0
+0
+MultiFlowDCRBlock with 3 commodities, 16 nodes and 36 arcs
+9.09495e-13
+9.09495e-13
+MultiFlowDCRBlock with 4 commodities, 16 nodes and 36 arcs
+8.18545e-12
+8.18545e-12
+MultiFlowDCRBlock with 5 commodities, 16 nodes and 36 arcs
+9.09495e-12
+9.09495e-12
+MultiFlowDCRBlock with 6 commodities, 16 nodes and 36 arcs
+7.27596e-12
+7.27596e-12
+MultiFlowDCRBlock with 7 commodities, 16 nodes and 36 arcs
+0
+0
+MultiFlowDCRBlock with 8 commodities, 16 nodes and 36 arcs
+7.27596e-12
+7.27596e-12
+MultiFlowDCRBlock with 9 commodities, 16 nodes and 36 arcs
+1.09139e-11
+1.09139e-11
+MultiFlowDCRBlock with 10 commodities, 16 nodes and 36 arcs
+1.09139e-11
+1.09139e-11
+MultiFlowDCRBlock with 11 commodities, 16 nodes and 36 arcs
+7.27596e-12
+7.27596e-12
+MultiFlowDCRBlock with 12 commodities, 16 nodes and 36 arcs
+7.27596e-12
+7.27596e-12
+MultiFlowDCRBlock with 1 commodities, 23 nodes and 50 arcs
+0
+0
+MultiFlowDCRBlock with 1 commodities, 23 nodes and 50 arcs
+0
+0
+MultiFlowDCRBlock with 1 commodities, 22 nodes and 48 arcs
+0
+0
+MultiFlowDCRBlock with 2 commodities, 22 nodes and 48 arcs
+0
+0
+MultiFlowDCRBlock with 3 commodities, 22 nodes and 48 arcs
+0
+0
+MultiFlowDCRBlock with 4 commodities, 22 nodes and 48 arcs
+4.54747e-13
+4.54747e-13
+MultiFlowDCRBlock with 5 commodities, 22 nodes and 48 arcs
+7.27596e-12
+7.27596e-12
+MultiFlowDCRBlock with 6 commodities, 22 nodes and 48 arcs
+7.27596e-12
+7.27596e-12
+MultiFlowDCRBlock with 7 commodities, 22 nodes and 48 arcs
+7.27596e-12
+7.27596e-12
+MultiFlowDCRBlock with 8 commodities, 22 nodes and 48 arcs
+7.27596e-12
+7.27596e-12
+MultiFlowDCRBlock with 9 commodities, 22 nodes and 48 arcs
+7.27596e-12
+7.27596e-12
+MultiFlowDCRBlock with 10 commodities, 22 nodes and 48 arcs
+0
+0
+MultiFlowDCRBlock with 11 commodities, 22 nodes and 48 arcs
+1.09139e-11
+1.09139e-11
+MultiFlowDCRBlock with 12 commodities, 22 nodes and 48 arcs
+3.63798e-12
+3.63798e-12
+MultiFlowDCRBlock with 13 commodities, 22 nodes and 48 arcs
+1.09139e-11
+1.09139e-11
+MultiFlowDCRBlock with 14 commodities, 22 nodes and 48 arcs
+3.63798e-12
+3.63798e-12
+MultiFlowDCRBlock with 15 commodities, 22 nodes and 48 arcs
+1.09139e-11
+1.09139e-11
+MultiFlowDCRBlock with 16 commodities, 22 nodes and 48 arcs
+3.63798e-12
+3.63798e-12
+MultiFlowDCRBlock with 17 commodities, 22 nodes and 48 arcs
+7.27596e-12
+7.27596e-12
+MultiFlowDCRBlock with 18 commodities, 22 nodes and 48 arcs
+7.27596e-12
+7.27596e-12
+MultiFlowDCRBlock with 19 commodities, 22 nodes and 48 arcs
+3.63798e-12
+3.63798e-12
+MultiFlowDCRBlock with 20 commodities, 22 nodes and 48 arcs
+3.63798e-12
+3.63798e-12
+MultiFlowDCRBlock with 21 commodities, 22 nodes and 48 arcs
+7.27596e-12
+7.27596e-12
+MultiFlowDCRBlock with 22 commodities, 22 nodes and 48 arcs
+7.27596e-12
+7.27596e-12
+MultiFlowDCRBlock with 1 commodities, 24 nodes and 52 arcs
+0
+0
+MultiFlowDCRBlock with 1 commodities, 22 nodes and 48 arcs
+0
+0
+MultiFlowDCRBlock with 1 commodities, 54 nodes and 136 arcs
+0
+0
+MultiFlowDCRBlock with 1 commodities, 55 nodes and 138 arcs
+0
+0
+MultiFlowDCRBlock with 1 commodities, 54 nodes and 136 arcs
+0
+0
+MultiFlowDCRBlock with 1 commodities, 54 nodes and 136 arcs
+0
+0

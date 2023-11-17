@@ -33,10 +33,11 @@ libCPLEXBSCDIR = /Applications/CPLEX_Studio2211/cplex/
 # lib Cplex directory
 libCPLEXINCDIR = $(libCPLEXBSCDIR)lib/x86-64_osx/static_pic/
 
-# macroes to be exported- - - - - - - - - - - - - - - - - - - - - - - - - - -
-
 libCPLEXLIB = -L$(libCPLEXINCDIR) -lilocplex -lcplex $(libCPLEXEXTLIB)
 libCPLEXINC = -I$(libCPLEXBSCDIR)include/
+
+libOSIINC = -I/usr/local/include/coin
+libOSILIB = -rpath /usr/local/lib/ -lOsiClp -lClp -lOsi -lCoinUtils -lOsiCpx
 
 # default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -60,6 +61,20 @@ clean::
 SFDCRSDR = ..
 include $(SFDCRSDR)/makefile-c
 
+LAGRANGIANDR = ../../lagrangiandualsolver
+BUNDLEDR = ../../bundlesolver
+
+#LgDSLVSDR = $(LAGRANGIANDR)
+#LgDSLVODR = $(LAGRANGIANDR)/obj/
+#include $(LAGRANGIANDR)/makefile-c
+
+libNDOSDR = ../../bundlesolver/NdoFiOracle
+include ../../bundlesolver/NdoFiOracle/lib/makefile
+
+BNDSLVSDR = $(BUNDLEDR)
+BNDSLVODR = $(BUNDLEDR)
+include $(BUNDLEDR)/makefile
+
 # main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
 
 # object files
@@ -69,7 +84,7 @@ MOBJ =  $(SFDCROBJ)
 MLIB =  $(SFDCRLIB) 
 
 $(DIR)/$(NAME): $(MOBJ) $(DIR)/test.o  
-	$(CC) -o $(DIR)/$(NAME) ../../milpsolver/obj/MILPSolver.o ../../milpsolver/obj/CPXMILPSolver.o $^ $(MLIB) $(SW) -lpthread -lm 
+	$(CC) -o $(DIR)/$(NAME) ../../milpsolver/obj/MILPSolver.o ../../milpsolver/obj/CPXMILPSolver.o ../../lagrangiandualsolver/LagrangianDualSolver.o ../../bundlesolver/BundleSolver.o $(libNDOOBJ) $^ $(MLIB) $(libNDOINC) $(BNDSLVINC) $(libOSIINC) $(libOSILIB) $(SW) -lpthread -lm 
 
 # dependencies: every .o from its .C + every recursively included .h- - - - -
 
@@ -82,6 +97,6 @@ MH =    $(SFDCRH)
 # compile command
 
 $(DIR)/test.o: $(DIR)/test.cpp $(MH)
-	$(CC) -c $*.cpp -o $@ $(MINC) $(SW)
+	$(CC) -c $*.cpp -o $@ $(MINC) -I../../lagrangiandualsolver/ -I../../bundlesolver/ -I../../milpsolver/include/ -I../../bundlesolver/ -I$(libNDOSDR)/OPTUtils -I../../bundlesolver/NdoFiOracle/NDOSlver -I$(libNDOINC) -I$(BNDSLVINC) $(libOSIINC) $(libOSILIB) $(SW)
 
 ############################ End of makefile #################################

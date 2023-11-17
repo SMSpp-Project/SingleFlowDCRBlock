@@ -51,7 +51,8 @@ SMSpp_insert_in_factory_cpp_1( MultiFlowDCRBlock );
 /*------------------------ OTHER INITIALIZATIONS ---------------------------*/
 /*--------------------------------------------------------------------------*/
 
-void  MultiFlowDCRBlock::load( std::istream & input , char frmt ){}
+void  MultiFlowDCRBlock::load( std::istream & input , char frmt ){
+}
 
 void MultiFlowDCRBlock::load( const std::string & input , char frmt )
 {
@@ -125,14 +126,9 @@ void MultiFlowDCRBlock::load( const std::string & input , char frmt )
   std::ofstream foutdcr("output.dcr");
 
   while (!iFile1.eof()) {
-   for(i = 0; i < NNodes; i++){
-    iFile1 >> NodeDelays[ i ];
-    foutdcr << NodeDelays[ i ]  << '\n';
-   }
-   for(i = 0; i < NArcs; i++){
-    iFile1 >> LinkDelays[ i ];
-    foutdcr << LinkDelays[ i ]  << '\n';
-   }
+   std::string buffer;
+   getline(iFile1, buffer);
+   foutdcr << buffer << '\n';
   }
 
   foutdcr << FlowBurstK << '\n';
@@ -169,7 +165,7 @@ void MultiFlowDCRBlock::load( const std::string & input , char frmt )
    C[ j ][ i ] = 1;
    iArc >> UTot[ i ];
    iArc >> numberArc;
-   foutdmx << "a " << SN << " " << EN << " -1 " << UTot[ i ] << " " << cost << "\n";
+   foutdmx << "a " << Startn[ i ] << " " << Endn[ i ] << " -1 " << UTot[ i ] << " " << C[ j ][ i ] << "\n";
   }
 
   foutdmx.close();
@@ -208,7 +204,19 @@ void MultiFlowDCRBlock::load( const std::string & input , char frmt )
 /*--------------------------------------------------------------------------*/
 
 void MultiFlowDCRBlock::generate_abstract_variables( Configuration * stvv )
-{/*
+{
+  for( auto blck : v_Block )
+    blck->generate_abstract_variables();
+/*
+ unsigned char fr = 0;
+ auto c = dynamic_cast< SimpleConfiguration< int > * >( stvv );
+ if( ( ! c ) && f_BlockConfig &&
+     f_BlockConfig->f_static_variables_Configuration )
+  c = dynamic_cast< SimpleConfiguration< int > * >(
+                        f_BlockConfig->f_static_variables_Configuration );
+ if( c )
+  fr = c->value(); 
+
  // initialize the children - - - - - - - - - - - - - - - - - - - - - - - - -
 
  if( ! ( AR & KnapsackRelaxation ) ) {
@@ -223,7 +231,7 @@ void MultiFlowDCRBlock::generate_abstract_variables( Configuration * stvv )
   }
 
  // call the base class method to have it done in the sub-Block, if any
- //Block::generate_abstract_variables();
+ Block::generate_abstract_variables();
 
  AR |= HasVar;
  */
@@ -237,7 +245,7 @@ void MultiFlowDCRBlock::generate_abstract_constraints( Configuration * stcc )
  // do it in the DCR/BKB respectively
  for( auto blck : v_Block )
   blck->generate_abstract_constraints();
-
+ 
  if( ! ( AR & KnapsackRelaxation ) ) {
   
   // initialize the vectors of coefficients, and reset count[]
@@ -261,10 +269,11 @@ void MultiFlowDCRBlock::generate_abstract_constraints( Configuration * stcc )
       v_var.push_back( coeffs[ j ][ k ] );
     }
     MCs[ j ].set_function( new LinearFunction( std::move( v_var )));
-    MCs[ j ].set_rhs( UTot[j] ); 
+    MCs[ j ].set_rhs( UTot[ j ] ); 
     MCs[ j ].set_lhs( -Inf< double >() );
     }
   add_static_constraint( MCs , "Mut" );
+  
   }
 
  AR |= HasMutual;
