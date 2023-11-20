@@ -165,7 +165,7 @@ void MultiFlowDCRBlock::load( const std::string & input , char frmt )
    C[ j ][ i ] = 1;
    iArc >> UTot[ i ];
    iArc >> numberArc;
-   foutdmx << "a " << Startn[ i ] << " " << Endn[ i ] << " -1 " << UTot[ i ] << " " << C[ j ][ i ] << "\n";
+   foutdmx << "a " << Startn[ i ] << " " << Endn[ i ] << " -1 " << 0.5*NC*UTot[ i ] << " " << C[ j ][ i ] << "\n";
   }
 
   foutdmx.close();
@@ -245,7 +245,7 @@ void MultiFlowDCRBlock::generate_abstract_constraints( Configuration * stcc )
  // do it in the DCR/BKB respectively
  for( auto blck : v_Block )
   blck->generate_abstract_constraints();
- 
+
  if( ! ( AR & KnapsackRelaxation ) ) {
   
   // initialize the vectors of coefficients, and reset count[]
@@ -269,7 +269,7 @@ void MultiFlowDCRBlock::generate_abstract_constraints( Configuration * stcc )
       v_var.push_back( coeffs[ j ][ k ] );
     }
     MCs[ j ].set_function( new LinearFunction( std::move( v_var )));
-    MCs[ j ].set_rhs( UTot[ j ] ); 
+    MCs[ j ].set_rhs( 0.5*get_NComm()*UTot[ j ] ); 
     MCs[ j ].set_lhs( -Inf< double >() );
     }
   add_static_constraint( MCs , "Mut" );

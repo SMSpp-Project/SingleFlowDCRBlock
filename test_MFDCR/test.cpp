@@ -81,6 +81,7 @@ using namespace SMSpp_di_unipi_it;
 
 MultiFlowDCRBlock * oMCFB = nullptr;    // original MultiFlowDCRBlock
 MultiFlowDCRBlock * oMCFB1 = nullptr;    // original MultiFlowDCRBlock
+MultiFlowDCRBlock * oMCFB2 = nullptr;    // original MultiFlowDCRBlock
 
 /*--------------------------------------------------------------------------*/
 
@@ -94,11 +95,11 @@ int main( int argc , char **argv )
   iNode >> commodity;
   iNode >> node;
   iNode >> arc;
-  iNode >> commodity;
+  iNode.close();
 
   int j;
 
-  for(j=1; j<commodity; ++j){
+  for(j=1; j<commodity+1; ++j){
     std::ofstream fout( file );
     fout << j << " " << node << " " << arc << " " << arc;  
     fout.close();
@@ -115,11 +116,20 @@ int main( int argc , char **argv )
     exit( 1 );    
     }
 
+    auto bsc2 = dynamic_cast< BlockSolverConfig * >(Configuration::deserialize( "MILPPar2.txt" ) );
+    if( ! bsc ) {
+    cerr << "Error: configuration file not a BlockSolverConfig" << endl;
+    exit( 1 );    
+    }
+
     oMCFB = dynamic_cast< MultiFlowDCRBlock * >( Block::new_Block( "MultiFlowDCRBlock" ) );
     assert( oMCFB );
 
     oMCFB1 = dynamic_cast< MultiFlowDCRBlock * >( Block::new_Block( "MultiFlowDCRBlock" ) );
     assert( oMCFB1 );
+
+    oMCFB2 = dynamic_cast< MultiFlowDCRBlock * >( Block::new_Block( "MultiFlowDCRBlock" ) );
+    assert( oMCFB2 );
 
     oMCFB->load( argv[ 1 ] );
     bsc->apply( oMCFB );
@@ -132,10 +142,10 @@ int main( int argc , char **argv )
       exit( 1 );    
     }
       
-    Solver * slvr = oMCFB->get_registered_solvers().front();
-    int rtrn = slvr->compute();
+    Solver * slvrCONT = oMCFB->get_registered_solvers().front();
+    int rtrn = slvrCONT->compute();
       
-    if( slvr->has_var_solution() ){
+    if( slvrCONT->has_var_solution() ){
 
       oMCFB1->load( argv[ 1 ] );
 
@@ -149,16 +159,17 @@ int main( int argc , char **argv )
       //slvrLD->set_log( &lagrangian_log );
 
       int rtrn1 = slvrLD->compute();
-      //std::cout << slvrLD->get_ub() << "\n";
 
-      double CPX_LB = slvr->get_lb();
-      double CPX_UB = slvr->get_lb();
-      
-      double LD_sol = slvrLD->get_lb();
+      oMCFB2->load( argv[ 1 ] );
+      bsc2->apply( oMCFB2 );
+      bsc2->clear();
+      Solver * slvrEXACT = oMCFB2->get_registered_solvers().front();
+      int rtrn2 = slvrEXACT->compute();
 
       oMCFB->print(std::cout);
-      std::cout << std::abs( CPX_LB-LD_sol ) << "\n";
-      std::cout << std::abs( CPX_UB-LD_sol ) << "\n";
+      std::cout << "CONTINUOUS RELAX: " << slvrCONT->get_lb() << "\n";
+      std::cout << "LAGRANGIAN RELAX: " << slvrLD->get_lb() << "\n";
+      std::cout << "OPTIMAL VALUE: " << slvrEXACT->get_ub() << "\n\n";
     } else {
       break;
     }
