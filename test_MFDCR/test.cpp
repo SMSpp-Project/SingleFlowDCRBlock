@@ -60,6 +60,7 @@
 #include <iomanip>
 
 #include <random>
+#include <filesystem>  
 
 #include "MCFCplex.h"
 #include "BlockSolverConfig.h"
@@ -87,16 +88,79 @@ MultiFlowDCRBlock * oMCFB2 = nullptr;    // original MultiFlowDCRBlock
 
 int main( int argc , char **argv )
 {
+  namespace stdfs = std::filesystem;
   std::string file = argv[ 1 ];
-  std::ifstream iNode( file.substr(0,file.find_last_of('.'))+"-1.nod" );
+  std::ifstream iNode( file.substr(0,file.find_last_of('.'))+".nod" );
+  int commodity, node, arc;
+  
   if( ! iNode.is_open() )
    throw( std::invalid_argument( "can't open file .nod" ) );
-  int commodity, node, arc;
-  iNode >> commodity;
-  iNode >> node;
-  iNode >> arc;
-  iNode.close();
 
+  std::ifstream iNode1( file.substr(0,file.find_last_of('.'))+"-1.nod" );
+  if( ! iNode1.good() ){
+    stdfs::path p = stdfs::current_path();
+    stdfs::rename(file.substr(0,file.find_last_of('.'))+".nod", file.substr(0,file.find_last_of('.'))+"-1.nod");
+    std::ifstream iNode2( file.substr(0,file.find_last_of('.'))+"-1.nod" );
+    iNode2 >> commodity;
+    iNode2 >> node >> arc;
+    iNode2.close();
+  } else {
+    iNode1 >> commodity;
+    iNode1 >> node >> arc;
+    iNode1.close();
+  }
+
+  int index = 0;
+  int k = 0;
+  int mtu;
+  string buffer1[commodity];
+
+  std::ifstream iDCR1( file.substr(0,file.find_last_of('.'))+"-1.dcr" );
+  if( ! iDCR1.good() ){
+    stdfs::path p = stdfs::current_path();
+    stdfs::rename(file.substr(0,file.find_last_of('.'))+".dcr", file.substr(0,file.find_last_of('.'))+"-1.dcr");
+    std::ofstream iDCR( file.substr(0,file.find_last_of('.'))+".dcr" );
+    std::ifstream iDCR1( file.substr(0,file.find_last_of('.'))+"-1.dcr" );
+    std::string buffer;
+    getline(iDCR1, buffer);
+    iDCR << buffer << '\n';
+    while(index<arc+node) {  
+      getline(iDCR1, buffer);
+      iDCR << buffer << '\n';
+      index +=1 ;
+    }
+    while(index<arc+node+commodity) {  
+      getline(iDCR1, buffer1[k]);
+      k += 1;
+      index += 1;
+    }
+    iDCR1 >> mtu;
+  } else {
+    stdfs::path p = stdfs::current_path();
+    std::ofstream iDCR( file.substr(0,file.find_last_of('.'))+".dcr" );
+    std::ifstream iDCR1( file.substr(0,file.find_last_of('.'))+"-1.dcr" );
+    std::string buffer;
+    getline(iDCR1, buffer);
+    iDCR << buffer << '\n';
+    while(index<arc+node) {  
+      getline(iDCR1, buffer);
+      iDCR << buffer << '\n';
+      index +=1 ;
+    }
+    while(index<arc+node+commodity) {  
+      getline(iDCR1, buffer1[k]);
+      k += 1;
+      index += 1;
+    }
+    iDCR1 >> mtu;
+  }
+
+  std::ofstream iParam( file.substr(0,file.find_last_of('.'))+".param" );
+  iParam << mtu << "\n";
+  for(index=0; index<commodity; index++) {  
+    iParam << buffer1[index] << '\n';
+  }
+  iParam.close();
   int j;
 
   for(j=1; j<commodity+1; ++j){
