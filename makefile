@@ -47,13 +47,23 @@ MCFClssSlvr = -DHAVE_MFSMX -DHAVE_CPLEX -DHAVE_RELAX
 
 SFDCROBJ = $(SFDCRSDR)/obj/SingleFlowDCRBlock.o \
 	$(SFDCRSDR)/obj/SingleFlowDCRBendersSolver.o \
-	$(SFDCRSDR)/obj/MultiFlowDCRBlock.o
+	$(SFDCRSDR)/obj/MultiFlowDCRBlock.o \
+	$(SFDCRSDR)/obj/BenBound.o \
+	$(SFDCRSDR)/obj/DCRLagrangianSolver.o \
+	$(SFDCRSDR)/obj/SPT.o 
 
 SFDCRINC = -I$(SFDCRSDR)/include
 
 SFDCRH   = $(SFDCRSDR)/include/SingleFlowDCRBlock.h \
 	$(SFDCRSDR)/include/SingleFlowDCRBendersSolver.h \
-	$(SFDCRSDR)/include/MultiFlowDCRBlock.h
+	$(SFDCRSDR)/include/MultiFlowDCRBlock.h \
+	$(SFDCRSDR)/include/BenBound.h \
+	$(SFDCRSDR)/include/DCRLagrangianSolver.h \
+	$(SFDCRSDR)/include/SPT.h \
+	$(SFDCRSDR)/include/DCR.h #\
+	$(SFDCRSDR)/include/OPTUtils.h \
+	$(SFDCRSDR)/include/OPTtypes.h \
+	$(SFDCRSDR)/include/OPTvect.h
 
 # clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -70,14 +80,29 @@ $(SFDCRSDR)/obj/SingleFlowDCRBlock.o: $(SFDCRSDR)/src/SingleFlowDCRBlock.cpp \
 	$(CC) -c $(SFDCRSDR)/src/SingleFlowDCRBlock.cpp -o $@ \
 	$(SFDCRINC) $(SMS++INC) $(SW)
 
-$(SFDCRSDR)/obj/SingleFlowDCRBendersSolver.o: \
-	$(SFDCRSDR)/src/SingleFlowDCRBendersSolver.cpp $(SFDCRH) $(SMS++OBJ) $(MILPOBJ)
-	$(CC) -c $(SFDCRSDR)/src/SingleFlowDCRBendersSolver.cpp -o $@ \
-	$(SFDCRINC) $(SMS++INC) $(libMCFClINC) -I$(MILPINC) $(MCFClssSlvr) $(SW)
-
 $(SFDCRSDR)/obj/MultiFlowDCRBlock.o: \
 	$(SFDCRSDR)/src/MultiFlowDCRBlock.cpp $(SFDCRH) $(SMS++OBJ) $(MILPOBJ)
 	$(CC) -c $(SFDCRSDR)/src/MultiFlowDCRBlock.cpp -o $@ \
+	$(SFDCRINC) $(SMS++INC) $(libMCFClINC) -I$(MILPINC) $(MCFClssSlvr) $(SW)
+
+$(SFDCRSDR)/obj/BenBound.o: \
+	$(SFDCRSDR)/src/BenBound.cpp $(SFDCRH) $(SMS++OBJ) $(MILPOBJ)
+	$(CC) -c $(SFDCRSDR)/src/BenBound.cpp -o $@ \
+	$(SFDCRINC) $(SMS++INC) $(libMCFClINC) -I$(MILPINC) $(MCFClssSlvr) $(SW)
+
+$(SFDCRSDR)/obj/DCRLagrangianSolver.o: \
+	$(SFDCRSDR)/src/DCRLagrangianSolver.cpp $(SFDCRH) $(SMS++OBJ) $(MILPOBJ)
+	$(CC) -c $(SFDCRSDR)/src/DCRLagrangianSolver.cpp -o $@ \
+	$(SFDCRINC) $(SMS++INC) $(libMCFClINC) -I$(MILPINC) $(MCFClssSlvr) $(SW)
+
+$(SFDCRSDR)/obj/SPT.o: \
+	$(SFDCRSDR)/src/SPT.cpp $(SFDCRH) $(SMS++OBJ) $(MILPOBJ)
+	$(CC) -c $(SFDCRSDR)/src/SPT.cpp -o $@ \
+	$(SFDCRINC) $(SMS++INC) $(libMCFClINC) -I$(MILPINC) $(MCFClssSlvr) $(SW)
+
+$(SFDCRSDR)/obj/SingleFlowDCRBendersSolver.o: \
+	$(SFDCRSDR)/src/SingleFlowDCRBendersSolver.cpp $(SFDCRH) $(SMS++OBJ) $(MILPOBJ)
+	$(CC) -c $(SFDCRSDR)/src/SingleFlowDCRBendersSolver.cpp -o $@ \
 	$(SFDCRINC) $(SMS++INC) $(libMCFClINC) -I$(MILPINC) $(MCFClssSlvr) $(SW)
 
 ########################## End of makefile ###################################

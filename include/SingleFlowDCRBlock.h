@@ -35,6 +35,8 @@
 
 #include "LinearFunction.h"
 
+#include "QuadFunction.h"
+
 #include "FRealObjective.h"
 
 #include "FRowConstraint.h"
@@ -42,6 +44,8 @@
 #include "OneVarConstraint.h"
 
 #include "Solution.h"
+
+#include "MILPSolver.h"
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------- NAMESPACE ------------------------------------*/
@@ -274,6 +278,29 @@ public:
 
  typedef std::vector< FONumber > Vec_FONumber;  ///< a vector of FONumber
  typedef const Vec_FONumber c_Vec_FONumber;     ///< a const vector of FONumber
+
+ /*--------------------------------------------------------------------------*/
+
+typedef unsigned int    Index;           ///< index of a node or arc ( >= 0 )
+typedef Index          *Index_Set;       ///< set (array) of indices
+typedef const Index    cIndex;           ///< a read-only index
+typedef cIndex        *cIndex_Set;       ///< read-only index array
+
+ /*--------------------------------------------------------------------------*/
+
+//typedef double          FNumber;        ///< type of arc flow
+typedef FNumber        *FRow;           ///< vector of flows
+typedef const FNumber  cFNumber;        ///< a read-only flow
+typedef cFNumber      *cFRow;           ///< read-only flow array
+
+ /*--------------------------------------------------------------------------*/
+
+//typedef double          CNumber;        ///< type of arc flow cost
+typedef CNumber        *CRow;           ///< vector of costs
+typedef const CNumber  cCNumber;        ///< a read-only cost
+typedef cCNumber      *cCRow;           ///< read-only cost array
+
+/*--------------------------------------------------------------------------*/
 
 /** @} ---------------------------------------------------------------------*/
 /*------------------------------- FRIENDS ----------------------------------*/
@@ -741,6 +768,36 @@ public:
  [[nodiscard]] Index get_NStaticArcs( void ) const {
   return( NStaticArcs );
   }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// get the MTU
+
+ [[nodiscard]] Vec_CNumber get_MTU( void ) const { return( MTU ); }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// get the NodeDelays
+
+ [[nodiscard]] Vec_CNumber get_NodeDelays( void ) const { return( NodeDelays ); }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// get the NodeDelays
+
+ [[nodiscard]] Vec_CNumber get_LinkDelays( void ) const { return( LinkDelays ); }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// get the FlowBurst
+
+ [[nodiscard]] Vec_CNumber get_FlowBurst( void ) const { return( FlowBursts ); }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// get the FlowDeadline
+
+ [[nodiscard]] Vec_CNumber get_FlowDeadline( void ) const { return( FlowDeadlines ); }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// get the rho
+
+ [[nodiscard]] Vec_CNumber get_rho( void ) const { return( rho ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns true if there are static nodes (= possibly flow constraints)
@@ -1492,6 +1549,27 @@ public:
   }
 
 /*--------------------------------------------------------------------------*/
+
+  void set_r( c_Vec_FNumber_it fstrt ,
+    Range rng = Range( 0 , Inf< Index >() ) );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ void set_r( c_Vec_FNumber_it fstrt , c_Subset sbst );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ void set_r( Index arc , FNumber FSol ) {
+  if( arc >= get_NArcs() )
+  throw( std::invalid_argument( "invalid arc name" ) );
+
+  if( arc < get_NStaticArcs() )
+  r[ arc ].set_value( FSol );
+  else
+  std::next( dx.begin() , arc - get_NStaticArcs() )->set_value( FSol );
+}
+
+/*--------------------------------------------------------------------------*/
  /// sets a contiguous interval of the flow solution
  /** Method to set the flow solution; the values found in the c_Vec_FNumber
   * starting from fstrt are copied into the value of the flow variable
@@ -2193,6 +2271,9 @@ public:
  std::vector< FRowConstraint > Indicator_cnst_rmin; /// the static indicator constraints on reserve min
  std::vector< FRowConstraint > Indicator_cnst_r1; /// the first static indicator constraints on reserve
  std::vector< FRowConstraint > Indicator_cnst_r2; /// the second static indicator constraints on reserve
+
+ std::vector< FRowConstraint > cone_min_cnst; /// the cone constraint
+ std::vector< FRowConstraint > cone_cnst; /// the cone constraint
  
  std::list< ColVariable > dx;      ///< the dynamic flow variables
  std::list< ColVariable > dr;      ///< the dynamic reserve variables

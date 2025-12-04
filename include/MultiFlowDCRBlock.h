@@ -58,6 +58,7 @@ namespace SMSpp_di_unipi_it
  using Vec_CNumber = SingleFlowDCRBlock::Vec_CNumber;
  using FNumber = SingleFlowDCRBlock::FNumber;
  using Vec_FNumber = SingleFlowDCRBlock::Vec_FNumber;
+ using c_Vec_FNumber = SingleFlowDCRBlock::c_Vec_FNumber;
 
  using FMultiVector = std::vector< Vec_FNumber >;
  using CMultiVector = std::vector< Vec_CNumber >;
@@ -277,8 +278,13 @@ class MultiFlowDCRBlock : public Block
 
  void serialize( netCDF::NcGroup & file ) const override;
 
+/*--------------------------------------------------------------------------*/
+
+ bool is_feasible( bool useabstract = false , Configuration *fsbc = nullptr )
+  override;
+
 /** @} ---------------------------------------------------------------------*/
-/*-------------- Methods for reading the data of the SingleFlowDCRBlock --------------*/
+/*-------------- Methods for reading the data of the SingleFlowDCRBlock ----*/
 /*--------------------------------------------------------------------------*/
 /** @name Methods for reading the data of the MultiFlowDCRBlock
  *  @{ */
@@ -297,6 +303,26 @@ class MultiFlowDCRBlock : public Block
 
  Index get_NComm( void ) const { return( NComm ); }
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ c_Vec_FNumber & get_U( void ) const { return( CapTot ); }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ c_Vec_FNumber & get_LinkDelays( void ) const { return( LinkDelays ); }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ c_Vec_FNumber & get_NodeDelays( void ) const { return( NodeDelays ); }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ FMultiVector & get_MTU( void ) { return( MTU ); }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ FMultiVector & get_FlowBurst( void ) { return( FlowBursts ); }
+
 /*--------------------------------------------------------------------------*/
 
  bool useFlowRelaxation( void ) const {
@@ -309,8 +335,14 @@ class MultiFlowDCRBlock : public Block
  int get_objective_sense( void ) const override final {
   return( f_sense );
   }
-  
-  /*--------------------------------------------------------------------------*/
+
+/*--------------------------------------------------------------------------*/
+
+  double get_rs( Index k , Index i ) const {
+    return( static_cast< SingleFlowDCRBlock * >( v_Block[ k ] )->get_r( i ) );
+  }
+
+/*--------------------------------------------------------------------------*/
 
 
  /// get the flow of a given arc for a given commodity 
@@ -321,11 +353,14 @@ class MultiFlowDCRBlock : public Block
   * already rescaled wigth x^k_{ij} in [ 0 , u_ij ]. */
 
  double get_flow( Index k , Index i ) const {
+  return( static_cast< SingleFlowDCRBlock * >( v_Block[ k ] )->get_x( i ) );
+  /*
   if( ! ( AR & HasVar ) )
    return( 0 );
  
   if( ! ( AR & KnapsackRelaxation ) )
    return( static_cast< SingleFlowDCRBlock * >( v_Block[ k ] )->get_x( i ) );
+  */
   }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/ 
@@ -494,7 +529,7 @@ void chg_fixed_costs( int seed , double lambda )
 
  static constexpr unsigned char slc = 8;
  ///< fourth bit of AR == 1: true if we use the strong forcing constraints
- 
+
  Index NXtrV;          ///< Number of "extra" variables
  Index NXtrC;          ///< Number of "extra" constraints
 
@@ -512,7 +547,8 @@ void chg_fixed_costs( int seed , double lambda )
  FMultiVector B;       ///< Matrix of the node deficits
  FMultiVector I;       ///< Matrix of the variables integrality constraints
 
- Vec_FNumber UTot;     ///< Vector of mutual capacities
+ Vec_FNumber UTot;       ///< Vector equal to the sum of mutual capacities
+ Vec_FNumber CapTot;     ///< Vector of mutual capacities
  
  Vec_CNumber F;        ///< Vector of fixed costs
   
@@ -523,7 +559,6 @@ void chg_fixed_costs( int seed , double lambda )
  FMultiVector FlowDeadlines;     ///< Matrix of flow deadlines
  FMultiVector rho;     ///< Matrix of rho
  FMultiVector MTU;     ///< Matrix of MTU
-
 
  Subset Startn;        ///< Topology of the graph: starting nodes
  Subset Endn;          ///< Topology of the graph: ending nodes
@@ -573,7 +608,7 @@ void chg_fixed_costs( int seed , double lambda )
 
 /*--------------------------------------------------------------------------*/
 
-/*@}  end( group( MultiFlowDCRBlock_CLASSES ) ) -----------------------------------*/
+/*@}  end( group( MultiFlowDCRBlock_CLASSES ) ) ----------------------------*/
 /*--------------------------------------------------------------------------*/
 
  }  // end( namespace SMSpp_di_unipi_it )
@@ -584,6 +619,6 @@ void chg_fixed_costs( int seed , double lambda )
 #endif  /* MultiFlowDCRBlock.h included */
 
 /*--------------------------------------------------------------------------*/
-/*---------------------- End File MultiFlowDCRBlock.h ------------------------------*/
+/*---------------------- End File MultiFlowDCRBlock.h ----------------------*/
 /*--------------------------------------------------------------------------*/
 

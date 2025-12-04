@@ -1,0 +1,23 @@
+
+- CONTENUTO
+
+  CPX_LAG: oggetto che risolve DCR con vincoli lineari su r_min tramite CPLEX.
+  
+  CPX_BEND: oggetto che risolve DCR variando r_min tramite CPLEX.
+  
+  DCRLagrangianSolver: oggetto che risolve rilassamento lagrangiano di DCR con vincoli bilineari.
+  
+  BenBound: oggetto che risolve la decomposizione di Bender
+  
+  SPT: oggetto per soluzione di shortest path
+  
+  main: test di confronto tra i due metodi risolutivi, crea file csv per istanza data
+  
+  le altre classi servono alla creazione delle istanze del problema.
+  
+  
+- HowTO
+
+  make
+  
+  ./main nome_istanza
