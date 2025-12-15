@@ -64,7 +64,6 @@
 
 #include <chrono>
 
-#include "MCFCplex.h"
 #include "BlockSolverConfig.h"
 #include "SingleFlowDCRBlock.h"
 #include "MultiFlowDCRBlock.h"
@@ -74,8 +73,6 @@
 #include "LagrangianDualSolver.h"
 #include "BundleSolver.h"
 #include "SingleFlowDCRBendersSolver.h"
-#include "PrimalProximalHeur.h"
-#include "PPHeurSolver.h"
 
 /*--------------------------------------------------------------------------*/
 /*-------------------------------- USING -----------------------------------*/
@@ -192,13 +189,13 @@ int main( int argc , char **argv )
     cerr << "Error: configuration file not a BlockSolverConfig" << endl;
     exit( 1 );    
     }
-
+/*
     auto bsc1 = dynamic_cast< BlockSolverConfig * >(Configuration::deserialize( "PPHeurSolver.txt" ) );
     if( ! bsc1 ) {
     cerr << "Error: configuration file not a BlockSolverConfig" << endl;
     exit( 1 );    
     }
-
+*/
     auto bsc2 = dynamic_cast< BlockSolverConfig * >(Configuration::deserialize( "MILPPar2.txt" ) );
     if( ! bsc ) {
     cerr << "Error: configuration file not a BlockSolverConfig" << endl;
@@ -208,23 +205,19 @@ int main( int argc , char **argv )
     oMCFB = dynamic_cast< MultiFlowDCRBlock * >( Block::new_Block( "MultiFlowDCRBlock" ) );
     assert( oMCFB );
 
-    oMCFB1 = dynamic_cast< MultiFlowDCRBlock * >( Block::new_Block( "MultiFlowDCRBlock" ) );
-    assert( oMCFB1 );
+    //oMCFB1 = dynamic_cast< MultiFlowDCRBlock * >( Block::new_Block( "MultiFlowDCRBlock" ) );
+    //assert( oMCFB1 );
 
     oMCFB2 = dynamic_cast< MultiFlowDCRBlock * >( Block::new_Block( "MultiFlowDCRBlock" ) );
     assert( oMCFB2 );
 
-    oMCFB->load( argv[ 1 ] );
-    bsc->apply( oMCFB );
-    bsc->clear();  // keep the clear()-ed BlockSolverConfig for final cleanup
-
     // check Solvers - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
+/*
     if( oMCFB->get_registered_solvers().empty() ) {
       cerr << "Error: BlockSolverConfig did not register any Solver" << endl;
       exit( 1 );    
     }
-      
+*/      
     std::clock_t c_start;
     std::clock_t c_end; 
 
@@ -238,14 +231,18 @@ int main( int argc , char **argv )
     //double time_elapsed_exact = 1000.0 * (c_end-c_start) / (double) CLOCKS_PER_SEC;
     double time_elapsed_exact = std::chrono::duration_cast<std::chrono::nanoseconds>(c_end_chrono_exact - c_start_chrono_exact).count()/1e+9;
 
+    oMCFB->load( argv[ 1 ] );
+    bsc->apply( oMCFB );
+    bsc->clear();  // keep the clear()-ed BlockSolverConfig for final cleanup
     Solver * slvrLDMILP = oMCFB->get_registered_solvers().front();
+    oMCFB->get_registered_solvers().front()->set_log( &std::cout );
     auto c_start_chrono_lagrangianMILP = std::chrono::high_resolution_clock::now();//std::clock();
     if(slvrEXACT->has_var_solution())
       int rtrn = slvrLDMILP->compute();
     auto c_end_chrono_lagrangianMILP = std::chrono::high_resolution_clock::now();//std::clock();
     //double time_elapsed_continuous = 1000.0 * (c_end-c_start) / (double) CLOCKS_PER_SEC;
     double time_elapsed_lagrangianMILP = std::chrono::duration_cast<std::chrono::nanoseconds>(c_end_chrono_lagrangianMILP - c_start_chrono_lagrangianMILP).count()/1e+9;
-
+/*
     oMCFB1->load( argv[ 1 ] );
     bsc1->apply( oMCFB1 );
     bsc1->clear(); 
@@ -256,7 +253,8 @@ int main( int argc , char **argv )
     auto c_end_chrono_lagrangian = std::chrono::high_resolution_clock::now();//std::clock();
     //double time_elapsed_lagrangian = 1000.0 * (c_end-c_start) / (double) CLOCKS_PER_SEC;
     double time_elapsed_lagrangian = std::chrono::duration_cast<std::chrono::nanoseconds>(c_end_chrono_lagrangian - c_start_chrono_lagrangian).count()/1e+9;
-///*
+*/
+    ///*
     //if( slvrEXACT->has_var_solution() ){
       //double laggapMILP  = std::abs((slvrEXACT->get_ub()-std::min(slvrLDMILP->get_lb(),slvrLDMILP->get_ub()))/std::min(slvrLDMILP->get_lb(),slvrLDMILP->get_ub()));
       //double laggap  = std::abs((slvrEXACT->get_ub()-std::min(slvrLD->get_lb(),slvrLD->get_ub()))/std::min(slvrLD->get_lb(),slvrLD->get_ub()));
@@ -264,12 +262,13 @@ int main( int argc , char **argv )
       std::cout << "OPTIMAL VALUE SOLUTION: " << slvrEXACT->get_ub() << "\n";
       std::cout << "CPU EXACT: " << time_elapsed_exact  << "\n";
 
-      std::cout << "ProxHeur BEST UB: " <<  dynamic_cast< PrimalProximalHeur * >( slvrLDMILP )->get_best_bound() << "\n";
+      std::cout << "ProxHeur BEST UB: " <<  slvrLDMILP->get_ub() << "\n";
       std::cout << "CPU ProxHeur: " << time_elapsed_lagrangianMILP  << "\n";
+
       //////std::cout << "SOLUTIONS MILP: " <<  dynamic_cast< PrimalProximalHeur * >( slvrLDMILP )->get_feasible_solutions() << "\n";
 
-      std::cout << "PPHeur BEST UB: " <<  dynamic_cast< PPHeurSolver * >( slvrLD )->get_best_bound() << "\n";
-      std::cout << "CPU PPHeur: " << time_elapsed_lagrangian  << "\n";
+      ///std::cout << "PPHeur BEST UB: " <<  dynamic_cast< PPHeurSolver * >( slvrLD )->get_best_bound() << "\n";
+      ///std::cout << "CPU PPHeur: " << time_elapsed_lagrangian  << "\n";
       //////std::cout << "SOLUTIONS Benders: " <<  dynamic_cast< PrimalProximalHeur * >( slvrLD )->get_feasible_solutions() << "\n";
 
       //std::cout << "DIFFERENCE in LAGRANGIAN LBs (abs): " << std::abs(slvrLDMILP->get_lb() - slvrLD->get_lb())/slvrLDMILP->get_lb() << "\n";

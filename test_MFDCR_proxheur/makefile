@@ -85,7 +85,7 @@ MOBJ =  $(SFDCROBJ)
 MLIB =  $(SFDCRLIB) -L"/Library/gurobi1001/macos_universal2/lib" -lgurobi100
 
 $(DIR)/$(NAME): $(MOBJ) $(DIR)/test.o  
-	$(CC) -o $(DIR)/$(NAME) ../../milpsolver/obj/MILPSolver.o ../../milpsolver/obj/CPXMILPSolver.o ../../milpsolver/obj/GRBMILPSolver.o ../../lagrangiandualsolver/LagrangianDualSolver.o ../../primalproximalheur/PrimalProximalHeur.o ../../ppheursolver/PPHeurSolver.o ../../bundlesolver/BundleSolver.o $(libNDOOBJ) $^ $(MLIB) $(libNDOINC) $(BNDSLVINC) $(libOSIINC) $(libOSILIB) $(SW) -lpthread -lm 
+	$(CC) -o $(DIR)/$(NAME) ../../milpsolver/obj/MILPSolver.o ../../milpsolver/obj/CPXMILPSolver.o ../../milpsolver/obj/GRBMILPSolver.o ../../lagrangiandualsolver/LagrangianDualSolver.o ../../primalproximalheur/PrimalProximalHeur.o ../../bundlesolver/BundleSolver.o $(libNDOOBJ) $^ $(MLIB) $(libNDOINC) $(BNDSLVINC) $(libOSIINC) $(libOSILIB) $(SW) -lpthread -lm 
 
 # dependencies: every .o from its .C + every recursively included .h- - - - -
 
@@ -98,6 +98,6 @@ MH =    $(SFDCRH)
 # compile command
 
 $(DIR)/test.o: $(DIR)/test.cpp $(MH)
-	$(CC) -c $*.cpp -o $@ $(MINC)  -I"/Library/gurobi1001/macos_universal2/include/" -I../../lagrangiandualsolver/ -I../../ppheursolver/ -I../../primalproximalheur/ -I../../bundlesolver/ -I../../milpsolver/include/ -I../../bundlesolver/ -I$(libNDOSDR)/OPTUtils -I../../bundlesolver/NdoFiOracle/NDOSlver -I$(libNDOINC) -I$(BNDSLVINC) $(libOSIINC) $(libOSILIB) $(SW)
+	$(CC) -c $*.cpp -o $@ $(MINC)  -I"/Library/gurobi1001/macos_universal2/include/" -I../../lagrangiandualsolver/ -I../../primalproximalheur/ -I../../bundlesolver/ -I../../milpsolver/include/ -I../../bundlesolver/ -I$(libNDOSDR)/OPTUtils -I../../bundlesolver/NdoFiOracle/NDOSlver -I$(libNDOINC) -I$(BNDSLVINC) $(libOSIINC) $(libOSILIB) $(SW)
 
 ############################ End of makefile #################################
