@@ -1944,8 +1944,8 @@ typedef cCNumber      *cCRow;           ///< read-only cost array
   *
   * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is issued. */
 
-// void chg_dfcts( c_Vec_FNumber_it NDfct , Range rng = INFRange ,
-//		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
+ void chg_dfcts( c_Vec_FNumber_it NDfct , Range rng = INFRange ,
+		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// change the deficits of an arbitrary subset of nodes
@@ -1961,9 +1961,9 @@ typedef cCNumber      *cCRow;           ///< read-only cost array
   * See chg_dfcts( range ) for Modification issued (except that, of course,
   * the "physical" one is a SingleFlowDCRBlockSbstMod). */
 
-// void chg_dfcts( c_Vec_FNumber_it NDfct ,
-//		 Subset && nms , bool ordered = false ,
-//		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
+ void chg_dfcts( c_Vec_FNumber_it NDfct ,
+		 Subset && nms , bool ordered = false ,
+		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// changes the deficit of the given node
@@ -1975,8 +1975,8 @@ typedef cCNumber      *cCRow;           ///< read-only cost array
   * Note that this can issue only one Modification; the "physical" one is a
   * SingleFlowDCRBlockRngdMod with rng = [ arc ). */
 
-// void chg_dfct( FNumber NDfct , Index nde ,
-//		ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
+ void chg_dfct( FNumber NDfct , Index nde ,
+		ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*--------------------------------------------------------------------------*/
  /// closes a contiguous interval of arcs
@@ -2209,6 +2209,9 @@ typedef cCNumber      *cCRow;           ///< read-only cost array
 
  void remove_arc( Index arc , ModParam issueMod = eNoBlck ,
 		              ModParam issueAMod = eNoBlck );
+
+ void chg_st( Index ns , Index nt , ModParam issueMod = eNoBlck , 
+                    ModParam issueAMod = eNoBlck );
 
 /** @} ---------------------------------------------------------------------*/
 /*-------------------- PROTECTED PART OF THE CLASS -------------------------*/
@@ -2769,8 +2772,8 @@ class DCRSolution : public Solution {
 /*-------------------------- PROTECTED METHODS -----------------------------*/
 
  void print( std::ostream &output ) const override final {
-  output << "DCRSolution [" << this << "]: " << v_x.size() << " flows and "
-	 << v_pi.size() << " potentials" << std::endl;
+  output << "DCRSolution [" << this << "]: " << v_r.size() 
+    << " flows" << std::endl;
   }
 
 /*---------------------- PRIVATE PART OF THE CLASS -------------------------*/
@@ -2780,8 +2783,8 @@ class DCRSolution : public Solution {
 /*---------------------------- PRIVATE FIELDS ------------------------------*/
 
  SingleFlowDCRBlock::Vec_FNumber v_x;   ///< the arc flows
-
  SingleFlowDCRBlock::Vec_CNumber v_pi;  ///< the node potentials
+ SingleFlowDCRBlock::Vec_CNumber v_r;  ///< the node potentials
 
 /*--------------------------------------------------------------------------*/
 

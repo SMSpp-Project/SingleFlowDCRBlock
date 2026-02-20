@@ -25,18 +25,19 @@ SW = -O3 -std=c++17 -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION
 #-DNDEBUG -DCLANG_1200_0_32_27_PATCH -ferror-limit=1 
 
 # compiler
-CC = clang++ -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION #-Wall -Iinclude
+CC = clang++ -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION
 
 # basic CPLEX directory
 libCPLEXBSCDIR = /Applications/CPLEX_Studio2211/cplex/
 
 # lib Cplex directory
-libCPLEXINCDIR = $(libCPLEXBSCDIR)lib/x86-64_osx/static_pic/
-
-# macroes to be exported- - - - - - - - - - - - - - - - - - - - - - - - - - -
+libCPLEXINCDIR = $(libCPLEXBSCDIR)lib/arm64_osx/static_pic/
 
 libCPLEXLIB = -L$(libCPLEXINCDIR) -lilocplex -lcplex $(libCPLEXEXTLIB)
 libCPLEXINC = -I$(libCPLEXBSCDIR)include/
+
+libOSIINC = -I/usr/local/include/coin
+libOSILIB = -rpath /usr/local/lib/ -lOsiClp -lClp -lOsi -lCoinUtils -lOsiCpx
 
 # default target- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -60,21 +61,35 @@ clean::
 SFDCRSDR = ..
 include $(SFDCRSDR)/makefile-c
 
+LAGRANGIANDR = ../../LagrangianDualSolver
+BUNDLEDR = ../../BundleSolver
+
+#LgDSLVSDR = $(LAGRANGIANDR)
+#LgDSLVODR = $(LAGRANGIANDR)/obj/
+#include $(LAGRANGIANDR)/makefile-c
+
+libNDOSDR = ../../BundleSolver/NdoFiOracle
+include ../../BundleSolver/NdoFiOracle/lib/makefile
+
+BNDSLVSDR = $(BUNDLEDR)
+BNDSLVODR = $(BUNDLEDR)
+include $(BUNDLEDR)/makefile
+
 # main module (linking phase) - - - - - - - - - - - - - - - - - - - - - - - -
 
 # object files
 MOBJ =  $(SFDCROBJ) 
 
 # libraries
-MLIB =  $(SFDCRLIB) 
+MLIB =  $(SFDCRLIB) -L"/Library/gurobi1001/macos_universal2/lib" -lgurobi100
 
 $(DIR)/$(NAME): $(MOBJ) $(DIR)/test.o  
-	$(CC) -o $(DIR)/$(NAME) ../../milpsolver/obj/MILPSolver.o ../../milpsolver/obj/CPXMILPSolver.o $^ $(MLIB) $(SW) -lpthread -lm 
+	$(CC) -o $(DIR)/$(NAME) ../../MILPSolver/obj/*.o ../../LagrangianDualSolver/obj/*.o ../../BundleSolver/obj/*.o $(libNDOOBJ) $^ $(MLIB) $(libNDOINC) $(BNDSLVINC) $(libOSIINC) $(libOSILIB) $(libCPLEXLIB) $(SW) -lpthread -lm 
 
 # dependencies: every .o from its .C + every recursively included .h- - - - -
 
 # include directives
-MINC =  $(SFDCRINC) 
+MINC =  $(SFDCRINC) -I"/Library/gurobi1001/macos_universal2/include"
 
 # includes
 MH =    $(SFDCRH)
@@ -82,6 +97,6 @@ MH =    $(SFDCRH)
 # compile command
 
 $(DIR)/test.o: $(DIR)/test.cpp $(MH)
-	$(CC) -c $*.cpp -o $@ $(MINC) $(SW) 
+	$(CC) -c $*.cpp -o $@ $(MINC) -I../../LagrangianDualSolver/include/ -I../../BundleSolver/include/ -I../../MILPSolver/include/ -I$(libNDOSDR)/OPTUtils -I../../BundleSolver/NdoFiOracle/NDOSlver -I$(libNDOINC) -I$(BNDSLVINC) $(libOSIINC) $(libOSILIB) $(libCPLEXINC) $(SW)
 
 ############################ End of makefile #################################

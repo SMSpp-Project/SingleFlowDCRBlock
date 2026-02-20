@@ -29,10 +29,6 @@
 
 #include "SingleFlowDCRBlock.h"
 
-//#include "MCFClass.h"
-
-//#include "MILPSolver.h"
-
 #include "BenBound.h"
 
 #include "DCR.h"
@@ -181,11 +177,6 @@ public:
    if( ! owned )
     MCFB->read_unlock();
 
-   //std::cout << MCFB->get_U(0) << std::endl;
-   //std::cout << "\n--------------------" << std::endl;
-
-   //MCFB->print(std::cout);
-
    // TODO: maybe log it
    }
   }  // end( set_Block )
@@ -214,17 +205,6 @@ public:
    return( kBlockLocked );                         // return error on failure
 
   // while [read_]locked, process any outstanding Modification
-/*
-  if( ! f_dmx_file.empty() ) {  // if so required
-   // output the current instance (after the changes) to a DMX file
-   std::ofstream ProbFile( f_dmx_file , ios_base::out | ios_base::trunc );
-   if( ! ProbFile.is_open() )
-    throw( std::logic_error( "cannot open DMX file " + f_dmx_file ) );
-
-   WriteMCF( ProbFile );
-   ProbFile.close();
-   }
-*/
 
   process_outstanding_Modification();
   
@@ -237,14 +217,9 @@ public:
   // then (try to) solve the SingleFlowDCR
   BenBound::DCRstartTime();
   BenBound::Solve();
-  //std::cout << "SOLUTION: " << get_lb() << "\n";
   BenBound::DCRstopTime();
-  //std::cout << "TIME: " << BenBound::getTime() << std::endl;
 
   unlock();                  // unlock the mutex     
-
-  //if ( get_lb() <= 0.0 )
-  //  std::cout << "ERROR!" << std::endl;
 
   // now give out the result: note that the vector MCFstatus_2_sol_type[]
   // starts from 0 whereas the first value of MCFStatus is -1 (= kUnSolved),
@@ -266,149 +241,49 @@ public:
 /*--------------------------------------------------------------------------*/
 
  OFValue get_lb( void ) override {  
-/*
-  vector<double> soluzione;
-  vector<double> costi;
-  double sum = 0.0;
-
-  auto MCFB = dynamic_cast< SingleFlowDCRBlock * >( f_Block );
-  costi =  MCFB->get_C();
-  
-  soluzione.resize(MCFB->get_NArcs());
-  for (int i = 0; i < MCFB->get_NArcs() ; i++){
-     soluzione[i] = BenBound::getSolution( i );
-     sum += costi[i] * soluzione[i];
-     //if(soluzione[i] > 0)
-      //std::cout << "soluzione[" << i << "] = " << soluzione[i] << " ";
-  }
-*/  
-  //if( std::abs(sum-getObjVal()) > 2)
-  //std::cout << get_ub() << "," << getLB() << std::endl;
-  
-  //return( sum ); 
-  //std::cout << getObjVal() << std::end;
-  
-  //if(getLB() == -Inf<double>())
-    //std::cout << "getLB() == -Inf<double>()" << std::endl;
-    //return( getObjVal() );
-
-  auto lb = this->BenBound::getLB();
-  auto ub = this->BenBound::getUB();
-  //std::cout<<lb<<","<<ub<<std::endl;
-  //std::cout<<std::abs(ub-lb)/std::abs(ub)<<std::endl;
-
-  if(std::abs(ub-lb)/std::abs(ub) > 1e-4){ //1e-2 
-  ///if (lb <= 0.0){
-    ///std::cout << lb << "," << ub << std::endl;
-    ///std::cout << "Resolution with MILPSolver" << std::endl;
-    auto bsc2 = dynamic_cast< BlockSolverConfig * >(Configuration::deserialize( "MILPPar1.txt" ) );
-    auto SCFB = dynamic_cast< SingleFlowDCRBlock * >( f_Block );
-    bsc2->apply( SCFB );
-    ////Solver * slvr = SCFB->get_registered_solvers().front();
-    ////int rtrn2 = slvr->compute();
-    ////std::cout << "new_lb=" << slvr->get_lb() << std::endl;
-    ////if(std::abs(slvr->get_lb()-ub)/ub > 1e-2) {std::cout<<std::abs(slvr->get_lb()-ub)/ub<<std::endl;}
-    ////return(slvr->get_lb());  
-    ////return(ub);
-  }
-
-  ////std::cout << "Resolution with BenderSolver" << std::endl;
-  return( std::min(lb,ub) );
+  return( std::min( this->BenBound::getLB() , this->BenBound::getUB() ) );
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
  OFValue get_ub( void ) override { 
+  auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
 
-  //std::cout << BenBound::getUB() << " " << getLB() << std::endl;
+  //for (int i = 0; i < DCRB->get_NArcs() ; i++)
+    //std::cout << DCRB->get_r( i ) << std::endl;    
 
-  //return( getObjVal() );
-/*
-  if (this->BenBound::getLB() < 0.0){
-    auto bsc2 = dynamic_cast< BlockSolverConfig * >(Configuration::deserialize( "MILPPar1.txt" ) );
-    auto SCFB = dynamic_cast< SingleFlowDCRBlock * >( f_Block );
-    bsc2->apply( SCFB );
-    Solver * slvr = SCFB->get_registered_solvers().front();
-    int rtrn2 = slvr->compute();
-    return(slvr->get_ub());
-  }
-*/
-  auto lb = this->BenBound::getLB();
-  auto ub = this->BenBound::getUB();
-  return( std::max(lb,ub) ); 
+  //if( DCRB->is_feasible() )
+    //std::cout << "feasible" << std::endl;
 
-  vector<double> soluzione;
-  vector<double> costi;
-  double sum = 0.0;
-
-  auto MCFB = dynamic_cast< SingleFlowDCRBlock * >( f_Block );
-  costi =  MCFB->get_C();
+  if( this->get_var_value() < 1e200 && this->BenBound::getUB() > 1e200 )
+   return( this->get_var_value() );
   
-  soluzione.resize(MCFB->get_NArcs());
-  for (int i = 0; i < MCFB->get_NArcs() ; i++){
-     soluzione[i] = BenBound::getSolution( i );
-     sum += costi[i] * soluzione[i];
-  }
-  //std::cout << sum << "," << getObjVal() << std::endl;
-
-  double DCR = 0.0;
-  bool solution_is_feasible = true;
-  auto min_r = Inf< double >();
-
-  for (int i = 0; i < MCFB->get_NArcs() ; i++)
-    if( min_r < soluzione[i] and soluzione[i] > 1e-6)
-      min_r = soluzione[i];
-
-  DCR += 1.0/min_r * MCFB->get_FlowBurst()[0];
-  for (int i = 0; i < MCFB->get_NArcs() ; i++)
-    if(soluzione[i] > 1e-6){
-      DCR += 1.0/soluzione[i] * MCFB->get_MTU()[0] + MCFB->get_MTU()[ 0 ] / MCFB->get_U()[ i ] 
-          + MCFB->get_LinkDelays()[ i ] + MCFB->get_NodeDelays()[ MCFB->get_SN( i ) - 1 ];
-    }
-  
-  if(DCR > MCFB->get_FlowDeadline()[ 0 ]){
-    solution_is_feasible = false;
-    std::cout << "solution NOT feasible: " << (DCR - MCFB->get_FlowDeadline()[ 0 ])/DCR << std::endl;
-  }
-
-  if( solution_is_feasible )
-    return( sum ); 
-  else {
-    std::cout << BenBound::getUB() << " " << get_lb() << std::endl;
-    return( this->BenBound::getUB() ); 
-  }  
-
+  ///std::cout << this->get_var_value() << " " << BenBound::getUB() << std::endl;
+  return( std::max( this->get_var_value() , this->BenBound::getUB() ) );
 }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
   OFValue get_var_value( void ) override { 
 
-    return( getObjVal() );
+    ///!return( getObjVal() );
     
-    vector<double> soluzione;
-    vector<double> costi;
     double sum = 0.0;
 
-    auto MCFB = dynamic_cast< SingleFlowDCRBlock * >( f_Block );
-    costi =  MCFB->get_C();
+    auto DCRB = dynamic_cast< SingleFlowDCRBlock * >( f_Block );
+    auto costi =  DCRB->get_C();
     
-    soluzione.resize(MCFB->get_NArcs());
-    for (int i = 0; i < MCFB->get_NArcs() ; i++){
-      soluzione[i] = BenBound::getSolution( i );
-      sum += costi[i] * soluzione[i];
-    }
-    
+    for (int i = 0; i < DCRB->get_NArcs() ; i++)
+     sum += costi[i] * DCRB->get_r( i );
+  
     return( sum ); 
-
   }
 
 /*--------------------------------------------------------------------------*/
 
 bool has_var_solution( void ) override {
   switch( this->BenBound::getStat() ) {
-   case( BenBound::OK ):
-   case( BenBound::Infeasible ): return( true );
+   case( BenBound::OK ): return( true ) ;
    default:                      return( false );
    }
   }
@@ -434,7 +309,7 @@ bool has_var_solution( void ) override {
     auto v = BenBound::getSolution( i );
     DCRB->set_r( i, v );
     if( v > 0.0 ){
-      //std::cout << i << "," << v[i] << std::endl;
+      //std::cout << i << "," << v << std::endl;
       DCRB->set_x( i, 1 );
     } else {
       DCRB->set_x( i, 0 );
@@ -462,7 +337,7 @@ bool has_var_solution( void ) override {
      
       // process all the Modifications
       for( auto mod : v_mod )
-        if( auto tmod = dynamic_cast< C05FunctionModLinRngd * >( mod.get() ) ) {
+        if( auto tmod = mod.get() ) {
           reload = true;  // a reset must be done
           break;          // ignore all the remaining Modifications
         }

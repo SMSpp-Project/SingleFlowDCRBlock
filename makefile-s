@@ -48,7 +48,7 @@ include ../extlib/makefile-libNetCDF
 include ../extlib/makefile-libCPLEX
 
 # external -I directives for the core SMS++
-SMS++INC = -I ../smspp/include $(libBoostINC) $(libEigenINC) $(libNtCDFINC) $(libCPLEXINC)
+SMS++INC = -I ../SMS++/include $(libBoostINC) $(libEigenINC) $(libNtCDFINC) $(libCPLEXINC)
 
 # define & include the necessary modules- - - - - - - - - - - - - - - - - - -
 # if a module is not used in the current configuration, just comment out the
@@ -65,7 +65,7 @@ MCFC_NO_PATHS = 0
 libMCFClDIR = $(SFDCRSDR)/MCFClass
 include $(libMCFClDIR)/lib/makefile-inc
 
-MILPINC = $(SFDCRSDR)/../milpsolver/include
+MILPINC = $(SFDCRSDR)/../MILPSolver/include
 
 # include the makefile requiring all external modules in input
 include $(SFDCRSDR)/makefile

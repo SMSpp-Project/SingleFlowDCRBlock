@@ -34,17 +34,10 @@
 # *INC is the -I< include directories >
 
 # define input macros for SMS++ complete makefile, then include it
-SMS++SDR = $(SFDCRSDR)/../smspp
+SMS++SDR = $(SFDCRSDR)/../SMS++
 include $(SMS++SDR)/lib/makefile-inc
 
-# define input macros for libMCFCl complete makefile, then include it
-# signal that *_ROOT values for external libraries need not be read by
-# the MCFClass makefiles since they are defined already by SMS++
-MCFC_NO_PATHS = 0
-libMCFClDIR = $(SFDCRSDR)/MCFClass
-include $(libMCFClDIR)/lib/makefile-inc
-
-MILPINC = $(SFDCRSDR)/../milpsolver/include
+MILPINC = $(SFDCRSDR)/../MILPSolver/include
 
 # include the makefile requiring all external modules in input
 include $(SFDCRSDR)/makefile

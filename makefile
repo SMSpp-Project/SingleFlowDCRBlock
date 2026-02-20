@@ -60,7 +60,7 @@ SFDCRH   = $(SFDCRSDR)/include/SingleFlowDCRBlock.h \
 	$(SFDCRSDR)/include/BenBound.h \
 	$(SFDCRSDR)/include/DCRLagrangianSolver.h \
 	$(SFDCRSDR)/include/SPT.h \
-	$(SFDCRSDR)/include/DCR.h #\
+	$(SFDCRSDR)/include/DCR.h \
 	$(SFDCRSDR)/include/OPTUtils.h \
 	$(SFDCRSDR)/include/OPTtypes.h \
 	$(SFDCRSDR)/include/OPTvect.h

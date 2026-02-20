@@ -92,7 +92,7 @@ class MultiFlowDCRBlock : public Block
 /*---------------------------- PUBLIC TYPES --------------------------------*/
 /*--------------------------------------------------------------------------*/
 
- enum MCFType { kMCF , kSPT };
+ //enum MCFType { kMCF , kSPT };
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- PUBLIC METHODS OF THE CLASS ------------------------*/
@@ -280,8 +280,8 @@ class MultiFlowDCRBlock : public Block
 
 /*--------------------------------------------------------------------------*/
 
- bool is_feasible( bool useabstract = false , Configuration *fsbc = nullptr )
-  override;
+ bool is_feasible( bool useabstract = false ,
+                   Configuration * fsbc = nullptr ) override;
 
 /** @} ---------------------------------------------------------------------*/
 /*-------------- Methods for reading the data of the SingleFlowDCRBlock ----*/
@@ -571,7 +571,7 @@ void chg_fixed_costs( int seed , double lambda )
 			* constraint is defined */
  MultiSubset ActiveK;  ///< Like Active for individual capacities
  bool DrctdPrb;        ///< true if the problem is directed
- std::vector<MCFType> PT;  ///< type of flow subproblem
+ //std::vector<MCFType> PT;  ///< type of flow subproblem
 
  Vec_Bool CIsCpy;     ///< true for each row of C[] that is a copy of another
  Vec_Bool UIsCpy;     ///< true for each row of U[] that is a copy of another
