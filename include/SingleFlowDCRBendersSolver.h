@@ -43,7 +43,6 @@
 namespace SMSpp_di_unipi_it
 {
   
- //using namespace MCFClass_di_unipi_it;
  //using Index = Block::Index;
  
  //class SingleFlowDCRBendersSolverState;  // forward declaration of SingleFlowDCRBendersSolverState
@@ -241,7 +240,7 @@ public:
 /*--------------------------------------------------------------------------*/
 
  OFValue get_lb( void ) override {  
-  return( std::min( this->BenBound::getLB() , this->BenBound::getUB() ) );
+  return( this->BenBound::getLB() );
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
@@ -258,7 +257,7 @@ public:
   if( this->get_var_value() < 1e200 && this->BenBound::getUB() > 1e200 )
    return( this->get_var_value() );
   
-  ///std::cout << this->get_var_value() << " " << BenBound::getUB() << std::endl;
+  //std::cout << this->get_var_value() << " " << BenBound::getUB() << std::endl;
   return( std::max( this->get_var_value() , this->BenBound::getUB() ) );
 }
 

@@ -86,7 +86,7 @@ namespace SMSpp_di_unipi_it
  *  @{ */
 
 /*--------------------------------------------------------------------------*/
-/*-------------------------- CLASS SingleFlowDCRBlock --------------------------------*/
+/*-------------------------- CLASS SingleFlowDCRBlock ----------------------*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------- GENERAL NOTES --------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -1763,8 +1763,8 @@ typedef cCNumber      *cCRow;           ///< read-only cost array
 /*--------------------------------------------------------------------------*/
  /// extends Block::serialize( netCDF::NcGroup )
  /** Extends Block::serialize( netCDF::NcGroup ) to the specific format of a
-  * SingleFlowDCRBlock. See SingleFlowDCRBlock::deserialize( netCDF::NcGroup ) for details of the
-  * format of the created netCDF group. */
+  * SingleFlowDCRBlock. See SingleFlowDCRBlock::deserialize( netCDF::NcGroup ) 
+  * for details of the format of the created netCDF group. */
 
  void serialize( netCDF::NcGroup & group ) const override;
 

@@ -68,6 +68,15 @@ using FNumber = SingleFlowDCRBlock::FNumber;
 static constexpr auto dNAN = std::numeric_limits< double >::quiet_NaN();
 static const auto cuts_formulation = false;
 
+static constexpr unsigned char FormMsk = 3;
+// mask for the first three bits, i.e., the formulation
+
+static constexpr unsigned char PCuts = 1;
+/// the P/C formulation is used
+
+static constexpr unsigned char SOCP = 2;
+/// the SOCP formulation is used
+
 /*--------------------------------------------------------------------------*/
 /*-------------------------------- FUNCTIONS -------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -780,7 +789,13 @@ void SingleFlowDCRBlock::generate_abstract_variables( Configuration *stvv )
 void SingleFlowDCRBlock::generate_dynamic_constraints( Configuration *stcc )
 {
 
- if( cuts_formulation ) {
+ Index FormMsk = 1;  // PCuts formulation
+ if( ( ! stcc ) && f_BlockConfig )
+  stcc = f_BlockConfig->f_static_variables_Configuration;
+ if( auto sci = dynamic_cast< SimpleConfiguration< int > * >( stcc ) )
+  FormMsk = sci->f_value;
+
+ if( FormMsk == PCuts ) {
   double tol = 1e-5;  // threshold parameter for P/C separation
   double eps = 1e-4;  // tolerance value to consider a binary variable
 
@@ -940,7 +955,13 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
   DCR_cnst[ 0 ].set_function( Funct );
   add_static_constraint( DCR_cnst );
 
- if( !cuts_formulation){
+ Index FormMsk = 2;  // PCuts formulation
+ if( ( ! stcc ) && f_BlockConfig )
+  stcc = f_BlockConfig->f_static_variables_Configuration;
+ if( auto sci = dynamic_cast< SimpleConfiguration< int > * >( stcc ) )
+  FormMsk = sci->f_value;
+
+ if( FormMsk == SOCP ){
 
     //std::cout << dynamic_cast< MILPSolver * >(this->get_registered_solvers().front())->index_of_static_variable( &r_min[0] ) << std::endl;
     //std::cout << Indicator_cnst_rmin[0].is_active(&r_min[0]) << std::endl;

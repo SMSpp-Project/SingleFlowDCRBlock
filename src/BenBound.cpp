@@ -141,7 +141,8 @@ using namespace std;
 
    double BenBound::getUB()
    {
-     //std::cout << "UB=" << BestUB << " " << HeurVal<< std::endl;
+     //std::cout << "UB=" << BestUB << " " << " " << ObjVal << 
+     //   " " << " " << HeurVal << " " << ApproxVal<< std::endl;
      //return(std::max(BestUB,HeurVal));
      return(BestUB);
    }
@@ -151,10 +152,10 @@ using namespace std;
    double BenBound::getLB()
    {
      //std::cout << "LB=" << BestLB << std::endl;
-     //std::cout << HeurVal << "," << ObjVal << "," << ApproxVal << std::endl;
+     //std::cout << abs(ApproxVal-HeurVal) << std::endl;
      //std::cout<<"BenStat="<<BenStat<<std::endl;
-     if(abs(ApproxVal-HeurVal)>1e-3)
-      BestLB = -1e+300;
+     //if(abs(ApproxVal-HeurVal)>eps*abs(ObjVal))
+      //BestLB = -1e+301;
      return(BestLB);
      //return(ObjVal);
    }
@@ -376,7 +377,6 @@ using namespace std;
          do
           {
     //         for(int count_feas = Q[0].rmin; count_feas < Q[1].rmin; count_feas += 1000){
-
     //           lagSol.updrmin(count_feas);
     //           cout<<" : "<<lagSol.isFeasible()<<endl;
     //           }
@@ -918,7 +918,7 @@ using namespace std;
        }
 
        //next line not in the original code
-       if(Q[minpos].interVal < BestLB)
+       //if(Q[minpos].interVal < BestLB)
         BestLB = Q[minpos].interVal;
        ApproxVal = Q[minpos].interVal;
 
