@@ -1585,15 +1585,12 @@ bool SingleFlowDCRBlock::is_feasible( bool useabstract , Configuration *fsbc )
   // Constraints: notice that the ZOConstraints are not checked, since the
   // corresponding check is made on the ColVariable
   RowConstraint::is_feasible( E , tol , rel_viol )
-  && RowConstraint::is_feasible( UB , tol , rel_viol )
-  && RowConstraint::is_feasible( UBr , tol , rel_viol )
-  && RowConstraint::is_feasible( Box_rmin , tol , rel_viol )
   && RowConstraint::is_feasible( DCR_cnst , tol , rel_viol )
   && RowConstraint::is_feasible( Indicator_cnst_rmin , tol , rel_viol )
   && RowConstraint::is_feasible( Indicator_cnst_r1 , tol , rel_viol )
   && RowConstraint::is_feasible( Indicator_cnst_r2 , tol , rel_viol )
-  && RowConstraint::is_feasible( cone_min_cnst , tol , rel_viol )
-  && RowConstraint::is_feasible( cone_cnst , tol , rel_viol )
+  //&& RowConstraint::is_feasible( cone_min_cnst , tol , rel_viol )
+  //&& RowConstraint::is_feasible( cone_cnst , tol , rel_viol )
   );
 
  }  // end( SingleFlowDCRBlock::is_feasible )

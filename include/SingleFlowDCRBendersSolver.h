@@ -251,14 +251,15 @@ public:
   //for (int i = 0; i < DCRB->get_NArcs() ; i++)
     //std::cout << DCRB->get_r( i ) << std::endl;    
 
-  //if( DCRB->is_feasible() )
-    //std::cout << "feasible" << std::endl;
-
-  if( this->get_var_value() < 1e200 && this->BenBound::getUB() > 1e200 )
-   return( this->get_var_value() );
-  
-  //std::cout << this->get_var_value() << " " << BenBound::getUB() << std::endl;
-  return( std::max( this->get_var_value() , this->BenBound::getUB() ) );
+  if( DCRB->is_feasible() ){
+    if( this->get_var_value() < 1e200 && this->BenBound::getUB() > 1e200 )
+    return( this->get_var_value() );
+    
+    //std::cout << this->get_var_value() << " " << BenBound::getUB() << std::endl;
+    return( std::max( this->get_var_value() , this->BenBound::getUB() ) );
+  } else {
+    return( 0.0 );
+  }
 }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
