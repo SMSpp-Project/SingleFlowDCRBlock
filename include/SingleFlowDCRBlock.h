@@ -1160,6 +1160,8 @@ typedef cCNumber      *cCRow;           ///< read-only cost array
  bool is_feasible( bool useabstract = false , Configuration *fsbc = nullptr )
   override;
 
+ bool is_feasible_flow( bool useabstract = false , Configuration *fsbc = nullptr );
+
 /*--------------------------------------------------------------------------*/
  /// returns true if the current solution is (approximately) optimal
  /** Returns true if the solution encoded in the current value of the flow

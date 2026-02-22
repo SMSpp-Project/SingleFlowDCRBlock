@@ -1589,8 +1589,51 @@ bool SingleFlowDCRBlock::is_feasible( bool useabstract , Configuration *fsbc )
   && RowConstraint::is_feasible( Indicator_cnst_rmin , tol , rel_viol )
   && RowConstraint::is_feasible( Indicator_cnst_r1 , tol , rel_viol )
   && RowConstraint::is_feasible( Indicator_cnst_r2 , tol , rel_viol )
-  //&& RowConstraint::is_feasible( cone_min_cnst , tol , rel_viol )
-  //&& RowConstraint::is_feasible( cone_cnst , tol , rel_viol )
+  && RowConstraint::is_feasible( cone_min_cnst , tol , rel_viol )
+  && RowConstraint::is_feasible( cone_cnst , tol , rel_viol )
+  );
+
+ }  // end( SingleFlowDCRBlock::is_feasible )
+
+/*--------------------------------------------------------------------------*/
+
+/*--------------------------------------------------------------------------*/
+
+bool SingleFlowDCRBlock::is_feasible_flow( bool useabstract , Configuration *fsbc )
+{
+ // Retrieve the tolerance and the type of violation.
+ double tol = 1e-3;
+ bool rel_viol = true;
+
+ // Try to extract, from "c", the parameters that determine feasibility.
+ // If it succeeds, it sets the values of the parameters and returns
+ // true. Otherwise, it returns false.
+ auto extract_parameters = [ & tol , & rel_viol ]( Configuration * c )
+  -> bool {
+  if( auto tc = dynamic_cast< SimpleConfiguration< double > * >( c ) ) {
+   tol = tc->f_value;
+   return( true );
+  }
+  if( auto tc = dynamic_cast< SimpleConfiguration< std::pair< double , int > > * >( c ) ) {
+   tol = tc->f_value.first;
+   rel_viol = tc->f_value.second;
+   return( true );
+  }
+  return( false );
+ };
+
+ if( ( ! extract_parameters( fsbc ) ) && f_BlockConfig )
+  // if the given Configuration is not valid, try the one from the BlockConfig
+  extract_parameters( f_BlockConfig->f_is_feasible_Configuration );
+
+  return(
+  // Constraints: notice that the ZOConstraints are not checked, since the
+  // corresponding check is made on the ColVariable
+  RowConstraint::is_feasible( E , tol , rel_viol )
+  && RowConstraint::is_feasible( DCR_cnst , tol , rel_viol )
+  && RowConstraint::is_feasible( Indicator_cnst_rmin , tol , rel_viol )
+  && RowConstraint::is_feasible( Indicator_cnst_r1 , tol , rel_viol )
+  && RowConstraint::is_feasible( Indicator_cnst_r2 , tol , rel_viol )
   );
 
  }  // end( SingleFlowDCRBlock::is_feasible )
