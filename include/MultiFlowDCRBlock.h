@@ -317,11 +317,11 @@ class MultiFlowDCRBlock : public Block
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
- FMultiVector & get_MTU( void ) { return( MTU ); }
+ c_Vec_FNumber & get_MTU( void ) { return( MTU ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
- FMultiVector & get_FlowBurst( void ) { return( FlowBursts ); }
+ c_Vec_FNumber & get_FlowBurst( void ) { return( FlowBursts ); }
 
 /*--------------------------------------------------------------------------*/
 
@@ -343,8 +343,6 @@ class MultiFlowDCRBlock : public Block
   }
 
 /*--------------------------------------------------------------------------*/
-
-
  /// get the flow of a given arc for a given commodity 
  /** Given a commodity index k and an arc index ij, this function provides
   * the value of the associated variable x^k_ij. In the case of the knapsack
@@ -386,6 +384,8 @@ class MultiFlowDCRBlock : public Block
 
   if( ! ( AR & KnapsackRelaxation ) )
    return( static_cast< SingleFlowDCRBlock * >( v_Block[ k ] )->i2p_x( i ) );  
+
+  return( nullptr );
   }
 
 /*--------------------------------------------------------------------------*/
@@ -404,26 +404,6 @@ class MultiFlowDCRBlock : public Block
   
   //CmnIntlz();
   }
-
-/*--------------------------------------------------------------------------*/
-
-void chg_fixed_costs( int seed , double lambda )
-{
- double Cmean[get_NArcs()];
- 
- for( Index i = 0 ; i < get_NArcs() ; ++i ) {
-  Cmean[ i ] = 0;
-  for( Index k = 0 ; k < get_NComm() ; ++k )
-   if( C[ k ][ i ] < Inf< double >() )
-    Cmean[ i ] += C[ k ][ i ] * U[ k ][ i ] / get_NComm();
-  }
- 
- if( F.size() < get_NArcs() )
-  F.resize( get_NArcs() );
-
- for( Index i = 0 ; i < get_NArcs() ; ++i )
-  F[ i ] = lambda * Cmean[ i ];
- }
 
 
 /** @} ---------------------------------------------------------------------*/
@@ -507,10 +487,10 @@ void chg_fixed_costs( int seed , double lambda )
  Vec_FNumber NodeDelays;     ///< Vector of node delays
  Vec_FNumber LinkDelays;     ///< Vector of link delays
 
- FMultiVector FlowBursts;     ///< Matrix of flow bursts
- FMultiVector FlowDeadlines;     ///< Matrix of flow deadlines
- FMultiVector rho;     ///< Matrix of rho
- FMultiVector MTU;     ///< Matrix of MTU
+ Vec_FNumber FlowBursts;     ///< Vector of flow bursts
+ Vec_FNumber FlowDeadlines;     ///< Vector of flow deadlines
+ Vec_FNumber rho;     ///< Vector of rho
+ Vec_FNumber MTU;     ///< Vector of MTU
 
  Subset Startn;        ///< Topology of the graph: starting nodes
  Subset Endn;          ///< Topology of the graph: ending nodes
@@ -530,9 +510,6 @@ void chg_fixed_costs( int seed , double lambda )
  Vec_Bool BIsCpy;     ///< true for each row of B[] that is a copy of another
 
  std::vector< FRowConstraint > MCs;  ///< the static mutual capacity constrs
- boost::multi_array< FRowConstraint , 2 > FCs;  ///< the static flow constrs
- boost::multi_array< FRowConstraint , 2 > SLCs;
- ///< the static strong forcing constrs
  
  int f_sense = Objective::eMin;
 

@@ -150,16 +150,10 @@ void MultiFlowDCRBlock::load( const std::string & input , char frmt )
   foutdmx << "n " << source << " 1\n";
   foutdmx << "n " << destination << " -1\n";
 
-  C[ j ].resize( NArcs );
-  rho[ j ].resize( 1 );
-  MTU[ j ].resize( 1 );
-  FlowBursts[ j ].resize( 1 );
-  FlowDeadlines[ j ].resize( 1 );
-
-  MTU[ j ][ 0 ] = mtu;
-  FlowBursts[ j ][ 0 ] = FlowBurstK;
-  FlowDeadlines[ j ][ 0 ] = FlowDeadlineK;
-  rho[ j ][ 0 ] = rho0;
+  MTU[ j ] = mtu;
+  FlowBursts[ j ] = FlowBurstK;
+  FlowDeadlines[ j ] = FlowDeadlineK;
+  rho[ j ] = rho0;
 
   for(i=0; i<NA; i++){
    iArc >> numberArc;
@@ -216,34 +210,6 @@ void MultiFlowDCRBlock::generate_abstract_variables( Configuration * stvv )
 {
   for( auto blck : v_Block )
     blck->generate_abstract_variables();
-/*
- unsigned char fr = 0;
- auto c = dynamic_cast< SimpleConfiguration< int > * >( stvv );
- if( ( ! c ) && f_BlockConfig &&
-     f_BlockConfig->f_static_variables_Configuration )
-  c = dynamic_cast< SimpleConfiguration< int > * >(
-                        f_BlockConfig->f_static_variables_Configuration );
- if( c )
-  fr = c->value(); 
-
- // initialize the children - - - - - - - - - - - - - - - - - - - - - - - - -
-
- if( ! ( AR & KnapsackRelaxation ) ) {
-  v_Block.resize( NComm );
-
-  for( Index k = 0 ; k < NComm ; ++k ) {
-   auto MCFb = new SingleFlowDCRBlock( this );
-   MCFb->load( NNodes , NArcs , Startn , Endn , UTot , C[ k ] , 0 , 0 , 0 , 0 , 
-             NodeDelays , LinkDelays , FlowBursts[ k ] , FlowDeadlines[ k ] , MTU[ k ] , rho[ k ] ); 
-   v_Block[ k ] = MCFb;
-   }
-  }
-
- // call the base class method to have it done in the sub-Block, if any
- Block::generate_abstract_variables();
-
- AR |= HasVar;
- */
  }
 
 /*--------------------------------------------------------------------------*/
@@ -458,20 +424,8 @@ void MultiFlowDCRBlock::guts_of_destructor( void )
 
  for( auto & cnst : MCs )
   cnst.clear();
- {
-  const auto sup = FCs.data() + FCs.num_elements();
-  for( auto it = FCs.data() ; it != sup ; ++it )
-   it->clear();
-  }
- {
-  const auto sup = SLCs.data() + SLCs.num_elements();
-  for( auto it = SLCs.data() ; it != sup ; ++it )
-   it->clear();
-  }
 
  MCs.clear();
- FCs.resize( boost::extents[ 0 ][ 0 ] );
- SLCs.resize( boost::extents[ 0 ][ 0 ] );
 
  for( auto bk : v_Block )
   delete bk;
@@ -516,8 +470,6 @@ void MultiFlowDCRBlock::guts_of_destructor( void )
  NCnst=0;
 
  Constraint::clear( MCs );
- Constraint::clear( FCs );
- Constraint::clear( SLCs );
 
  reset_static_constraints();
  reset_static_variables();

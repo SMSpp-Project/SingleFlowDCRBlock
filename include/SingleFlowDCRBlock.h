@@ -227,8 +227,8 @@ public:
  void load( Index n , Index m , c_Subset & pEn , c_Subset & pSn ,
 	    c_Vec_FNumber & pU = {} , c_Vec_CNumber & pC = {} ,
       c_Vec_FNumber & pNodeDelays = {} , c_Vec_FNumber & pLinkDelays = {} , 
-      c_Vec_FNumber & pFlowBursts  = {} , c_Vec_FNumber & pFlowDeadlines  = {} ,
-      c_Vec_FNumber & pMTU  = {} , c_Vec_FNumber & prho  = {} );
+      c_FNumber FlowBursts  = 0 , c_FNumber FlowDeadlines  = 0 ,
+      c_FNumber MTU  = 0 , c_FNumber rho  = 0 );
 
 /*--------------------------------------------------------------------------*/
  /// extends Block::deserialize( netCDF::NcGroup )
@@ -394,7 +394,7 @@ public:
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the MTU
 
- [[nodiscard]] Vec_CNumber get_MTU( void ) const { return( MTU ); }
+ [[nodiscard]] CNumber get_MTU( void ) const { return( MTU ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the NodeDelays
@@ -409,17 +409,17 @@ public:
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the FlowBurst
 
- [[nodiscard]] Vec_CNumber get_FlowBurst( void ) const { return( FlowBursts ); }
+ [[nodiscard]] CNumber get_FlowBurst( void ) const { return( FlowBursts ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the FlowDeadline
 
- [[nodiscard]] Vec_CNumber get_FlowDeadline( void ) const { return( FlowDeadlines ); }
+ [[nodiscard]] CNumber get_FlowDeadline( void ) const { return( FlowDeadlines ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the rho
 
- [[nodiscard]] Vec_CNumber get_rho( void ) const { return( rho ); }
+ [[nodiscard]] CNumber get_rho( void ) const { return( rho ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns true if there are static nodes (= possibly flow constraints)
@@ -1451,10 +1451,10 @@ public:
 
  Vec_CNumber NodeDelays;
  Vec_CNumber LinkDelays;
- Vec_CNumber FlowBursts;
- Vec_CNumber FlowDeadlines; 
- Vec_CNumber MTU; 
- Vec_CNumber rho; 
+ CNumber FlowBursts;
+ CNumber FlowDeadlines; 
+ CNumber MTU; 
+ CNumber rho; 
 
  unsigned char AR;               ///< bit-wise coded: what abstract is there
 
@@ -1472,18 +1472,20 @@ public:
  
  std::vector< ColVariable > x;     ///< the static flow variables
  std::vector< ColVariable > r;     ///< the static reserve variables
- std::vector< ColVariable > r_min; ///< the static reserve_min variables
  std::vector< ColVariable > theta; ///< the static theta variables
- std::vector< ColVariable > theta_min; ///< the static theta_min variables
+
+ ColVariable r_min; ///< the static reserve_min variables
+ ColVariable theta_min; ///< the static theta_min variables
  
  std::vector< FRowConstraint> E;   ///< the static flow conservation constrs.
  std::vector< LB0Constraint > UB;  ///< the static bound constraints on flow
- std::vector< FRowConstraint > DCR_cnst; /// the DCR constraint
+ 
+ FRowConstraint DCR_cnst; /// the DCR constraint
  std::vector< FRowConstraint > Indicator_cnst_rmin; /// the static indicator constraints on reserve min
  std::vector< FRowConstraint > Indicator_cnst_r1; /// the first static indicator constraints on reserve
  std::vector< FRowConstraint > Indicator_cnst_r2; /// the second static indicator constraints on reserve
 
- std::vector< FRowConstraint > cone_min_cnst; /// the cone constraint
+ FRowConstraint cone_min_cnst; /// the cone constraint
  std::vector< FRowConstraint > cone_cnst; /// the cone constraint
  
  std::list< FRowConstraint > PC_cuts;  /// the perspective dynamic cuts constraints

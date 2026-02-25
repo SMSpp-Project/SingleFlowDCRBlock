@@ -137,9 +137,9 @@ public:
    flows = {};
    flows.sourcenode = source;
    flows.sinknode = sink;
-   flows.burst = MCFB->get_FlowBurst()[0];
-   flows.rate = MCFB->get_rho()[0];        
-   flows.deadline = MCFB->get_FlowDeadline()[0];   
+   flows.burst = MCFB->get_FlowBurst();
+   flows.rate = MCFB->get_rho();        
+   flows.deadline = MCFB->get_FlowDeadline();   
 
    DCR::DCRLink links[narcs];
    vector<double> u = MCFB->get_U(); 
@@ -169,9 +169,9 @@ public:
    //DCR::DCRLink* link_ptr = links;
    //DCR::DCRNode* node_ptr = nodes;
 
-   vector<double> mtu = MCFB->get_MTU();
+   double mtu = MCFB->get_MTU();
 
-   BenBound::LoadProblem(nnodes, narcs, flows, links, nodes, mtu[0]);
+   BenBound::LoadProblem(nnodes, narcs, flows, links, nodes, mtu);
    // once done, read_unlock the SingleFlowDCRBlock (if it was read-lock()-ed)
    if( ! owned )
     MCFB->read_unlock();
@@ -366,9 +366,9 @@ bool has_var_solution( void ) override {
         flows = {};
         flows.sourcenode = source;
         flows.sinknode = sink;
-        flows.burst = MCFB->get_FlowBurst()[0];
-        flows.rate = MCFB->get_rho()[0];        
-        flows.deadline = MCFB->get_FlowDeadline()[0];   
+        flows.burst = MCFB->get_FlowBurst();
+        flows.rate = MCFB->get_rho();        
+        flows.deadline = MCFB->get_FlowDeadline();   
 
         DCR::DCRLink links[narcs];
         vector<double> u = MCFB->get_U();
@@ -398,9 +398,9 @@ bool has_var_solution( void ) override {
         //DCR::DCRLink* link_ptr = links;
         //DCR::DCRNode* node_ptr = nodes;
 
-        vector<double> mtu = MCFB->get_MTU();
+        double mtu = MCFB->get_MTU();
 
-        BenBound::LoadProblem(nnodes, narcs, flows, links, nodes, mtu[0]);
+        BenBound::LoadProblem(nnodes, narcs, flows, links, nodes, mtu);
       }
   }
 
