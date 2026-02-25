@@ -306,14 +306,10 @@ bool has_var_solution( void ) override {
   auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
   int nnarc = DCRB->get_NArcs();
 
-  //std::vector<double> v(nnarc, 0.0);
-  //std::vector<double> vx(nnarc, 0.0);
-
   for( Index i = 0 ; i < nnarc ; ++i ){
     auto v = BenBound::getSolution( i );
     DCRB->set_r( i, v );
     if( v > 0.0 ){
-      //std::cout << i << "," << v << std::endl;
       DCRB->set_x( i, 1 );
     } else {
       DCRB->set_x( i, 0 );
@@ -389,7 +385,6 @@ bool has_var_solution( void ) override {
             links[i].capacity = u[i];
             links[i].delay = link_delay[i];
             links[i].cost = c[i];
-            //std::cout << c[i] << std::endl;
         }
 
         vector<double> node_delay = MCFB->get_NodeDelays();
