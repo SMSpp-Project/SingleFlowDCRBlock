@@ -389,54 +389,6 @@ class MultiFlowDCRBlock : public Block
   }
 
 /*--------------------------------------------------------------------------*/
- /// get the potential of flow balance constraint for node i for commodity k
-
- double get_potential( Index k , Index i ) const {
-  if( ! ( AR & HasMutual ) )
-   return( 0 );
-
-  if( ! ( AR & KnapsackRelaxation ) )
-   return( static_cast< SingleFlowDCRBlock * >( v_Block[ k ] )->get_pi( i ) );
-  else
-   return( FCs[ k ][ i ].get_dual() );
-  }
-
-/*--------------------------------------------------------------------------*/
- /// get the dual value of the linking constraint for arc i
-
- double get_dual( Index i ) const {
-  if( ! ( AR & HasMutual ) )
-   return( 0 );
-
-  if( ! ( AR & KnapsackRelaxation ) )
-   return( MCs[ i ].get_dual() );   
-  }
-
-
-/*--------------------------------------------------------------------------*/
- /// get the potential of flow balance constraint for node i for commodity k
-
- virtual void set_potential( CNumber pi,  Index k , Index i ) {
-  if( ( AR & HasMutual ) ){
-   if( ! ( AR & KnapsackRelaxation ) )
-    static_cast< SingleFlowDCRBlock * >( v_Block[ k ] )->set_pi( pi, i );
-   else
-    FCs[ k ][ i ].set_dual(pi);
-   }
-  } 
-
-/*--------------------------------------------------------------------------*/
- /// get the dual value of the linking constraint for arc i
-
- virtual void set_dual( CNumber pi, Index i ) {
-  if( ( AR & HasMutual ) ){
-   if( ! ( AR & KnapsackRelaxation ) )
-    MCs[ i ].set_dual(pi);
-   }
-  }
-
-
-/*--------------------------------------------------------------------------*/
 
  void load_nc4( std::string & filename ) {
   netCDF::NcFile f( filename, netCDF::NcFile::read );
