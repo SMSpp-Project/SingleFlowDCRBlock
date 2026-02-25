@@ -3109,7 +3109,7 @@ DCRSolution * DCRSolution::scale( double factor ) const
 
  if( ! v_x.empty() )
   for( SingleFlowDCRBlock::Index i = 0 ; i < v_x.size() ; ++i )
-   sol->v_x[ i ] = v_x[ i ] * factor;
+   sol->v_x[ i ] = v_x[ i ];
 
  if( ! v_r.empty() )
   for( SingleFlowDCRBlock::Index i = 0 ; i < v_r.size() ; ++i )
@@ -3132,12 +3132,12 @@ void DCRSolution::sum( const Solution * solution , double multiplier )
    throw( std::invalid_argument( "incompatible flow size" ) );
 
   for( SingleFlowDCRBlock::Index i = 0 ; i < v_x.size() ; ++i )
-   v_x[ i ] += DCRS->v_x[ i ] * multiplier;
+   v_x[ i ] = std::max( v_x[ i ], DCRS->v_x[ i ] );
   }
 
  if( ! v_r.empty() ) {
   if( v_r.size() != DCRS->v_r.size()  )
-   throw( std::invalid_argument( "incompatible potential size" ) );
+   throw( std::invalid_argument( "incompatible reserve size" ) );
 
   for( SingleFlowDCRBlock::Index i = 0 ; i < v_r.size() ; ++i )
    v_r[ i ] += DCRS->v_r[ i ] * multiplier;
