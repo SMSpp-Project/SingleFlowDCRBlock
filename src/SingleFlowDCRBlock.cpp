@@ -387,7 +387,7 @@ void SingleFlowDCRBlock::load( std::istream & input , char frmt )
     if( ! ( input >> Dfctj ) )
      throw( std::invalid_argument( "error reading deficit" ) );
 
-    B[ j - 1 ] = -Dfctj;
+    B[ j - 1 ] = - Dfctj;
 
     if( jdeficit > 1 )
       throw( std::invalid_argument( "too many deficits" ) );
@@ -546,6 +546,11 @@ void SingleFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
 
  MaxNNodes = NNodes;
  Index MaxNArcs = NArcs;
+
+ ::deserialize( group , FlowBursts , "FlowBurst" );
+ ::deserialize( group , FlowDeadlines , "FlowDeadline" );
+ ::deserialize( group , MTU , "MTU" );
+ ::deserialize( group , rho , "rho" );
  
  netCDF::NcVar sn = group.getVar( "SN" );
  if( sn.isNull() )
@@ -578,7 +583,7 @@ void SingleFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
 		   []( c_FNumber ui ) { return( ui == Inf< FNumber >() ); } ) )
    U.clear();
   }
-/*
+
  netCDF::NcVar dfc = group.getVar( "B" );
  if( ! dfc.isNull() ) {
   B.resize( MaxNNodes );
@@ -588,7 +593,27 @@ void SingleFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
 		   []( c_FNumber bi ) { return( bi == 0 ); } ) )
    B.clear();
   }
-*/
+
+ netCDF::NcVar ldelays = group.getVar( "LinkDelays" );
+ if( ! ldelays.isNull() ) {
+  LinkDelays.resize( MaxNArcs );
+  std::vector< size_t > countn = { NArcs };
+  ldelays.getVar( LinkDelays.data() );
+  if( std::all_of( LinkDelays.begin() , LinkDelays.begin() + NArcs ,
+		   []( c_FNumber ldi ) { return( ldi == 0 ); } ) )
+   LinkDelays.clear();
+  }
+
+ netCDF::NcVar ndelays = group.getVar( "NodeDelays" );
+ if( ! ndelays.isNull() ) {
+  NodeDelays.resize( MaxNNodes );
+  std::vector< size_t > countn = { NNodes };
+  ndelays.getVar( NodeDelays.data() );
+  if( std::all_of( NodeDelays.begin() , NodeDelays.begin() + NNodes ,
+		   []( c_FNumber ndi ) { return( ndi == 0 ); } ) )
+   NodeDelays.clear();
+  }
+
  f_cond_lower = dNAN;  // reset conditional bounds
 
  // allocate flow variables - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1715,8 +1740,17 @@ void SingleFlowDCRBlock::serialize( netCDF::NcGroup & group ) const
 
  // now the SingleFlowDCRBlock data - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+ // Serialize scalar variables
+
+ ::serialize( group , "FlowBurst" , netCDF::NcDouble() , FlowBursts );
+ ::serialize( group , "FlowDeadline" , netCDF::NcDouble() , FlowDeadlines );
+ ::serialize( group , "MTU" , netCDF::NcDouble() , MTU );
+ ::serialize( group , "rho" , netCDF::NcDouble() , rho );
+
  netCDF::NcDim nn = group.addDim( "NNodes" , get_NNodes() );
  netCDF::NcDim na = group.addDim( "NArcs" , get_NArcs() );
+
+ // Serialize vector variables
 
  ( group.addVar( "SN" , netCDF::NcUint64() , na ) ).putVar( SN.data() );
 
@@ -1726,10 +1760,16 @@ void SingleFlowDCRBlock::serialize( netCDF::NcGroup & group ) const
 
  if( ! U.empty() )
   ( group.addVar( "U" , netCDF::NcDouble() , na ) ).putVar( U.data() );
-/*
+
  if( ! B.empty() )
   ( group.addVar( "B" , netCDF::NcDouble() , nn ) ).putVar( B.data() );
-*/
+
+ if( ! LinkDelays.empty() )
+  ( group.addVar( "LinkDelays" , netCDF::NcDouble() , na ) ).putVar( LinkDelays.data() );
+
+ if( ! NodeDelays.empty() )
+  ( group.addVar( "NodeDelays" , netCDF::NcDouble() , nn ) ).putVar( NodeDelays.data() );
+
  }  // end( SingleFlowDCRBlock::serialize )
 
 /*--------------------------------------------------------------------------*/
