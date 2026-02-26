@@ -66,7 +66,6 @@ using FNumber = SingleFlowDCRBlock::FNumber;
 /*--------------------------------------------------------------------------*/
 
 static constexpr auto dNAN = std::numeric_limits< double >::quiet_NaN();
-static const auto cuts_formulation = false;
 
 static constexpr unsigned char FormMsk = 3;
 // mask for the first three bits, i.e., the formulation
