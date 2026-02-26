@@ -546,8 +546,8 @@ void SingleFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
  MaxNNodes = NNodes;
  Index MaxNArcs = NArcs;
 
- ::deserialize( group , FlowBursts , "FlowBurst" );
- ::deserialize( group , FlowDeadlines , "FlowDeadline" );
+ ::deserialize( group , FlowBursts , "FlowBursts" );
+ ::deserialize( group , FlowDeadlines , "FlowDeadlines" );
  ::deserialize( group , MTU , "MTU" );
  ::deserialize( group , rho , "rho" );
  
@@ -1741,8 +1741,8 @@ void SingleFlowDCRBlock::serialize( netCDF::NcGroup & group ) const
 
  // Serialize scalar variables
 
- ::serialize( group , "FlowBurst" , netCDF::NcDouble() , FlowBursts );
- ::serialize( group , "FlowDeadline" , netCDF::NcDouble() , FlowDeadlines );
+ ::serialize( group , "FlowBursts" , netCDF::NcDouble() , FlowBursts );
+ ::serialize( group , "FlowDeadlines" , netCDF::NcDouble() , FlowDeadlines );
  ::serialize( group , "MTU" , netCDF::NcDouble() , MTU );
  ::serialize( group , "rho" , netCDF::NcDouble() , rho );
 
