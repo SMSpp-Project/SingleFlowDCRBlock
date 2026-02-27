@@ -8,6 +8,16 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
+ * \author Laura Galli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \author Luca Mencarelli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \copyright &copy; by Antonio Frangioni
+ *
  * Copyright &copy by Antonio Frangioni
  */
 /*--------------------------------------------------------------------------*/
@@ -319,9 +329,6 @@ void MultiFlowDCRBlock::serialize( netCDF::NcGroup & group ) const
 
  ( group.addVar( "Utot" , netCDF::NcDouble() , na ) ).putVar( UTot.data() );
 
- if( F.size() == NArcs )
-  ( group.addVar( "F" , netCDF::NcDouble() , na ) ).putVar( F.data() );
-
  ::serialize( group, "U", netCDF::NcDouble(), U, {nc,na});
               
  ::serialize( group, "B", netCDF::NcDouble(), B, {nc,nn});
@@ -383,12 +390,6 @@ void MultiFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
  UTot.resize( NArcs );
  ut.getVar( UTot.data() );
 
- auto fc = group.getVar( "F" );
- if( ! fc.isNull() ){
-  F.resize( NArcs );
-  fc.getVar( F.data() );
-  }
-
  U.resize( NComm );
  for( int i = 0 ; i< NComm ; i++ )
   U[ i ].resize( NArcs );
@@ -432,29 +433,16 @@ void MultiFlowDCRBlock::guts_of_destructor( void )
 
  v_Block.clear();
 
- NXtrV = NXtrC = 0;
- IdxBeg.clear();
- CoefIdx.clear();
- CoefVal.clear();
  C.clear();
  U.clear();
  B.clear();
  I.clear();
 
  UTot.clear();
- F.clear();
+ CapTot.clear();
 
  Startn.clear();
  Endn.clear();
-
- NamesK.clear();
- Active.clear();
- ActiveK.clear();
- //PT.clear();
-
- CIsCpy.clear();
- UIsCpy.clear();
- BIsCpy.clear();
 
  NodeDelays.clear();
  FlowDeadlines.clear();

@@ -53,15 +53,11 @@ namespace SMSpp_di_unipi_it
  *
  *  @{ */
 
- using CNumber = SingleFlowDCRBlock::CNumber;
  using c_RHSValue = RowConstraint::c_RHSValue;
- using Vec_CNumber = SingleFlowDCRBlock::Vec_CNumber;
- using FNumber = SingleFlowDCRBlock::FNumber;
- using Vec_FNumber = SingleFlowDCRBlock::Vec_FNumber;
- using c_Vec_FNumber = SingleFlowDCRBlock::c_Vec_FNumber;
+ using Vec_double = SingleFlowDCRBlock::Vec_double;
+ using c_Vec_double = SingleFlowDCRBlock::c_Vec_double;
 
- using FMultiVector = std::vector< Vec_FNumber >;
- using CMultiVector = std::vector< Vec_CNumber >;
+ using MultiVector = std::vector< Vec_double >;
  using MultiSubset = std::vector< Block::Subset >;
 
  using Vec_Bool = std::vector< bool >;
@@ -177,7 +173,7 @@ class MultiFlowDCRBlock : public Block
   * more easily solvable. The parameters to be given are the following:
   *
   * IncUk , DecUk   => (>= 0) upper bounds on the increase and decrease of the
-  *                    mutual capacities: may be Inf<FNumber>() if unknown;
+  *                    mutual capacities: may be Inf<double>() if unknown;
   *
   * IncUjk , DecUjk => (>= 0) same as above for single-commodity capacities;
   *
@@ -187,13 +183,13 @@ class MultiFlowDCRBlock : public Block
   *                    finite individual capacities for arcs that have none;
   *
   * DecCsts         => (>= 0) upper bound on the decrease of arc Costs: must
-  *                    be < Inf<CNumber>().
+  *                    be < Inf<double>().
   *
   * Giving tight bounds (0 is the best, obviously) may cause the preprocessor
   * to find more redundant coupling constraints, to squeeze down individual
   * arc capacities, to remove more unused arcs and in general to do a better
   * preprocessing; for instance, IncUjk == 0 allows PreProcess() to declare
-  * un-existent (set the cost to Inf<CNumber>()) any arc with 0 individual
+  * un-existent (set the cost to Inf<double>()) any arc with 0 individual
   * capacity.
   *
   * For all k such that, after the pre-processing, the graph has only a source
@@ -214,9 +210,9 @@ class MultiFlowDCRBlock : public Block
   * the proper parameters, therefore it has to be done independently (if
   * ever). */
 
- void PreProcess( FNumber IncUk = 0 , FNumber DecUk = 0 ,
-		  FNumber IncUjk = 0 , FNumber DecUjk = 0 ,
-		  FNumber ChgDfct = 0 , CNumber DecCsts = 0 );
+ void PreProcess( double IncUk = 0 , double DecUk = 0 ,
+		  double IncUjk = 0 , double DecUjk = 0 ,
+		  double ChgDfct = 0 , double DecCsts = 0 );
 
 /*--------------------------------------------------------------------------*/
  /// generate the "abstract representation" of the Variable of the Block
@@ -305,23 +301,23 @@ class MultiFlowDCRBlock : public Block
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
- c_Vec_FNumber & get_U( void ) const { return( CapTot ); }
+ c_Vec_double & get_U( void ) const { return( CapTot ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
- c_Vec_FNumber & get_LinkDelays( void ) const { return( LinkDelays ); }
+ c_Vec_double & get_LinkDelays( void ) const { return( LinkDelays ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
- c_Vec_FNumber & get_NodeDelays( void ) const { return( NodeDelays ); }
+ c_Vec_double & get_NodeDelays( void ) const { return( NodeDelays ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
- c_Vec_FNumber & get_MTU( void ) { return( MTU ); }
+ c_Vec_double & get_MTU( void ) { return( MTU ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
- c_Vec_FNumber & get_FlowBurst( void ) { return( FlowBursts ); }
+ c_Vec_double & get_FlowBurst( void ) { return( FlowBursts ); }
 
 /*--------------------------------------------------------------------------*/
 
@@ -457,57 +453,34 @@ class MultiFlowDCRBlock : public Block
   * by default is considered the Flow relaxation
   */
 
- static constexpr unsigned char addFixedCosts = 8; 
-
  static constexpr unsigned char slc = 8;
  ///< fourth bit of AR == 1: true if we use the strong forcing constraints
-
- Index NXtrV;          ///< Number of "extra" variables
- Index NXtrC;          ///< Number of "extra" constraints
-
- Subset IdxBeg;        ///< Description of "extra" constraints: start
- Subset CoefIdx;       ///< Description of "extra" constraints: indices
- Vec_CNumber CoefVal;  ///< Description of "extra" constraints: values
 
  Index NNodes;         ///< Number of nodes
  Index NArcs;          ///< Number of arcs
  Index NComm;          ///< Number of commodities
  Index NCnst;          ///< Number of arcs with mutual capacity constraints
 
- CMultiVector C;       ///< Matrix of the arc costs
- FMultiVector U;       ///< Matrix of the arc upper capacities
- FMultiVector B;       ///< Matrix of the node deficits
- FMultiVector I;       ///< Matrix of the variables integrality constraints
+ MultiVector C;       ///< Matrix of the arc costs
+ MultiVector U;       ///< Matrix of the arc upper capacities
+ MultiVector B;       ///< Matrix of the node deficits
+ MultiVector I;       ///< Matrix of the variables integrality constraints
 
- Vec_FNumber UTot;       ///< Vector equal to the sum of mutual capacities
- Vec_FNumber CapTot;     ///< Vector of mutual capacities
- 
- Vec_CNumber F;        ///< Vector of fixed costs
+ Vec_double UTot;       ///< Vector equal to the sum of mutual capacities
+ Vec_double CapTot;     ///< Vector of mutual capacities
   
- Vec_FNumber NodeDelays;     ///< Vector of node delays
- Vec_FNumber LinkDelays;     ///< Vector of link delays
+ Vec_double NodeDelays;     ///< Vector of node delays
+ Vec_double LinkDelays;     ///< Vector of link delays
 
- Vec_FNumber FlowBursts;     ///< Vector of flow bursts
- Vec_FNumber FlowDeadlines;     ///< Vector of flow deadlines
- Vec_FNumber rho;     ///< Vector of rho
- Vec_FNumber MTU;     ///< Vector of MTU
+ Vec_double FlowBursts;     ///< Vector of flow bursts
+ Vec_double FlowDeadlines;     ///< Vector of flow deadlines
+ Vec_double rho;     ///< Vector of rho
+ Vec_double MTU;     ///< Vector of MTU
 
  Subset Startn;        ///< Topology of the graph: starting nodes
  Subset Endn;          ///< Topology of the graph: ending nodes
 
  Index StrtNme;        ///< The "name" of the first node
- Subset NamesK;        /**< The dual multipliers relative to commodity K
-			* start with NamesK[ k ] and end with NamesK[ k + 1 ]
-			*/
- Subset Active;        /**< Set of the arcs for which a mutual capacity
-			* constraint is defined */
- MultiSubset ActiveK;  ///< Like Active for individual capacities
- bool DrctdPrb;        ///< true if the problem is directed
- //std::vector<MCFType> PT;  ///< type of flow subproblem
-
- Vec_Bool CIsCpy;     ///< true for each row of C[] that is a copy of another
- Vec_Bool UIsCpy;     ///< true for each row of U[] that is a copy of another
- Vec_Bool BIsCpy;     ///< true for each row of B[] that is a copy of another
 
  std::vector< FRowConstraint > MCs;  ///< the static mutual capacity constrs
  

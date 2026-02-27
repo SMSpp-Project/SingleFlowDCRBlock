@@ -109,54 +109,16 @@ public:
 /** @name Public types
  *
  * SingleFlowDCRBlock defines three main public types:
- *
- * - FNumber, the type of flow variables, arc capacities, and node deficits;
- *
- * - CNumber, the type of flow costs;
- *
- * - FONumber, the type of objective function value.
- *
- * By re-defining the types in this section, some (but not all) solution
- * algorithms may be able to work with the "smallest" choice of data type 
- * that is capable of properly representing the data of the instances to be
- * solved. This may be relevant due to an important property of DCR problems:
- * *if all arc capacities and node deficits are integer, then there exists an
- * integral optimal primal solution*, and *if all arc costs are integer,
- * then there exists an integral optimal dual solution*. Even more
- * importantly, *many solution algorithms will in fact produce an integral
- * primal/dual solution for free*, because *every primal/dual solution they
- * generate during the solution process is naturally integral*. Therefore,
- * one can use integer data types to represent everything connected with
- * flows and/or costs if the corresponding data is integer in all instances
- * one needs to solve. This directly translates in significant memory savings
- * and/or speed improvements.
  @{ */
 
 /*--------------------------------------------------------------------------*/
 
- typedef double FNumber;                     ///< type of arc flow / deficit
- typedef const FNumber c_FNumber;            ///< a read-only FNumber
-
- typedef std::vector< FNumber > Vec_FNumber; ///< a vector of FNumber
- typedef const Vec_FNumber c_Vec_FNumber;    ///< a const vector of FNumber
-
- typedef Vec_FNumber::iterator Vec_FNumber_it;   ///< iterator in Vec_FNumber
- typedef Vec_FNumber::const_iterator c_Vec_FNumber_it;
-                                           ///< const iterator in Vec_FNumber
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-
- typedef double CNumber;                     ///< type of arc cost 
- typedef std::vector< CNumber > Vec_CNumber;  ///< a vector of CNumber
- typedef const Vec_CNumber c_Vec_CNumber;     ///< a const vector of CNumber
-
- typedef Vec_CNumber::iterator Vec_CNumber_it;   ///< iterator in Vec_CNumber
- typedef Vec_CNumber::const_iterator c_Vec_CNumber_it;
-                                           ///< const iterator in Vec_CNumber
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-
- typedef double FONumber; 
+ typedef const double c_double;            ///< a read-only double
+ typedef std::vector< double > Vec_double; ///< a vector of double
+ typedef const Vec_double c_Vec_double;    ///< a const vector of double
+ typedef Vec_double::iterator Vec_double_it;   ///< iterator in Vec_double
+ typedef Vec_double::const_iterator c_Vec_double_it;
+                                           ///< const iterator in Vec_double
 
 /*--------------------------------------------------------------------------*/
 
@@ -225,10 +187,10 @@ public:
   * SingleFlowDCRBlock then a NBModification (the "nuclear option") is issued. */
 
  void load( Index n , Index m , c_Subset & pEn , c_Subset & pSn ,
-	    c_Vec_FNumber & pU = {} , c_Vec_CNumber & pC = {} ,
-      c_Vec_FNumber & pNodeDelays = {} , c_Vec_FNumber & pLinkDelays = {} , 
-      c_FNumber FlowBursts  = 0 , c_FNumber FlowDeadlines  = 0 ,
-      c_FNumber MTU  = 0 , c_FNumber rho  = 0 );
+	    c_Vec_double & pU = {} , c_Vec_double & pC = {} ,
+      c_Vec_double & pNodeDelays = {} , c_Vec_double & pLinkDelays = {} , 
+      c_double FlowBursts  = 0 , c_double FlowDeadlines  = 0 ,
+      c_double MTU  = 0 , c_double rho  = 0 );
 
 /*--------------------------------------------------------------------------*/
  /// extends Block::deserialize( netCDF::NcGroup )
@@ -305,7 +267,7 @@ public:
   * DIMACS standard format, in that node and arc definitions can be mixed in
   * any order, while the DIMACS file requires all node information to appear
   * before all arc information. Also, capacities of arcs can be set to
-  * +Inf< FNumber >() by putting "INF", "Inf" or "inf" in the file (actually,
+  * +Inf< double >() by putting "INF", "Inf" or "inf" in the file (actually,
   * any string starting with "I" or "i" where these would be expected).
   *
   * Note that the graph as provided by this method is considered to be
@@ -323,20 +285,7 @@ public:
 /*--------------------------------------------------------------------------*/
  /// generate the abstract variables of the DCR
  /** Method that generates the abstract Variable of the DCR. These are:
-  *
-  * - if ms = get_NArcs() > 0, a std::vector< ColVariable > with
-  *   exactly ms entries, the entry a = 0, ...,  ms - 1 corresponding to the
-  *   flow on arc a, i.e., ( SN[ a ] , EN[ a ] );
-  *
-  * - if md = get_NArcs() - get_NArcs() > 0, a std::list< ColVariable >
-  *   with exactly md entries, the entry h = 0, ...,  md - 1 corresponding to
-  *   the flow on arc a = ms + h, i.e., ( SN[ ms + h ] , EN[ ms + h ] ).
-  *
-  * Note that the dynamic Variable are actually created if get_MaxNArcs() >
-  * get_NArcs(), which may mean that the list can be empty when it is
-  * created (if get_MaxNArcs() > get_NArcs() = get_NArcs()); this is
-  * done because new dynamic arcs can be created any time, and the list of
-  * dynamic Variable is there ready for when this happens. */
+  */
 
  void generate_abstract_variables( Configuration *stvv = nullptr ) override;
 
@@ -394,32 +343,32 @@ public:
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the MTU
 
- [[nodiscard]] CNumber get_MTU( void ) const { return( MTU ); }
+ [[nodiscard]] double get_MTU( void ) const { return( MTU ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the NodeDelays
 
- [[nodiscard]] Vec_CNumber get_NodeDelays( void ) const { return( NodeDelays ); }
+ [[nodiscard]] Vec_double get_NodeDelays( void ) const { return( NodeDelays ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the NodeDelays
 
- [[nodiscard]] Vec_CNumber get_LinkDelays( void ) const { return( LinkDelays ); }
+ [[nodiscard]] Vec_double get_LinkDelays( void ) const { return( LinkDelays ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the FlowBurst
 
- [[nodiscard]] CNumber get_FlowBurst( void ) const { return( FlowBursts ); }
+ [[nodiscard]] double get_FlowBurst( void ) const { return( FlowBursts ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the FlowDeadline
 
- [[nodiscard]] CNumber get_FlowDeadline( void ) const { return( FlowDeadlines ); }
+ [[nodiscard]] double get_FlowDeadline( void ) const { return( FlowDeadlines ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the rho
 
- [[nodiscard]] CNumber get_rho( void ) const { return( rho ); }
+ [[nodiscard]] double get_rho( void ) const { return( rho ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns true if there are static nodes (= possibly flow constraints)
@@ -581,12 +530,12 @@ public:
  /** Returns a const reference to the vector of arc costs of size
   * get_MaxNArcs(). Note that the cost of a deleted arc is NaN. */
 
- [[nodiscard]] c_Vec_CNumber & get_C( void ) const { return( C ); }
+ [[nodiscard]] c_Vec_double & get_C( void ) const { return( C ); }
 
  /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the cost of arc i (0 <= i < get_NArcs()), NaN if deleted
 
- [[nodiscard]] CNumber get_C( c_Index i ) const { return( C[ i ] ); }
+ [[nodiscard]] double get_C( c_Index i ) const { return( C[ i ] ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the vector of arc upper bounds
@@ -594,13 +543,13 @@ public:
   * the returned vector can either be of size get_MaxNArcs() or of size 0, in
   * which case all arc upper bounds are assumed to be +Inf. */
 
- [[nodiscard]] c_Vec_FNumber & get_U( void ) const { return( U ); }
+ [[nodiscard]] c_Vec_double & get_U( void ) const { return( U ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the upper bound of arc i (0 <= i < get_NArcs())
 
- [[nodiscard]] FNumber get_U( Index i ) const {
-  return( U.empty() ? Inf< FNumber >() : U[ i ] );
+ [[nodiscard]] double get_U( Index i ) const {
+  return( U.empty() ? Inf< double >() : U[ i ] );
   }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
@@ -611,7 +560,7 @@ public:
   * position i (0 <= i < get_NNodes()) in this vector correspond to the node
   * whose name is i + 1 as returned from get_SN() and get_EN(). */
 
- [[nodiscard]] c_Vec_FNumber & get_B( void ) const { return( B ); }
+ [[nodiscard]] c_Vec_double & get_B( void ) const { return( B ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the upper deficit of node i (0 <= i < get_NNodes())
@@ -619,7 +568,7 @@ public:
   * get_NNodes() - 1, despite the fact that get_SN() and get_EN() report node
   * "names" between 1 and get_NNodes(). */
  
- [[nodiscard]] FNumber get_B( Index i ) const {
+ [[nodiscard]] double get_B( Index i ) const {
   return( B.empty() ? 0 : B[ i ] );
   }
   
@@ -638,7 +587,7 @@ public:
   * accuracy defining "approximately". The parameter "useabstract" has the
   * same meaning as in is_feasible() and is_optimal(). */
 
- bool flow_feasible( FNumber feps , bool useabstract = false );
+ bool flow_feasible( double feps , bool useabstract = false );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns true if the current solution is (approximately) bound feasible
@@ -650,7 +599,7 @@ public:
   * defining "approximately". The parameter "useabstract" has the same
   * meaning as in is_feasible() and is_optimal(). */
 
- bool bound_feasible( FNumber feps , bool useabstract = false );
+ bool bound_feasible( double feps , bool useabstract = false );
 
 /*--------------------------------------------------------------------------*/
  /// returns true if the current solution is approximately feasible
@@ -660,16 +609,16 @@ public:
   * generate_abstract_variables() has been called prior to this method.
   *
   * The parameter for deciding what "approximately feasible" exactly means is
-  * a single FNumber value, representing the *relative* tolerance for
+  * a single double value, representing the *relative* tolerance for
   * satisfaction of both flow conservation constraint and flow upper/lower
   * bounds. This value is to be found as:
   *
-  * - if fsbc is not nullptr and it is a SimpleConfiguration< FNumber >, then
+  * - if fsbc is not nullptr and it is a SimpleConfiguration< double >, then
   *   it is fsbc->f_value;
   *
   * - otherwise, if f_BlockConfig is not nullptr,
   *   f_BlockConfig->f_is_feasible_Configuration is not nullptr and it
-  *   is a SimpleConfiguration< FNumber >, then it is
+  *   is a SimpleConfiguration< double >, then it is
   *   f_BlockConfig->f_is_feasible_Configuration->f_value;
   *
   * - otherwise, it is 0. */
@@ -835,42 +784,8 @@ public:
 
  /// returns a DCRSolution representing the current solution of this SingleFlowDCRBlock
  /** Returns a DCRSolution representing the current solution status of this
-  * SingleFlowDCRBlock. What kind of solution is saved depends on the integer value ws,
-  * obtained as follows:
-  *
-  * - if solc != nullptr and it is a SimpleConfiguration< int >, then
-  *   ws == solc->f_value:
-  *
-  * - if solc == nullptr, f_BlockConfig != nullptr,
-  *   f_BlockConfig->f_solution_Configuration != nullptr and it
-  *   is a SimpleConfiguration< int >, ws is its f_value
-  *
-  * - otherwise ws is 0.
-  *
-  * The encoding of ws is:
-  *
-  *   = 1 means "only save the primal solution"
-  *
-  *   = 2 means "only save the dual solution"
-  *
-  *   = everything else (e.g., 0) means "save everything";
-  *
-  * The same format applies verbatim to the case of primal or dual unbounded
-  * rays (negative-cost unbounded cycles and cuts, respectively), although
-  * one would expect only one of these to be found (but both may
-  * theoretically do).
-  *
-  * Note that SingleFlowDCRBlock may not contain some or all of the required solution,
-  * if the corresponding Variable/Constraint have not been constructed yet:
-  * this throws an exception, unless emptys = true, in which case the
-  * DCRSolution object is only prepped for getting a solution, but it is not
-  * really getting one now.
-  *
-  * Note that, although the method clearly returns a DCRSolution, formally
-  * the return type is Solution *. This is because it is not possible to
-  * forward declare DCRSolution as a derived class from Solution, nor to
-  * define DCRSolution before SingleFlowDCRBlock because the former uses some type
-  * information declared in the latter. */ 
+  * SingleFlowDCRBlock. 
+  */ 
 
  Solution * get_Solution( Configuration *solc = nullptr ,
 			  bool emptys = true ) override;
@@ -878,7 +793,7 @@ public:
  /*--------------------------------------------------------------------------*/
  /// returns the objective value of the current solution
 
- FONumber get_objective_value( void ) {
+ double get_objective_value( void ) {
   if( ! ( AR & HasObj ) )  // the objective is not there
    return( Inf< RealObjective::OFValue >() );
   c.compute();
@@ -892,7 +807,7 @@ public:
   * Note that if the right extreme of the range is >= get_NArcs() it is
   * ignored. */
 
- void get_x( Vec_FNumber_it FSol , Range rng = Range( 0 , Inf< Index >() ) )
+ void get_x( Vec_double_it FSol , Range rng = Range( 0 , Inf< Index >() ) )
   const;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
@@ -903,12 +818,12 @@ public:
   *
   *     nms IS ASSUMED TO BE ORDERED BY INCREASING Index */
 
- void get_x( Vec_FNumber_it FSol , c_Subset & nms ) const;
+ void get_x( Vec_double_it FSol , c_Subset & nms ) const;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// gets the flow solution of the given arc
 
- FNumber get_x( Index arc ) const {
+ double get_x( Index arc ) const {
   if( arc >= get_NArcs() )
    throw( std::invalid_argument( "invalid arc name" ) );
 
@@ -923,7 +838,7 @@ public:
   * Note that if the right extreme of the range is >= get_NArcs() it is
   * ignored. */
 
- void get_r( Vec_FNumber_it FSol , Range rng = Range( 0 , Inf< Index >() ) )
+ void get_r( Vec_double_it FSol , Range rng = Range( 0 , Inf< Index >() ) )
   const;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
@@ -934,13 +849,13 @@ public:
   *
   *     nms IS ASSUMED TO BE ORDERED BY INCREASING Index */
 
- void get_r( Vec_FNumber_it FSol , c_Subset & nms ) const;
+ void get_r( Vec_double_it FSol , c_Subset & nms ) const;
 
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// gets the reserve solution of the given arc
 
-  FNumber get_r( Index arc ) const {
+  double get_r( Index arc ) const {
   if( arc >= get_NArcs() )
    throw( std::invalid_argument( "invalid arc name" ) );
 
@@ -949,16 +864,16 @@ public:
 
 /*--------------------------------------------------------------------------*/
 
-  void set_r( c_Vec_FNumber_it fstrt ,
+  void set_r( c_Vec_double_it fstrt ,
     Range rng = Range( 0 , Inf< Index >() ) );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
- void set_r( c_Vec_FNumber_it fstrt , c_Subset sbst );
+ void set_r( c_Vec_double_it fstrt , c_Subset sbst );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
- void set_r( Index arc , FNumber FSol ) {
+ void set_r( Index arc , double FSol ) {
   if( arc >= get_NArcs() )
   throw( std::invalid_argument( "invalid arc name" ) );
 
@@ -967,26 +882,26 @@ public:
 
 /*--------------------------------------------------------------------------*/
  /// sets a contiguous interval of the flow solution
- /** Method to set the flow solution; the values found in the c_Vec_FNumber
+ /** Method to set the flow solution; the values found in the c_Vec_double
   * starting from fstrt are copied into the value of the flow variable
   * x[ i ] for i in rng, in the same order. */
 
- void set_x( c_Vec_FNumber_it fstrt ,
+ void set_x( c_Vec_double_it fstrt ,
 	     Range rng = Range( 0 , Inf< Index >() ) );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// sets a generic subset of the flow solution
- /** Method to set the flow solution; the values found in the c_Vec_FNumber
+ /** Method to set the flow solution; the values found in the c_Vec_double
   * starting from fstrt are copied into the value of the flow variable
   * x[ i ] for all i in sbst (that must be ordered in increasing sense), in
   * the same order. */
 
- void set_x( c_Vec_FNumber_it fstrt , c_Subset sbst );
+ void set_x( c_Vec_double_it fstrt , c_Subset sbst );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// sets the flow solution of the given arc
 
- void set_x( Index arc , FNumber FSol ) {
+ void set_x( Index arc , double FSol ) {
   if( arc >= get_NArcs() )
    throw( std::invalid_argument( "invalid arc name" ) );
   
@@ -1146,7 +1061,7 @@ public:
   *
   * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is issued. */
 
- void chg_costs( c_Vec_CNumber_it NCost , Range rng = INFRange ,
+ void chg_costs( c_Vec_double_it NCost , Range rng = INFRange ,
 		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
@@ -1162,7 +1077,7 @@ public:
   * the "physical" one is a SingleFlowDCRBlockSbstMod), and about changes in costs
   * of closed arcs. */
 
- void chg_costs( c_Vec_CNumber_it NCost ,
+ void chg_costs( c_Vec_double_it NCost ,
 		 Subset && nms , bool ordered = false ,
 		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
@@ -1173,7 +1088,7 @@ public:
   * Note that this can issue only one Modification of each type; the
   * "physical" one is a SingleFlowDCRBlockRngdMod with rng = [ arc ). */
 
- void chg_cost( CNumber NCost , Index arc ,
+ void chg_cost( double NCost , Index arc ,
 		ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*--------------------------------------------------------------------------*/
@@ -1207,7 +1122,7 @@ public:
   *
   * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is issued. */
 
- void chg_ucaps( c_Vec_FNumber_it NCap , Range rng = INFRange ,
+ void chg_ucaps( c_Vec_double_it NCap , Range rng = INFRange ,
 		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
@@ -1227,7 +1142,7 @@ public:
   * the "physical" one is a SingleFlowDCRBlockSbstMod) and about changing capacities
   * of closed arcs. */
 
- void chg_ucaps( c_Vec_FNumber_it NCap ,
+ void chg_ucaps( c_Vec_double_it NCap ,
 		 Subset && nms , bool ordered = false ,
 		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
@@ -1241,7 +1156,7 @@ public:
   * Note that this can issue only one Modification; the "physical" one is a
   * SingleFlowDCRBlockRngdMod with rng = [ arc ). */
 
- void chg_ucap( FNumber NCap , Index arc ,
+ void chg_ucap( double NCap , Index arc ,
 		ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*--------------------------------------------------------------------------*/
@@ -1266,7 +1181,7 @@ public:
   *
   * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is issued. */
 
- void chg_dfcts( c_Vec_FNumber_it NDfct , Range rng = INFRange ,
+ void chg_dfcts( c_Vec_double_it NDfct , Range rng = INFRange ,
 		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
@@ -1283,7 +1198,7 @@ public:
   * See chg_dfcts( range ) for Modification issued (except that, of course,
   * the "physical" one is a SingleFlowDCRBlockSbstMod). */
 
- void chg_dfcts( c_Vec_FNumber_it NDfct ,
+ void chg_dfcts( c_Vec_double_it NDfct ,
 		 Subset && nms , bool ordered = false ,
 		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
@@ -1297,7 +1212,7 @@ public:
   * Note that this can issue only one Modification; the "physical" one is a
   * SingleFlowDCRBlockRngdMod with rng = [ arc ). */
 
- void chg_dfct( FNumber NDfct , Index nde ,
+ void chg_dfct( double NDfct , Index nde ,
 		ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*--------------------------------------------------------------------------*/
@@ -1445,16 +1360,16 @@ public:
  Subset SN;                      ///< vector of arc starting nodes
  Subset EN;                      ///< vector of arc ending nodes
 
- Vec_CNumber C;                  ///< vector of arc costs
- Vec_FNumber U;                  ///< vector of arc upper capacities
- Vec_FNumber B;                  ///< vector of node deficits
+ Vec_double C;                  ///< vector of arc costs
+ Vec_double U;                  ///< vector of arc upper capacities
+ Vec_double B;                  ///< vector of node deficits
 
- Vec_CNumber NodeDelays;
- Vec_CNumber LinkDelays;
- CNumber FlowBursts;
- CNumber FlowDeadlines; 
- CNumber MTU; 
- CNumber rho; 
+ Vec_double NodeDelays;
+ Vec_double LinkDelays;
+ double FlowBursts;
+ double FlowDeadlines; 
+ double MTU; 
+ double rho; 
 
  unsigned char AR;               ///< bit-wise coded: what abstract is there
 
@@ -1922,8 +1837,8 @@ class DCRSolution : public Solution {
 
 /*---------------------------- PRIVATE FIELDS ------------------------------*/
 
- SingleFlowDCRBlock::Vec_FNumber v_x;   ///< the arc integer variables
- SingleFlowDCRBlock::Vec_CNumber v_r;  ///< the arc flows
+ SingleFlowDCRBlock::Vec_double v_x;   ///< the arc integer variables
+ SingleFlowDCRBlock::Vec_double v_r;  ///< the arc flows
 
 /*--------------------------------------------------------------------------*/
 

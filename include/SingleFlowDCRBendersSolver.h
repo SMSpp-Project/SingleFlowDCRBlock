@@ -243,7 +243,9 @@ public:
   auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
   
   if( DCRB->is_feasible_flow() )
+    //return( std::min( this->BenBound::getLB() , this->BenBound::getUB() ) );
     return( this->BenBound::getLB() );
+    //return( this->BenBound::getLB() );
   else
     return( Inf<double>() );
  }
@@ -256,7 +258,7 @@ public:
   //for (int i = 0; i < DCRB->get_NArcs() ; i++)
     //std::cout << DCRB->get_r( i ) << std::endl;    
 
-  if( DCRB->is_feasible() ){
+  if( DCRB->is_feasible_flow() ){
     if( this->get_var_value() < 1e200 && this->BenBound::getUB() > 1e200 )
       return( this->get_var_value() );
     //std::cout << this->get_var_value() << " " << BenBound::getUB() << std::endl;

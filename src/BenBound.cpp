@@ -419,8 +419,8 @@ using namespace std;
                     else releps = Q[1].inter;
 
                     //before next two lines were commented
-                    //if(abs(Q[1].inter - oldinterx) < eps * releps/100)
-                       //noLSneeded = 1;
+                    if(abs(Q[1].inter - oldinterx) < eps * releps/100)
+                      noLSneeded = 1;
 
                 }//se infeasflag = 1
 
@@ -1499,13 +1499,12 @@ using namespace std;
       capSort(sx,rango-1);
       capSort(rango+1,dx);
      }
-
    }
 
 /*--------------------------------------------------------------------------*/
 
    int BenBound::Distrib(int sx, int pv, int dx)  //metodo privato per quicksort 
-   {                                        
+   {                                    
     int i,j;
 
     if(pv != dx)   Swap(pv,dx);

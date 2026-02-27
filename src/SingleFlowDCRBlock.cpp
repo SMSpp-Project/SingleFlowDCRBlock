@@ -59,8 +59,6 @@ using c_Range = Block::c_Range;
 using Subset = Block::Subset;
 using c_Subset = Block::c_Subset;
 
-using FNumber = SingleFlowDCRBlock::FNumber;
-
 /*--------------------------------------------------------------------------*/
 /*-------------------------------- CONSTANTS -------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -98,9 +96,9 @@ static std::istream & eatDMXcomments( std::istream& is )
 
 /*--------------------------------------------------------------------------*/
 
-static void print_UB( std::ostream & os , FNumber ub )
+static void print_UB( std::ostream & os , double ub )
 {
- if( ub == Inf< FNumber >() )
+ if( ub == Inf< double >() )
   os << "+Inf";
  else
   os << ub;
@@ -108,7 +106,7 @@ static void print_UB( std::ostream & os , FNumber ub )
 
 /*--------------------------------------------------------------------------*/
 
-static FNumber read_UB( std::istream & iStrm )
+static double read_UB( std::istream & iStrm )
 {
  iStrm >> eatcomments;
  int c = iStrm.peek();
@@ -116,7 +114,7 @@ static FNumber read_UB( std::istream & iStrm )
   throw( std::invalid_argument( "error reading the input stream" ) );
   
  if( ( c != 'I' ) && ( c != 'i' ) ) {
-  FNumber res;
+  double res;
   iStrm >> res;
   if( ! iStrm )
    throw( std::invalid_argument( "error reading the input stream" ) );
@@ -131,7 +129,7 @@ static FNumber read_UB( std::istream & iStrm )
 	   ( c != iStrm.widen( '\n' ) ) &&
 	   ( c != iStrm.widen( '\t' ) ) );
 
- return( Inf< FNumber >() );
+ return( Inf< double >() );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -211,15 +209,15 @@ SMSpp_insert_in_factory_cpp_1( SingleFlowDCRBlock );
 SMSpp_insert_in_factory_cpp_0( DCRSolution );
 
 /*--------------------------------------------------------------------------*/
-/*--------------------------- METHODS OF SingleFlowDCRBlock --------------------------*/
+/*--------------------------- METHODS OF SingleFlowDCRBlock ----------------*/
 /*--------------------------------------------------------------------------*/
 /*-------------------------- OTHER INITIALIZATIONS -------------------------*/
 /*--------------------------------------------------------------------------*/
 
 void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pEn , c_Subset & pSn ,
-		     c_Vec_FNumber & pU , c_Vec_CNumber & pC ,
-         c_Vec_FNumber & pNodeDelays , c_Vec_FNumber & pLinkDelays , 
-         c_FNumber pFlowBursts , c_FNumber pFlowDeadlines , c_FNumber pMTU , c_FNumber prho )
+		     c_Vec_double & pU , c_Vec_double & pC ,
+         c_Vec_double & pNodeDelays , c_Vec_double & pLinkDelays , 
+         c_double pFlowBursts , c_double pFlowDeadlines , c_double pMTU , c_double prho )
 {
  // sanity checks - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -280,7 +278,7 @@ void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pEn , c_Subset & p
   }
 
  if( std::any_of( pU.begin() , pU.begin() + m ,
-		  []( c_FNumber ui ) { return( ui < Inf< FNumber >() ); } ) ) {
+		  []( c_double ui ) { return( ui < Inf< double >() ); } ) ) {
   U.resize( MaxNArcs );
   std::copy( pU.begin() , pU.begin() + m , U.begin() );
   }
@@ -288,7 +286,7 @@ void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pEn , c_Subset & p
   U.clear();
 
  if( std::any_of( pNodeDelays.begin() , pNodeDelays.begin() + n ,
-		  []( c_FNumber NodeDelaysi ) { return( NodeDelaysi < Inf< FNumber >() ); } ) ) {
+		  []( c_double NodeDelaysi ) { return( NodeDelaysi < Inf< double >() ); } ) ) {
   NodeDelays.resize( MaxNNodes );
   std::copy( pNodeDelays.begin() , pNodeDelays.begin() + n , NodeDelays.begin() );
   }
@@ -296,7 +294,7 @@ void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pEn , c_Subset & p
   NodeDelays.clear();
 
  if( std::any_of( pLinkDelays.begin() , pLinkDelays.begin() + m ,
-		  []( c_FNumber LinkDelaysi ) { return( LinkDelaysi < Inf< FNumber >() ); } ) ) {
+		  []( c_double LinkDelaysi ) { return( LinkDelaysi < Inf< double >() ); } ) ) {
   LinkDelays.resize( MaxNArcs );
   std::copy( pLinkDelays.begin() , pLinkDelays.begin() + m , LinkDelays.begin() );
   }
@@ -316,7 +314,7 @@ void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pEn , c_Subset & p
  // in addition the cost has to be set to 0 - - - - - - - - - - - - - - - - -
 
  for( Index j = 0 ; j < C.size() ; ++j )
-  if( C[ j ] >= Inf< CNumber >() ) {
+  if( C[ j ] >= Inf< double >() ) {
    close_arc( j , eNoMod , eNoMod );
    C[ j ] = 0;
    }
@@ -362,7 +360,7 @@ void SingleFlowDCRBlock::load( std::istream & input , char frmt )
  SN.resize( NArcs );
  EN.resize( NArcs );
  C.assign( NArcs , 0 );
- U.assign( NArcs , Inf< FNumber >() );
+ U.assign( NArcs , Inf< double >() );
  B.assign( NNodes , 0 );
 
  // read problem data - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -382,7 +380,7 @@ void SingleFlowDCRBlock::load( std::istream & input , char frmt )
     if( ( j < 1 ) || ( j > NNodes ) )
      throw( std::invalid_argument( "invalid node name" ) );
     
-    FNumber Dfctj;
+    double Dfctj;
     if( ! ( input >> Dfctj ) )
      throw( std::invalid_argument( "error reading deficit" ) );
 
@@ -413,7 +411,7 @@ void SingleFlowDCRBlock::load( std::istream & input , char frmt )
     if( SN[ i ] == EN[ i ] )
      throw( std::invalid_argument( "self-loops not permitted" ) );
 
-    FNumber LB;
+    double LB;
     if( ! ( input >> LB ) )
      throw( std::invalid_argument( "error reading lower bound" ) );
 
@@ -442,11 +440,11 @@ void SingleFlowDCRBlock::load( std::istream & input , char frmt )
  // simplify out the deta structures- - - - - - - - - - - - - - - - - - - - -
 
  if( std::all_of( B.begin() , B.end() ,
-		  []( c_FNumber bi ) { return( bi == 0 ); } ) )
+		  []( c_double bi ) { return( bi == 0 ); } ) )
   B.clear();
 
  if( std::all_of( U.begin() , U.end() ,
-		  []( c_FNumber ui ) { return( ui == Inf< FNumber >() ); } ) )
+		  []( c_double ui ) { return( ui == Inf< double >() ); } ) )
   U.clear();
  
  // allocate flow variables - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -579,7 +577,7 @@ void SingleFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
   U.resize( MaxNArcs );
   cap.getVar( U.data() );
   if( std::all_of( U.begin() , U.begin() + NArcs ,
-		   []( c_FNumber ui ) { return( ui == Inf< FNumber >() ); } ) )
+		   []( c_double ui ) { return( ui == Inf< double >() ); } ) )
    U.clear();
   }
 
@@ -589,7 +587,7 @@ void SingleFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
   std::vector< size_t > countn = { NNodes };
   dfc.getVar( B.data() );
   if( std::all_of( B.begin() , B.begin() + NNodes ,
-		   []( c_FNumber bi ) { return( bi == 0 ); } ) )
+		   []( c_double bi ) { return( bi == 0 ); } ) )
    B.clear();
   }
 
@@ -599,7 +597,7 @@ void SingleFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
   std::vector< size_t > countn = { NArcs };
   ldelays.getVar( LinkDelays.data() );
   if( std::all_of( LinkDelays.begin() , LinkDelays.begin() + NArcs ,
-		   []( c_FNumber ldi ) { return( ldi == 0 ); } ) )
+		   []( c_double ldi ) { return( ldi == 0 ); } ) )
    LinkDelays.clear();
   }
 
@@ -609,7 +607,7 @@ void SingleFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
   std::vector< size_t > countn = { NNodes };
   ndelays.getVar( NodeDelays.data() );
   if( std::all_of( NodeDelays.begin() , NodeDelays.begin() + NNodes ,
-		   []( c_FNumber ndi ) { return( ndi == 0 ); } ) )
+		   []( c_double ndi ) { return( ndi == 0 ); } ) )
    NodeDelays.clear();
   }
 
@@ -623,7 +621,7 @@ void SingleFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
  // in addition the cost has to be set to 0 - - - - - - - - - - - - - - - - -
 
  for( Index j = 0 ; j < C.size() ; ++j )
-  if( C[ j ] >= Inf< CNumber >() ) {
+  if( C[ j ] >= Inf< double >() ) {
    close_arc( j , eNoMod , eNoMod );
    C[ j ] = 0;
    }
@@ -687,7 +685,6 @@ void SingleFlowDCRBlock::generate_dynamic_constraints( Configuration *stcc )
  if( auto sci = dynamic_cast< SimpleConfiguration< int > * >( stcc ) )
   FormMsk = sci->f_value;
 
- if( FormMsk == PCuts ) {
   double tol = 1e-5;  // threshold parameter for P/C separation
   double eps = 1e-4;  // tolerance value to consider a binary variable
 
@@ -728,7 +725,9 @@ void SingleFlowDCRBlock::generate_dynamic_constraints( Configuration *stcc )
     }
     }
   }
-  add_dynamic_constraint( PC_cuts , "PC_cuts" );  
+  
+  if( FormMsk == PCuts ) 
+    add_dynamic_constraint( PC_cuts , "PC_cuts" );  
 
   LinearFunction::v_coeff_pair v_var_min;
   //if( r_min.get_value() > eps ) {
@@ -745,8 +744,9 @@ void SingleFlowDCRBlock::generate_dynamic_constraints( Configuration *stcc )
               add_dynamic_constraints( PC_cuts_min , cut_min , eNoBlck );
     }
     //}
-    add_dynamic_constraint( PC_cuts_min , "PC_cuts_min" );
-  }
+    if( FormMsk == PCuts ) 
+      add_dynamic_constraint( PC_cuts_min , "PC_cuts_min" );
+
  }// end( SingleFlowDCRBlock::generate_dynamic_constraints )
 
 /*--------------------------------------------------------------------------*/
@@ -822,8 +822,6 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
  if( auto sci = dynamic_cast< SimpleConfiguration< int > * >( stcc ) )
   FormMsk = sci->f_value;
 
- if( FormMsk == SOCP ){
-
     DQuadFunction::v_coeff_triple v_vars_q;
     DQuadFunction::coeff_triple t1( &theta_min , 0.0 , 0.0 );
     DQuadFunction::coeff_triple t2( &r_min , 0.0 , 0.0 );
@@ -839,7 +837,7 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
     cone_min_cnst.set_lhs( FlowBursts ); 
     cone_min_cnst.set_function( quad );
 
-    add_static_constraint( cone_min_cnst, "cone_min" );
+    add_static_constraint( cone_min_cnst );
  
     cone_cnst.resize( get_NArcs() );
     for( Index j = 0 ; j < get_NArcs() ; ++j ) {
@@ -862,7 +860,9 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
 
     }
 
-    add_static_constraint( cone_cnst, "cone_cnst" );
+   if( FormMsk == SOCP ){
+
+    add_static_constraint( cone_cnst );
   }
 
  int j;
@@ -947,7 +947,7 @@ void SingleFlowDCRBlock::generate_objective( Configuration *objc )
  for( ; i < get_NArcs() ; ++i ) {
    p[ i ].first = &r[ i ];
    auto ci = *(Cit++);
-   p[ i ].second = 1.0; //std::isnan( ci ) ? 0 : ci;
+   p[ i ].second = std::isnan( ci ) ? 0 : ci;
    }
 
  i = 0;
@@ -974,7 +974,7 @@ void SingleFlowDCRBlock::generate_objective( Configuration *objc )
 /*--------------------- Methods for checking the Block ---------------------*/
 /*--------------------------------------------------------------------------*/
 
-bool SingleFlowDCRBlock::flow_feasible( c_FNumber feps , bool useabstract )
+bool SingleFlowDCRBlock::flow_feasible( c_double feps , bool useabstract )
 {
  if( useabstract && ( AR & HasFlw ) ) {
   // do it using the abstract representation, if possible - - - - - - - - - -
@@ -989,7 +989,7 @@ bool SingleFlowDCRBlock::flow_feasible( c_FNumber feps , bool useabstract )
 
 /*--------------------------------------------------------------------------*/
 
-bool SingleFlowDCRBlock::bound_feasible( c_FNumber feps , bool useabstract )
+bool SingleFlowDCRBlock::bound_feasible( c_double feps , bool useabstract )
 {
  if( useabstract && ( AR & ( HasFlw | HasVar ) ) ) {
   // do it using the abstract representation, if possible - - - - - - - - - -
@@ -1011,14 +1011,14 @@ bool SingleFlowDCRBlock::bound_feasible( c_FNumber feps , bool useabstract )
 
   // static part
   for( ; i < get_NArcs() ; ++i ) {
-   c_FNumber Ui = get_U( i );
-   c_FNumber xi = x[ i ].get_value();
-   if( Ui >= Inf< FNumber >() ) {
+   c_double Ui = get_U( i );
+   c_double xi = x[ i ].get_value();
+   if( Ui >= Inf< double >() ) {
     if( xi < - feps )
      return( false );
     }
    else {
-    c_FNumber slck = Ui == 0 ? std::abs( xi ) :
+    c_double slck = Ui == 0 ? std::abs( xi ) :
                                std::max( - xi , xi - Ui ) / std::abs( Ui );
     if( slck > feps )
      return( false );
@@ -1303,11 +1303,11 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
 		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
      #endif
      if( tmod->rng().second == tmod->rng().first + 1 )
-      DCRB->chg_ucap( U.empty() ? Inf< FNumber >() : U[ tmod->rng().first ] ,
+      DCRB->chg_ucap( U.empty() ? Inf< double >() : U[ tmod->rng().first ] ,
 		      tmod->rng().first , iPM , iPA );
      else
       if( U.empty() ) {
-       Vec_FNumber NCap( tmod->rng().second - tmod->rng().first );
+       Vec_double NCap( tmod->rng().second - tmod->rng().first );
        auto NCit = NCap.begin();
        for( Index i = tmod->rng().first ; i < tmod->rng().second ; ++i )
 	*(NCit++) = U[ i ];
@@ -1331,7 +1331,7 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
 		      tmod->rng().first , iPM , iPA );
      else
       if( B.empty() ) {
-       Vec_FNumber NDfct( tmod->rng().second - tmod->rng().first );
+       Vec_double NDfct( tmod->rng().second - tmod->rng().first );
        auto NDit = NDfct.begin();
        for( Index i = tmod->rng().first ; i < tmod->rng().second ; ++i )
 	*(NDit++) = B[ i ];
@@ -1390,7 +1390,7 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
        throw( std::logic_error(
 		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
      #endif
-     Vec_CNumber NCost( tmod->nms().size() );
+     Vec_double NCost( tmod->nms().size() );
      for( Index i = 0 ; i < NCost.size() ; i++ )
       NCost[ i ] = C[ tmod->nms()[ i ] ];
 
@@ -1405,7 +1405,7 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
        throw( std::logic_error(
 		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
      #endif
-     Vec_FNumber NCap( tmod->nms().size() , Inf< FNumber >() );
+     Vec_double NCap( tmod->nms().size() , Inf< double >() );
      if( ! U.empty() )
       for( Index i = 0 ; i < NCap.size() ; i++ )
        NCap[ i ] = U[ tmod->nms()[ i ] ];
@@ -1422,7 +1422,7 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
        throw( std::logic_error(
 		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
      #endif
-     Vec_FNumber NDfct( tmod->nms().size() , 0 );
+     Vec_double NDfct( tmod->nms().size() , 0 );
      if( ! B.empty() )
       for( Index i = 0 ; i < NDfct.size() ; i++ )
        NDfct[ i ] = B[ tmod->nms()[ i ] ];
@@ -1527,7 +1527,7 @@ Solution * SingleFlowDCRBlock::get_Solution( Configuration * solc , bool emptys 
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::get_x( Vec_FNumber_it FSol , Range rng ) const
+void SingleFlowDCRBlock::get_x( Vec_double_it FSol , Range rng ) const
 {
  for( ; rng.first < std::min( rng.second , get_NArcs() ) ; )
   *(FSol++) = x[ rng.first++ ].get_value();
@@ -1536,7 +1536,7 @@ void SingleFlowDCRBlock::get_x( Vec_FNumber_it FSol , Range rng ) const
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::get_x( Vec_FNumber_it FSol , c_Subset & nms ) const
+void SingleFlowDCRBlock::get_x( Vec_double_it FSol , c_Subset & nms ) const
 {
  if( ! ( AR & HasVar ) )
   throw( std::logic_error( "flow Variable not available" ) );
@@ -1550,7 +1550,7 @@ void SingleFlowDCRBlock::get_x( Vec_FNumber_it FSol , c_Subset & nms ) const
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::get_r( Vec_FNumber_it FSol , Range rng ) const
+void SingleFlowDCRBlock::get_r( Vec_double_it FSol , Range rng ) const
 {
  for( ; rng.first < std::min( rng.second , get_NArcs() ) ; )
   *(FSol++) = r[ rng.first++ ].get_value();
@@ -1559,7 +1559,7 @@ void SingleFlowDCRBlock::get_r( Vec_FNumber_it FSol , Range rng ) const
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::get_r( Vec_FNumber_it FSol , c_Subset & nms ) const
+void SingleFlowDCRBlock::get_r( Vec_double_it FSol , c_Subset & nms ) const
 {
  if( ! ( AR & HasVar ) )
   throw( std::logic_error( "flow Variable not available" ) );
@@ -1573,7 +1573,7 @@ void SingleFlowDCRBlock::get_r( Vec_FNumber_it FSol , c_Subset & nms ) const
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::set_x( c_Vec_FNumber_it fstrt , Range rng )
+void SingleFlowDCRBlock::set_x( c_Vec_double_it fstrt , Range rng )
 {
  if( ! ( AR & HasVar ) )  // nowhere to put the value in
   return;                 // cowardly (and silently) return
@@ -1592,7 +1592,7 @@ void SingleFlowDCRBlock::set_x( c_Vec_FNumber_it fstrt , Range rng )
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::set_x( c_Vec_FNumber_it fstrt , c_Subset sbst )
+void SingleFlowDCRBlock::set_x( c_Vec_double_it fstrt , c_Subset sbst )
 {
  if( ! ( AR & HasVar ) )  // nowhere to put the value in
   return;                 // cowardly (and silently) return
@@ -1609,7 +1609,7 @@ void SingleFlowDCRBlock::set_x( c_Vec_FNumber_it fstrt , c_Subset sbst )
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::set_r( c_Vec_FNumber_it fstrt , Range rng )
+void SingleFlowDCRBlock::set_r( c_Vec_double_it fstrt , Range rng )
 {
  if( ! ( AR & HasVar ) )  // nowhere to put the value in
   return;                 // cowardly (and silently) return
@@ -1630,7 +1630,7 @@ void SingleFlowDCRBlock::set_r( c_Vec_FNumber_it fstrt , Range rng )
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::set_r( c_Vec_FNumber_it fstrt , c_Subset sbst )
+void SingleFlowDCRBlock::set_r( c_Vec_double_it fstrt , c_Subset sbst )
 {
  if( ! ( AR & HasVar ) )  // nowhere to put the value in
   return;                 // cowardly (and silently) return
@@ -1775,7 +1775,7 @@ void SingleFlowDCRBlock::serialize( netCDF::NcGroup & group ) const
 /*------------- METHODS FOR ADDING / REMOVING / CHANGING DATA --------------*/
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::chg_costs( c_Vec_CNumber_it NCost , Range rng ,
+void SingleFlowDCRBlock::chg_costs( c_Vec_double_it NCost , Range rng ,
 			  ModParam issueMod , ModParam issueAMod )
 {
  rng.second = std::min( rng.second , get_NArcs() );
@@ -1807,7 +1807,7 @@ void SingleFlowDCRBlock::chg_costs( c_Vec_CNumber_it NCost , Range rng ,
  if( not_dry_run( issueAMod ) && ( AR & HasObj ) ) {
   // change abstract and physical representation together - - - - - - - - - -
   // in the meantime, if so instructed also issue abstract Modification
-  Vec_CNumber NC( rng.second - rng.first );
+  Vec_double NC( rng.second - rng.first );
   auto NCit = NC.begin();
 
   for( Index i = rng.first ; i < rng.second ; ++i , ++NCost )
@@ -1840,7 +1840,7 @@ void SingleFlowDCRBlock::chg_costs( c_Vec_CNumber_it NCost , Range rng ,
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::chg_costs( c_Vec_CNumber_it NCost , Subset && nms ,
+void SingleFlowDCRBlock::chg_costs( c_Vec_double_it NCost , Subset && nms ,
 			  bool ordered  ,
 			  ModParam issueMod , ModParam issueAMod )
 {
@@ -1850,7 +1850,7 @@ void SingleFlowDCRBlock::chg_costs( c_Vec_CNumber_it NCost , Subset && nms ,
  // eliminate from NCost and nms the entries corresponding to either
  // deleted arcs or arcs whose cost actually does not change; meanwhile,
  // if nms is not ordered, order it
- Vec_CNumber NC;
+ Vec_double NC;
  if( ordered ) {
   NC.resize( nms.size() );
   auto NCit = NC.begin();
@@ -1866,7 +1866,7 @@ void SingleFlowDCRBlock::chg_costs( c_Vec_CNumber_it NCost , Subset && nms ,
   NC.resize( nms.size() );
   }
  else {
-  using TP = std::pair< Index , CNumber >;
+  using TP = std::pair< Index , double >;
   std::vector< TP > pairs;
   pairs.reserve( nms.size() );
   for( auto i : nms ) {
@@ -1918,7 +1918,7 @@ void SingleFlowDCRBlock::chg_costs( c_Vec_CNumber_it NCost , Subset && nms ,
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::chg_cost( CNumber NCost , Index arc , 
+void SingleFlowDCRBlock::chg_cost( double NCost , Index arc , 
 			 ModParam issueMod , ModParam issueAMod )
 {
  //if( arc >= get_NArcs() )
@@ -1955,7 +1955,7 @@ void SingleFlowDCRBlock::chg_cost( CNumber NCost , Index arc ,
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::chg_ucaps( c_Vec_FNumber_it NCap , Range rng ,
+void SingleFlowDCRBlock::chg_ucaps( c_Vec_double_it NCap , Range rng ,
 			  ModParam issueMod , ModParam issueAMod )
 {
  rng.second = std::min( rng.second , get_NArcs() );
@@ -1964,11 +1964,11 @@ void SingleFlowDCRBlock::chg_ucaps( c_Vec_FNumber_it NCap , Range rng ,
 
  if( U.empty() ) {
   if( std::all_of( NCap , NCap + ( rng.second - rng.first ) ,
-		   []( c_FNumber cap ) { return( cap >= Inf< FNumber >() ); }
+		   []( c_double cap ) { return( cap >= Inf< double >() ); }
 		   ) )
    return;
 
-  U.assign( get_MaxNArcs() , Inf< FNumber >() );
+  U.assign( get_MaxNArcs() , Inf< double >() );
   }
 
  // check to see how many of the initial arcs are either deleted or not
@@ -2037,23 +2037,23 @@ void SingleFlowDCRBlock::chg_ucaps( c_Vec_FNumber_it NCap , Range rng ,
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::chg_ucaps( c_Vec_FNumber_it NCap , Subset && nms ,
+void SingleFlowDCRBlock::chg_ucaps( c_Vec_double_it NCap , Subset && nms ,
 			  bool ordered  ,
 			  ModParam issueMod , ModParam issueAMod )
 {
  if( U.empty() ) {
   if( std::all_of( NCap , NCap + nms.size() ,
-		   []( c_FNumber cap ) { return( cap >= Inf< FNumber >() ); }
+		   []( c_double cap ) { return( cap >= Inf< double >() ); }
 		   ) )
    return;
 
-  U.assign( get_MaxNArcs() , Inf< FNumber >() );
+  U.assign( get_MaxNArcs() , Inf< double >() );
   }
 
  // eliminate from NCap and nms the entries corresponding to either
  // deleted arcs or arcs whose capacity actually does not change;
  // meanwhile, if nms is not ordered, order it
- Vec_FNumber NC;
+ Vec_double NC;
  if( ordered ) {
   NC.resize( nms.size() );
   auto NCit = NC.begin();
@@ -2068,7 +2068,7 @@ void SingleFlowDCRBlock::chg_ucaps( c_Vec_FNumber_it NCap , Subset && nms ,
   nms.resize( std::distance( nms.begin() , nmsit ) );
   }
  else {
-  using TP = std::pair< Index , FNumber >;
+  using TP = std::pair< Index , double >;
   std::vector< TP > pairs;
   pairs.reserve( nms.size() );
   for( auto i : nms ) {
@@ -2136,17 +2136,17 @@ void SingleFlowDCRBlock::chg_ucaps( c_Vec_FNumber_it NCap , Subset && nms ,
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::chg_ucap( FNumber NCap , Index arc ,
+void SingleFlowDCRBlock::chg_ucap( double NCap , Index arc ,
 			 ModParam issueMod , ModParam issueAMod )
 {
  if( arc >= get_NArcs() )
   throw( std::invalid_argument( "invalid arc name" ) );
 
  if( U.empty() ) {
-  if( NCap < Inf< FNumber >() )
+  if( NCap < Inf< double >() )
    return;
 
-  U.assign( get_MaxNArcs() , Inf< FNumber >() );
+  U.assign( get_MaxNArcs() , Inf< double >() );
   }
 
  if( U[ arc ] == NCap )
@@ -2181,7 +2181,7 @@ void SingleFlowDCRBlock::chg_ucap( FNumber NCap , Index arc ,
 /*--------------------------------------------------------------------------*/
 
 
-void SingleFlowDCRBlock::chg_dfcts( c_Vec_CNumber_it NDfct , Range rng ,
+void SingleFlowDCRBlock::chg_dfcts( c_Vec_double_it NDfct , Range rng ,
 			  ModParam issueMod , ModParam issueAMod )
 {
  rng.second = std::min( rng.second , get_NNodes() );
@@ -2190,7 +2190,7 @@ void SingleFlowDCRBlock::chg_dfcts( c_Vec_CNumber_it NDfct , Range rng ,
 
  if( B.empty() ) {
   if( std::all_of( NDfct , NDfct + ( rng.second - rng.first ) ,
-		   []( c_FNumber dfct ) { return( dfct == 0 ); } ) )
+		   []( c_double dfct ) { return( dfct == 0 ); } ) )
    return;
 
   B.assign( get_MaxNNodes() , 0 );
@@ -2239,13 +2239,13 @@ void SingleFlowDCRBlock::chg_dfcts( c_Vec_CNumber_it NDfct , Range rng ,
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::chg_dfcts( c_Vec_CNumber_it NDfct , Subset && nms ,
+void SingleFlowDCRBlock::chg_dfcts( c_Vec_double_it NDfct , Subset && nms ,
 			  bool ordered ,
 			  ModParam issueMod , ModParam issueAMod )
 {
  if( B.empty() ) {
   if( std::all_of( NDfct , NDfct + nms.size() ,
-		   []( c_FNumber dfct ) { return( dfct == 0 ); } ) )
+		   []( c_double dfct ) { return( dfct == 0 ); } ) )
    return;
 
   B.assign( get_MaxNNodes() , 0 );
@@ -2287,7 +2287,7 @@ void SingleFlowDCRBlock::chg_dfcts( c_Vec_CNumber_it NDfct , Subset && nms ,
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::chg_dfct( FNumber NDfct , Index nde ,
+void SingleFlowDCRBlock::chg_dfct( double NDfct , Index nde ,
 			 ModParam issueMod , ModParam issueAMod )
 {
  if( nde >= get_NNodes() )
@@ -2749,7 +2749,7 @@ void SingleFlowDCRBlock::guts_of_add_Modification( p_Mod mod , ChnlName chnl )
    chg_cost( lfo->get_coefficient( tmod->range().first ) ,
 	     tmod->range().first , make_par( eNoBlck , chnl ) , eDryRun );
   else {                            // changing many costs at once
-   Vec_CNumber NC( tmod->range().second - tmod->range().first );
+   Vec_double NC( tmod->range().second - tmod->range().first );
    auto NCit = NC.begin();
    for( Index i = tmod->range().first ; i < tmod->range().second ; ){
     *(NCit++) = lfo->get_coefficient( i++ );
@@ -2777,7 +2777,7 @@ void SingleFlowDCRBlock::guts_of_add_Modification( p_Mod mod , ChnlName chnl )
   //       been added or deleted, which saves *a lot* of trouble
   // note: chg_costs() owns subset, so a copy has to be made
 
-  Vec_CNumber NC( tmod->subset().size() );
+  Vec_double NC( tmod->subset().size() );
   auto NCit = NC.begin();
   for( auto i : tmod->subset() )
    *(NCit++) = lfo->get_coefficient( i++ );
@@ -2870,7 +2870,7 @@ void SingleFlowDCRBlock::compute_conditional_bounds( void )
    continue;
 
   if( *tC < 0 ) {
-   if( *tU == Inf< FNumber >() ) {
+   if( *tU == Inf< double >() ) {
     f_cond_lower = -Inf< double >();
     break;
     }
@@ -2878,7 +2878,7 @@ void SingleFlowDCRBlock::compute_conditional_bounds( void )
     f_cond_lower += *tC * (*tU);
    }
   else
-   if( *tU == Inf< FNumber >() ) {
+   if( *tU == Inf< double >() ) {
     f_cond_upper = Inf< double >();
     break;
     }
@@ -2889,7 +2889,7 @@ void SingleFlowDCRBlock::compute_conditional_bounds( void )
  if( f_cond_lower > -Inf< double >() ) {
   for( ; tC < C.end() ; ++tC , ++tU )
    if( *tC < 0 ) {
-    if( *tU == Inf< FNumber >() ) {
+    if( *tU == Inf< double >() ) {
      f_cond_lower = -Inf< double >();
      break;
      }
@@ -2901,7 +2901,7 @@ void SingleFlowDCRBlock::compute_conditional_bounds( void )
  if( f_cond_upper < Inf< double >() ) {
   for( ; tC < C.end() ; ++tC , ++tU )
    if( *tC > 0 ) {
-    if( *tU == Inf< FNumber >() ) {
+    if( *tU == Inf< double >() ) {
      f_cond_upper = Inf< double >();
      break;
      }
