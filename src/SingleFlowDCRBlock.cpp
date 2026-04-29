@@ -1847,6 +1847,7 @@ void SingleFlowDCRBlock::chg_costs( c_Vec_double_it NCost , Subset && nms ,
  if( nms.empty() )  // nothing to change
   return;           // cowardly (and silently) return
 
+
  // eliminate from NCost and nms the entries corresponding to either
  // deleted arcs or arcs whose cost actually does not change; meanwhile,
  // if nms is not ordered, order it

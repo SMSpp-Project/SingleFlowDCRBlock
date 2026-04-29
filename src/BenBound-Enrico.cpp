@@ -361,7 +361,7 @@ using namespace std;
     double ms; //appoggio per i conti, valore parziale della pendenza
 
     Inizial();
-    
+
    // cout<<"inizializzato"<<endl;
     Qsize = Q.size(); // = 2, valori limite.
 
@@ -397,13 +397,9 @@ using namespace std;
                    oldinterx = Q[1].inter;
 
                    //cerchiamo l'altro punto di ammissibilità
-
-                   int idx_feas = 0;
                    
                    while(feas != 0)
                     {
-                      idx_feas++;
-                      if(idx_feas == 100) break;
                       temppoint = mystep * Q[0].rmin + (1 - mystep) * Q[1].inter; //vediamo chi vari in base alla feasibility
 
                       lagSol.updrmin(temppoint); 
@@ -469,99 +465,99 @@ using namespace std;
 
                     d = -SPLabels[Links[i].endnode] + SPLabels[Links[i].startnode]; //d_i-d_j
                     
-                    if(d < 0)//altrimenti contributo sicuramente nullo                
+                    if(d < -1e-10)//altrimenti contributo sicuramente nullo                
                     {
-                     if(lambda == 0) //primo caso semplificato
+                      if(lambda == 0) //primo caso semplificato
                       {
                         zetaunico = (-d) / Links[i].cost;  //(d_j - d_i)/f_ij
 
-                        if( Q[0].rmin < zetaunico && zetaunico < Links[i].capacity ){
-                          ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin-Q[1].rmin);
-                          lc.m += ms;
-                          lc.q += - ms * Q[1].rmin; 
-                        }
-
-                        if( Q[0].rmin < Links[i].capacity && Links[i].capacity < zetaunico ){
-                          ms = Links[i].cost;
-                          if( Q[1].rmin < zetaunico ){
-                            ms = (Links[i].cost * Links[i].capacity + d)/(Links[i].capacity-Q[1].rmin);
+                        if(zetaunico > Q[0].rmin) //se questo non vale avremo contributo nullo
+                        {
+                          if(zetaunico <= Links[i].capacity)
+                          {
+                            if(Q[p].inter -zetaunico <= eps*Q[p].inter)  ms = Links[i].cost;  //caso già convesso
+                            else  ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin - Q[p].inter);  //facciamo partire la retta approssimante da un punto noto garantito sopra a 0, ovvero Q[0].rmin
+                            
                             lc.m += ms;
-                            lc.q += (Links[i].cost * Links[i].capacity + d) - ms * Links[i].capacity;
-                          } else {
-                            ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin-Q[1].rmin);
-                            lc.m += ms;
-                            lc.q += - ms * Q[1].rmin;
+                            lc.q += - ms * Q[p].inter;
                           }
-                        }
+                          else
+                          {
+                            if(Q[1].rmin <= Links[i].capacity)  //caso rmin<c_ij<zeta (non dovrebbe succedere)
+                              {ms = Links[i].cost;} //caso già convesso
+                            else //caso con rmin > c_ij, e zeta > c_ij, qui c'è discontinuità! Aggiriamola //FIXME: non dovrebbe essere la retta tra (c,\phi(c)) ed (r_min,\phi(r_min))?
+                              {ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin - Q[p].inter);}
+                            lc.m += ms;
+                            lc.q += - ms * Q[p].inter;
+                            
+                          } //zetaunico > c_ij
+                        } //zetaunico > Q[0].rmin
                      } //lambda = 0
-                     else //caso generale
-                     { 
+                    else //caso generale
+                     {
                       barl = MTU / Links[i].speed + Links[i].delay + Nodes[Links[i].startnode].delay;
-                      discrim = pow(lambda * barl + d, 2) - 4*Links[i].cost * lambda * MTU;
+                      discrim = pow(lambda * barl  + d , 2) - 4*Links[i].cost * lambda * MTU; 
               
-                     if(discrim > 1e-10) //allora sono definiti zeta_\pm
+                      if(discrim > 1e-10) //allora sono definiti zeta_\pm
                         {
                          zetap = (-lambda * barl - d + sqrt(discrim))/(2 * Links[i].cost); //radice più grande
-                         zetam = (-lambda * barl - d - sqrt(discrim))/(2 * Links[i].cost); //radice più piccola
+                          
+                         if(zetap > sqr) //altrimenti sono gli zeri del massimo
+                         {
+                            if(sqr < Links[i].capacity)
+                            { 
 
-                         if( zetam < Links[i].capacity && Links[i].capacity < sqr && Q[1].rmin > Links[i].capacity ) {
-                            ms = (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d) / ( Links[i].capacity - Q[1].rmin );
-                            lc.m += ms;
-                            //lc.q += (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d) - ms * Links[i].capacity;
-                            lc.q += - ms * Q[1].rmin;
-                         } 
+                              if(sqr < Q[p].inter)
+                              {
+                                ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d)/(sqr - Q[p].inter); //la pendenza è quella della scorciatoia
+                                lc.m += ms;
 
-                         if( sqr < Links[i].capacity && Links[i].capacity < zetap && Q[1].rmin >= Links[i].capacity ) {
-                            if( Q[1].rmin < zetap ){
-                              ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d) / (sqr - Q[1].rmin);
-                              if( Links[i].cost > ms ){
-                                tildez = - 1/ms * (lambda * MTU - pow(lambda * barl + d - ms, 2.0)/(4*Links[i].cost));
-                                if(zetap-tildez<0){
-                                  lc.q += - ms * tildez;
-                                  lc.m += ms; 
+                                if(ms >= Links[i].cost) //cerchiamo il punto di tangenza del nuovo taglio per definirne l'intercetta
+                                {
+
+                                  if(zetap < Links[i].capacity)
+                                  tildez = zetap;
+
+                                  else tildez = Links[i].capacity;
+    
                                 }
-                              } else {
-                                lc.q += (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d) - ms * Links[i].capacity;
-                                lc.m += ms; 
+                                else  tildez = sqrt((lambda * MTU)/(Links[i].cost - ms));
+                      
+                                lc.q += Links[i].cost * tildez + lambda * MTU / tildez + lambda * barl + d  - tildez * ms;
                               }
-                            } else {
-                              if( Links[i].cost > ms ){
-                                ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d) / (sqr - Q[1].rmin);
-                                tildez = - 1/ms * (lambda * MTU - pow(lambda * barl + d - ms, 2.0)/(4*Links[i].cost));
-                                if(zetap-tildez<0){
-                                  lc.m += ms; 
-                                  lc.q += - ms * tildez;
-                                }
-                              }
+                              
+                              //cout << zetap << endl;
                             }
-                         }
+                          else //quindi se sqrt >= c_ij
+                           {
+                            if(Links[i].capacity < Q[p].inter)
+                            {
+                              //if(Links[i].capacity - Q[p].inter < - 1e-6*Q[p].inter) // nell'ordine giusto, ma non troppo vicini
+                             // {
+                               zetam = (-lambda * barl - d - sqrt(discrim))/(2 * Links[i].cost); //radice più piccola
+                    
+                               if(zetam < Links[i].capacity && zetam > Q[0].rmin) //FIXME: perché mi chiedo se zeta- > Q[0].rmin??
+                                { 
+                                   // cout<<"sqrt = "<<sqr<<" c_ij = "<<Links[i].capacity<<" rmin = "<<Q[p].inter<<" zetamm = "<<zetam<<endl;
+                                  ms = (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d)/(Links[i].capacity - Q[p].inter);
+                                //cout<<"ms senza disc "<<ms<<endl;
+                                  lc.m += ms;
+                                  lc.q += - ms * Q[p].inter;
+                                  
+                                  //cout << zetam << endl;
+                                } //se questo non succede gli archi avranno di nuovo contributo nullo
 
-                         if( Links[i].capacity > zetap ){
-                            if( Q[1].rmin < Links[i].capacity ){
-                              ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d) / (sqr - Q[1].rmin);
-                              //cout<<Links[i].cost - ms <<","<< Q[1].rmin - zetap<<endl;
-                              if( Links[i].cost - ms > 0 && Q[1].rmin > zetap ){
-                                tildez = - 1/ms * (lambda * MTU - pow(lambda * barl + d - ms, 2.0)/(4*Links[i].cost));
-                                if(zetap-tildez<0){
-                                  lc.m += ms; 
-                                  lc.q += - ms * tildez;
-                                } 
-                              }
-                            } else {
-                              ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d) / (sqr - Q[1].rmin);
-                              if( Links[i].cost - ms > 0 && Q[1].rmin > zetap ){
-                                tildez = - 1/ms * (lambda * MTU - pow(lambda * barl + d - ms, 2.0)/(4*Links[i].cost));
-                                if(zetap-tildez<0){
-                                  lc.m += ms; 
-                                  lc.q += - ms * tildez;
-                                }
-                              }
-                            }
-                         }
+                             }//c_ij < r_min
+                            
+                            }//sqrt >= c_ij
+                         }//se sono gli zeri del minimo.
+
                         }//se sono definiti i punti in cui si annulla il contributo dell'arco
                          //altrimenti il contributo sarà nullo.
                       }//caso lambda > 0
+
                    }//se d < 0
+
                   }//solo gli archi con capacità più grandi della minima ammissibile!
                   }//per tutti gli archi.
 
@@ -570,7 +566,7 @@ using namespace std;
                 ms = - lambda * Flow.burst / pow(Q[p].inter,2);
                 lc.m += ms;
                 lc.q += lambda * Flow.burst / Q[p].inter - lambda * Flow.deadline + SPLabels[Flow.sinknode] - Q[p].inter * ms; //g(r_min) - r_min * ms
-
+                  
                 //taglio destro
 
                 rc.m = - lambda * Flow.burst / pow(Q[p].inter,2);
@@ -697,7 +693,7 @@ using namespace std;
            //if(Q.size()==2||Q.size()==3) cout<<"numero di punti = "<<Q.size()<<" with rmin = "<<rmin<<endl;
            
           //}while(solvedflag == 0 && abs(ObjVal - approx) > eps * releps); //(before on the code)
-          }while(counter_ite_Ben <= 100 && solvedflag == 0 && (abs(ObjVal - approx) > eps * releps/100));
+          }while(counter_ite_Ben <= 999 && solvedflag == 0 && (abs(ObjVal - approx) > eps * releps/100));
 
          ObjVal = approx; //in ogni caso dobbiamo restituire un LB!
 
@@ -709,7 +705,6 @@ using namespace std;
      }//se non era già risolto il problema
      
      SOLUTION = lagSol.getRSOLS();
-
    }
 
 /*--------------------------------------------------------------------------*/
@@ -766,7 +761,7 @@ using namespace std;
      double min;
      int minpos;
      double releps;
-     int counter;
+     int counter = 0;
 
      int corrflag = 0;
      int minconflag = 0;
@@ -778,6 +773,7 @@ using namespace std;
          //poscounter = 0;
          isize = Q[i].Cuts.size();
          max = -Inf<double>(); //per sicurezza lo rinizializziamo.
+         counter = 0;
 
              if(Q[i].branchedflag == 0)
               {
@@ -810,12 +806,9 @@ using namespace std;
                {
                 if(Q[i].pCut.m > 0 && Q[i].mCut.m > 0 && Q[i].Cuts[isize-1].m <= 0) 
                   UpdCut(Q[i].Cuts[isize-1].q, Q[i].Cuts[isize-1].m,i); //se l'ultimo è negativo aggiorniamo
-
-                counter = 0;
                 
                 do //finalmente la LS! //poi in ogni caso partiamo con la LS
                  {
-                 
                   //poscounter = 0;
                   interx = (Q[i].pCut.q - Q[i].mCut.q) / (Q[i].mCut.m - Q[i].pCut.m); //calcoliamo la nuova intersezione
       
@@ -832,18 +825,19 @@ using namespace std;
                         maxpos = j;
                       }            
                    }
-
+   
                   interxVal = Q[i].Cuts[maxpos].q + interx * Q[i].Cuts[maxpos].m; //trovando il vero valore dell'approssimazione
-                  UpdCut(Q[i].Cuts[maxpos].q, Q[i].Cuts[maxpos].m, i); //aggiorniamo quindi uno dei tagli che definisce la soluzione
                   
+                  UpdCut(Q[i].Cuts[maxpos].q, Q[i].Cuts[maxpos].m, i); //aggiorniamo quindi uno dei tagli che definisce la soluzione
+
                   counter++;
 
                   if(abs(interxVal) > 1) releps = abs(interxVal);
                   else releps = 1;
                      
-                 //}while(abs(interxVal - interxApprox) > 1e-3 && counter<=100);
-                 }while(abs(interxVal - interxApprox) > eps*releps/10 && counter<=100); //tanto sono LS esatte, volendo si può aggiungere un releps
-
+                 //}while(abs(interxVal - interxApprox) > 1e-3);
+                 }while(abs(interxVal - interxApprox) > eps*releps/100 && counter<=100); //tanto sono LS esatte, volendo si può aggiungere un releps
+              
              //a questo punto dobbiamo controllare di essere rimasti all'interno del sottointervallo,
              //altrimenti prenderemo come valore l'estremo più vicino.
 
@@ -897,7 +891,6 @@ using namespace std;
                   }
                 }//se non erano tutti positivi
              }//se non era già escluso che l'ottimo fosse in questo intervallo
-             
        }//per tutti i sottointervalli
        
     //svolte tutte le LS, dobbiamo capire chi sia il minimo tra i minimi e restituire la sua posizione
@@ -905,7 +898,7 @@ using namespace std;
     // Potrebbe essere fatto all'interno, per ora messo qui per evitare errori.
     // Mentre scorriamo possiamo anche fare del branching: se per un certo sottointervallo
     // il valore trovato dalla LS è >= di ObjVal, quindi di quello ritenuto ad ora l'ottmo,
-    // potremo eliminare quel sottointervalli
+    // potremo eliminare quel sottointervallo
 
        min = Inf<double>();
 
@@ -926,7 +919,7 @@ using namespace std;
 
        //next line not in the original code
        //if(Q[minpos].interVal < BestLB)
-       BestLB = Q[minpos].interVal;
+        BestLB = Q[minpos].interVal;
        ApproxVal = Q[minpos].interVal;
 
        if(corrflag == 0) return minpos;
@@ -1184,7 +1177,7 @@ using namespace std;
           //before the next line was not commented
           if(abs(ObjVal - HeurVal) < eps*abs(ObjVal)) {solvedflag = 1;}
           
-         //         cout<<"objval = "<<" Heurval ="<<lagSol.getHeurVal()<<endl;
+         //         cout<<"objval = "<<<<" Heurval ="<<lagSol.getHeurVal()<<endl;
 
         //taglio sinistro
         ///calcolo del valore tenendo conto del contributo di ciascun arco
@@ -1192,109 +1185,111 @@ using namespace std;
 
                 for(i = 0; i < numLinks; i++)
                  {
+                  
                   if(Links[i].capacity > Q[0].rmin)
-                  {  
-                    sqr = sqrt(lambda * MTU / Links[i].cost); //sqrt(lambda * L / f_ij)
+                  {
+                  if(SPLabels[Links[i].endnode] > 1e200) SPLabels[Links[i].endnode] = 0;
+                  if(SPLabels[Links[i].startnode] > 1e200) SPLabels[Links[i].startnode] = 0;
 
-                    //definiamo le duali di SP che sono a +\infty
-                    if(SPLabels[Links[i].endnode] > 1e200) SPLabels[Links[i].endnode] = 0;
-                    if(SPLabels[Links[i].startnode] > 1e200) SPLabels[Links[i].startnode] = 0;
+                  sqr = sqrt(lambda * MTU / Links[i].cost); //sqrt(lambda * L / f_ij)
+                  d =  SPLabels[Links[i].startnode] - SPLabels[Links[i].endnode]; //d_i-d_j
+                  //cout<<"d = "<<d<<endl;
+                  if (d < 0)
+                  {
 
-                    d = -SPLabels[Links[i].endnode] + SPLabels[Links[i].startnode]; //d_i-d_j
-                    
-                    if(d < 0)//altrimenti contributo sicuramente nullo                
-                    {
                      if(lambda == 0) //primo caso semplificato
                       {
-                        zetaunico = (-d) / Links[i].cost;  //(d_j - d_i)/f_ij
+  
+                      zetaunico = (-d) / Links[i].cost;  //(d_j - d_i)/f_ij
 
-                        if( Q[0].rmin < zetaunico && zetaunico < Links[i].capacity ){
-                          ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin-Q[1].rmin);
-                          c.m += ms;
-                          c.q += - ms * Q[1].rmin; 
-                        }
+                      if(zetaunico > Q[0].rmin)
+                      {
+                       if(zetaunico <= Links[i].capacity)
+                        { 
+                         if(Q[1].rmin <= zetaunico)  ms = Links[i].cost; //caso già convesso
+                         else  ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin - Q[1].rmin); //facciamo partire la retta approssimante da un punto noto garantito sopra a 0, ovvero Q[0].rmin
 
-                        if( Q[0].rmin < Links[i].capacity && Links[i].capacity < zetaunico ){
-                          ms = Links[i].cost;
-                          if( Q[1].rmin < zetaunico ){
-                            ms = (Links[i].cost * Links[i].capacity + d)/(Links[i].capacity-Q[1].rmin);
-                            c.m += ms;
-                            c.q += (Links[i].cost * Links[i].capacity + d) - ms * Links[i].capacity;
-                          } else {
-                            ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin-Q[1].rmin);
-                            c.m += ms;
-                            c.q += - ms * Q[1].rmin;
-                          }
+                         c.m += ms;
+                         c.q += - ms * Q[1].rmin;
                         }
-                     } //lambda = 0
+                       else
+                       {
+                        if(Q[1].rmin <= Links[i].capacity)  //caso rmin<c_ij<zeta (non dovrebbe succedere)
+                          {ms = Links[i].cost; } //caso già convesso
+                        else //caso con rmin > c_ij, e zeta > c_ij, qui c'è discontinuità! Aggiriamola
+                           {ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin - Q[1].rmin);}
+                        c.m += ms;
+                        c.q += - ms * Q[1].rmin;
+                          
+                       } //zetaunico > c_ij
+                       } //zetaunico > Q[0].rmin
+                       //cout<<"for i ="<<i<<" c.q = "<<c.q<<"Q[0].rmin - Q[1].rmin = "<<Q[0].rmin - Q[1].rmin<<endl;
+                       //if(i>50) exit(1);
+                      }//lambda = 0
                      else //caso generale
                      { 
                       barl = MTU / Links[i].speed + Links[i].delay + Nodes[Links[i].startnode].delay;
-                      discrim = pow(lambda * barl + d, 2) - 4*Links[i].cost * lambda * MTU;
+                      discrim = pow(lambda * barl  + d ,2) - 4*Links[i].cost * lambda * MTU;
               
                      if(discrim > 0) //allora sono definiti zeta_\pm
                         {
                          zetap = (-lambda * barl - d + sqrt(discrim))/(2 * Links[i].cost); //radice più grande
-                         zetam = (-lambda * barl - d - sqrt(discrim))/(2 * Links[i].cost); //radice più piccola
+        
+                         if(zetap > sqr) //altrimenti parliamo delle radici del massimo
+                         {
+                          if(sqr < Links[i].capacity)
+                           { 
+                            if(sqr < Q[1].rmin)
+                            {   
+                            ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d)/(sqr - Q[1].rmin); //la pendenza è quella della scorciatoia
 
-                         if( zetam < Links[i].capacity && Links[i].capacity < sqr && Q[1].rmin > Links[i].capacity ) {
-                            ms = (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d) / ( Links[i].capacity - Q[1].rmin );
                             c.m += ms;
-                            //c.q += (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d) - ms * Links[i].capacity;
-                            c.q += - ms * Q[1].rmin;
-                         } 
 
-                         if( sqr < Links[i].capacity && Links[i].capacity < zetap && Q[1].rmin >= Links[i].capacity ) {
-                            if( Q[1].rmin < zetap ){
-                              ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d) / (sqr - Q[1].rmin);
-                              if( Links[i].cost > ms ){
-                                tildez = - 1/ms * (lambda * MTU - pow(lambda * barl + d - ms, 2.0)/(4*Links[i].cost));
-                                if(zetap-tildez<0){
-                                  c.q += - ms * tildez;
-                                  c.m += ms; 
-                                }
-                              } else {
-                                c.q += (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d) - ms * Links[i].capacity;
-                                c.m += ms; 
-                              }
-                            } else {
-                              if( Links[i].cost > ms ){
-                                ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d) / (sqr - Q[1].rmin);
-                                tildez = - 1/ms * (lambda * MTU - pow(lambda * barl + d - ms, 2.0)/(4*Links[i].cost));
-                                if(zetap-tildez<0){
-                                  c.m += ms; 
-                                  c.q += - ms * tildez;
-                                }
-                              }
-                            }
-                         }
+                            if(ms >= Links[i].cost) //cerchiamo il punto di tangenza del nuovo taglio per definirne la pendenza
+                             {
 
-                         if( Links[i].capacity > zetap ){
-                            if( Q[1].rmin < Links[i].capacity ){
-                              ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d) / (sqr - Q[1].rmin);
-                              if(Links[i].cost - ms > 0 && Q[1].rmin > zetap ){
-                                tildez = - 1/ms * (lambda * MTU - pow(lambda * barl + d - ms, 2.0)/(4*Links[i].cost));
-                                if(zetap-tildez<0){
-                                  c.m += ms; 
-                                  c.q += - ms * tildez;
-                                } 
-                              }
-                            } else {
-                              ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d) / (sqr - Q[1].rmin);
-                              if(Links[i].cost - ms > 0 && Q[1].rmin > zetap ){
-                                tildez = - 1/ms * (lambda * MTU - pow(lambda * barl + d - ms, 2.0)/(4*Links[i].cost));
-                                if(zetap-tildez<0){
-                                  c.m += ms; 
-                                  c.q += - ms * tildez;
-                                }
-                              }
-                            }
+                               if(zetap < Links[i].capacity)
+                               tildez = zetap;
+
+                               else tildez = Links[i].capacity;
+
+                             }
+                            else  tildez = sqrt((lambda * MTU)/(Links[i].cost - ms));
+                  
+                            c.q += Links[i].cost * tildez + lambda * MTU / tildez + lambda * barl + d  - tildez * ms;
+                            //if(ms < 0 ) cout<<"ms nel primo if = "<<ms<<" per d = "<<d<<endl;
+
+                            }//sqr < r_min
+                           }
+                          else //quindi se sqrt >= c_ij ////FIXME: si potrebbe chiedere all'inizio che \phi(\bar{v})<0 altrimenti non fare nulla!
+                           {
+
+                            if(Links[i].capacity < Q[1].rmin)
+                            {  
+                             zetam = (-lambda * barl - d - sqrt(discrim))/(2 * Links[i].cost); //radice più piccola
+                            
+                             if(zetam < Links[i].capacity && zetam > Q[0].rmin)
+                               { 
+                                 ms = (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d)/(Links[i].capacity - Q[1].rmin);
+                                 c.m += ms;
+                                 c.q += - ms * Q[1].rmin;
+                                 
+                               } //se questo non succede gli archi avranno di nuovo contributo nullo
+
+                               //if(ms < 0 ) cout<<"ms nel secondo if = "<<ms<<" per d = "<<d<<endl;;
+
+                            } //c_ij <  r_min
                           }
+                         }//se le radici si riferiscono al minimo
+
                         }//se sono definiti i punti in cui si annulla il contributo dell'arco
                          //altrimenti il contributo sarà nullo.
                       }//caso lambda > 0
-                   }//se d < 0
-                  }//solo gli archi con capacità più grandi della minima ammissibile!
+
+                    //} //caso sqrt < \bar{r}_min
+
+                   }//se d<0 altrimenti il contributo sarà nullo.
+                  }
                   }//per tutti gli archi.
 
                //infine dobbiamo sommare i contributi della funzione g(z).
