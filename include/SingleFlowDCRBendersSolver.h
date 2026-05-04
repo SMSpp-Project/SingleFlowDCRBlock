@@ -240,32 +240,15 @@ public:
 /*--------------------------------------------------------------------------*/
 
  OFValue get_lb( void ) override { 
-  auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
+
   return( this->BenBound::getLB() );
-  if( DCRB->is_feasible_flow() )
-    //return( std::min( this->BenBound::getLB() , this->BenBound::getUB() ) );
-    return( this->BenBound::getLB() );
-    //return( this->BenBound::getLB() );
-  else
-    return( Inf<double>() );
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
  OFValue get_ub( void ) override { 
-  auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
-  return( this->BenBound::getUB() );
-  //for (int i = 0; i < DCRB->get_NArcs() ; i++)
-    //std::cout << DCRB->get_r( i ) << std::endl;    
 
-  if( DCRB->is_feasible_flow() ){
-    if( this->get_var_value() < 1e200 && this->BenBound::getUB() > 1e200 )
-      return( this->get_var_value() );
-    //std::cout << this->get_var_value() << " " << BenBound::getUB() << std::endl;
-    //return( std::max( this->get_var_value() , this->BenBound::getUB() ) );
-  } else {
-    return( Inf<double>() );
-  }
+  return( this->BenBound::getUB() );
 }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/

@@ -36,12 +36,6 @@
 #                                                                            #
 ##############################################################################
 
-# define the set of MCFSolver< :MCFClass > that will be available by
-# uncommenting the -DHAVE_* below corresponding to the :MCFClass; see
-# MCFSolver.h for details. note that, obviously, the :MCFClass selected
-# here must have been compiled in the MCFClass library
-MCFClssSlvr = -DHAVE_MFSMX -DHAVE_CPLEX -DHAVE_RELAX
-# -DHAVE_CSCL2 -DHAVE_MFZIB -DHAVE_SPTRE
 
 # macros to be exported - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -52,7 +46,7 @@ SFDCROBJ = $(SFDCRSDR)/obj/SingleFlowDCRBlock.o \
 	$(SFDCRSDR)/obj/DCRLagrangianSolver.o \
 	$(SFDCRSDR)/obj/SPT.o 
 
-SFDCRINC = -I$(SFDCRSDR)/include
+SFDCRINC = -I$(SFDCRSDR)/include -I$(SFDCRSDR)/../BundleSolver/NdoFiOracle/OPTUtils
 
 SFDCRH   = $(SFDCRSDR)/include/SingleFlowDCRBlock.h \
 	$(SFDCRSDR)/include/SingleFlowDCRBendersSolver.h \
@@ -61,9 +55,9 @@ SFDCRH   = $(SFDCRSDR)/include/SingleFlowDCRBlock.h \
 	$(SFDCRSDR)/include/DCRLagrangianSolver.h \
 	$(SFDCRSDR)/include/SPT.h \
 	$(SFDCRSDR)/include/DCR.h \
-	$(SFDCRSDR)/include/OPTUtils.h \
-	$(SFDCRSDR)/include/OPTtypes.h \
-	$(SFDCRSDR)/include/OPTvect.h
+	$(SFDCRSDR)/../BundleSolver/NdoFiOracle/OPTUtils/OPTUtils.h \
+	$(SFDCRSDR)/../BundleSolver/NdoFiOracle/OPTUtils/OPTtypes.h \
+	$(SFDCRSDR)/../BundleSolver/NdoFiOracle/OPTUtils/OPTvect.h
 
 # clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 

@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------*/
-/*-------------------------- File BenBound.cpp ---------------------------*/
+/*-------------------------- File BenBound.cpp -----------------------------*/
 /*--------------------------------------------------------------------------*/
 
 /*--------------------------------------------------------------------------*/
@@ -48,7 +48,7 @@ using namespace std;
   	caps = 0;
   	solvedflag = 0;
 
-    myparam = 0.995; //FIXME:creare un metodo pubblico per l'upd (before it was set to 0.995)
+    myparam = 1-1e-7; //FIXME:creare un metodo pubblico per l'upd (before it was set to 0.995)
     
     SPLabels.resize(1);
   	Q.resize(1);
@@ -65,11 +65,11 @@ using namespace std;
       numNodes = nnodes;
       numLinks = nlinks;
       MTU = mtu;
-      ObjVal = Inf<double>();
-      HeurVal = Inf<double>();
-      BestUB = Inf<double>();
-      BestLB = -Inf<double>();
-      ApproxVal = -Inf<double>();
+      ObjVal = OPTtypes_di_unipi_it::Inf<double>();
+      HeurVal = OPTtypes_di_unipi_it::Inf<double>();
+      BestUB = OPTtypes_di_unipi_it::Inf<double>();
+      BestLB = -OPTtypes_di_unipi_it::Inf<double>();
+      ApproxVal = -OPTtypes_di_unipi_it::Inf<double>();
       solvedflag = 0;
       counter_ite_Ben = 0;
       counter_ite_Lag = 0;
@@ -95,11 +95,11 @@ using namespace std;
         Q[i].Cuts.clear();
       Q.clear();
 
-      ObjVal = Inf<double>();
-      HeurVal = Inf<double>();
-      BestUB = Inf<double>();
-      BestLB = -Inf<double>();
-      ApproxVal = -Inf<double>();
+      ObjVal = OPTtypes_di_unipi_it::Inf<double>();
+      HeurVal = OPTtypes_di_unipi_it::Inf<double>();
+      BestUB = OPTtypes_di_unipi_it::Inf<double>();
+      BestLB = -OPTtypes_di_unipi_it::Inf<double>();
+      ApproxVal = -OPTtypes_di_unipi_it::Inf<double>();
       solvedflag = 0;
       counter_ite_Ben = 0;
       counter_ite_Lag = 0;
@@ -141,23 +141,17 @@ using namespace std;
 
    double BenBound::getUB()
    {
-     //std::cout << "UB=" << BestUB << " " << " " << ObjVal << 
-     //   " " << " " << HeurVal << " " << ApproxVal<< std::endl;
-     //return(std::max(BestUB,HeurVal));
-     return(BestUB);
+     //std::cout << "UB=" << BestUB << std::endl;
+     return(max(ObjVal,HeurVal));
    }
 
 /*--------------------------------------------------------------------------*/
 
    double BenBound::getLB()
    {
-     //std::cout << "LB=" << BestLB << std::endl;
-     //std::cout << abs(ApproxVal-HeurVal) << std::endl;
-     //std::cout<<"BenStat="<<BenStat<<std::endl;
-     //if(abs(ApproxVal-HeurVal)>eps*abs(ObjVal))
-      //BestLB = -1e+301;
+     //std::cout << "LB=" << BestLB << "," << "UB=" << BestUB << std::endl;
+     //std::cout << HeurVal << "," << ObjVal << "," << ApproxVal << std::endl;
      return(BestLB);
-     //return(ObjVal);
    }
 
 
@@ -278,7 +272,7 @@ using namespace std;
   {
     if( timeON )
       if( timer ) timer->ReSet();
-      else timer = new OPTtimers();
+      else timer = new OPTtypes_di_unipi_it::OPTtimers();
     else
       delete timer; 
     }
@@ -361,7 +355,7 @@ using namespace std;
     double ms; //appoggio per i conti, valore parziale della pendenza
 
     Inizial();
-    
+
    // cout<<"inizializzato"<<endl;
     Qsize = Q.size(); // = 2, valori limite.
 
@@ -377,6 +371,7 @@ using namespace std;
          do
           {
     //         for(int count_feas = Q[0].rmin; count_feas < Q[1].rmin; count_feas += 1000){
+
     //           lagSol.updrmin(count_feas);
     //           cout<<" : "<<lagSol.isFeasible()<<endl;
     //           }
@@ -397,13 +392,9 @@ using namespace std;
                    oldinterx = Q[1].inter;
 
                    //cerchiamo l'altro punto di ammissibilità
-
-                   int idx_feas = 0;
                    
                    while(feas != 0)
                     {
-                      idx_feas++;
-                      if(idx_feas == 100) break;
                       temppoint = mystep * Q[0].rmin + (1 - mystep) * Q[1].inter; //vediamo chi vari in base alla feasibility
 
                       lagSol.updrmin(temppoint); 
@@ -424,7 +415,7 @@ using namespace std;
 
                     //before next two lines were commented
                     //if(abs(Q[1].inter - oldinterx) < eps * releps/100)
-                      //noLSneeded = 1;
+                    //   noLSneeded = 1;
 
                 }//se infeasflag = 1
 
@@ -469,32 +460,35 @@ using namespace std;
 
                     d = -SPLabels[Links[i].endnode] + SPLabels[Links[i].startnode]; //d_i-d_j
                     
-                    if(d < 0)//altrimenti contributo sicuramente nullo                
+                    if(d < -1e-10)//altrimenti contributo sicuramente nullo                
                     {
-                     if(lambda == 0) //primo caso semplificato
+                      if(lambda == 0) //primo caso semplificato
                       {
                         zetaunico = (-d) / Links[i].cost;  //(d_j - d_i)/f_ij
 
-                        if( Q[0].rmin < zetaunico && zetaunico < Links[i].capacity ){
-                          ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin-Q[1].rmin);
-                          lc.m += ms;
-                          lc.q += - ms * Q[1].rmin; 
-                        }
-
-                        if( Q[0].rmin < Links[i].capacity && Links[i].capacity < zetaunico ){
-                          ms = Links[i].cost;
-                          if( Q[1].rmin < zetaunico ){
-                            ms = (Links[i].cost * Links[i].capacity + d)/(Links[i].capacity-Q[1].rmin);
+                        if(zetaunico > Q[0].rmin) //se questo non vale avremo contributo nullo
+                        {
+                          if(zetaunico <= Links[i].capacity)
+                          {
+                            if(Q[p].inter -zetaunico <= eps*Q[p].inter)  ms = Links[i].cost;  //caso già convesso
+                            else  ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin - Q[p].inter);  //facciamo partire la retta approssimante da un punto noto garantito sopra a 0, ovvero Q[0].rmin
+                            
                             lc.m += ms;
-                            lc.q += (Links[i].cost * Links[i].capacity + d) - ms * Links[i].capacity;
-                          } else {
-                            ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin-Q[1].rmin);
-                            lc.m += ms;
-                            lc.q += - ms * Q[1].rmin;
+                            lc.q += - ms * Q[p].inter;
                           }
-                        }
+                          else
+                          {
+                            if(Q[1].rmin <= Links[i].capacity)  //caso rmin<c_ij<zeta (non dovrebbe succedere)
+                              {ms = Links[i].cost;} //caso già convesso
+                            else //caso con rmin > c_ij, e zeta > c_ij, qui c'è discontinuità! Aggiriamola //FIXME: non dovrebbe essere la retta tra (c,\phi(c)) ed (r_min,\phi(r_min))?
+                              {ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin - Q[p].inter);}
+                            lc.m += ms;
+                            lc.q += - ms * Q[p].inter;
+                            
+                          } //zetaunico > c_ij
+                        } //zetaunico > Q[0].rmin
                      } //lambda = 0
-                     else //caso generale
+                    else //caso generale
                      { 
                       barl = MTU / Links[i].speed + Links[i].delay + Nodes[Links[i].startnode].delay;
                       discrim = pow(lambda * barl + d, 2) - 4*Links[i].cost * lambda * MTU;
@@ -570,7 +564,7 @@ using namespace std;
                 ms = - lambda * Flow.burst / pow(Q[p].inter,2);
                 lc.m += ms;
                 lc.q += lambda * Flow.burst / Q[p].inter - lambda * Flow.deadline + SPLabels[Flow.sinknode] - Q[p].inter * ms; //g(r_min) - r_min * ms
-
+                  
                 //taglio destro
 
                 rc.m = - lambda * Flow.burst / pow(Q[p].inter,2);
@@ -580,7 +574,6 @@ using namespace std;
                 // cout<<" rc.m = "<<rc.m<<" rc.q = "<<rc.q<<endl;
 
                 Q[p].Val = rc.q + Q[p].inter * rc.m; //prendiamo il valore nel punto. 
-                
                 Q[p].solflag = 1;
 
                 ObjVal = Q[p].Val; 
@@ -598,6 +591,7 @@ using namespace std;
 
                 if(nonConvexflag == 0)//aggiungiamo il nuovo punto in Q e i tagli da questo prodotti
                  {
+
                    BenBound::SubInterval I;
           
                    I.Cuts.resize(Q[p].Cuts.size());
@@ -685,6 +679,7 @@ using namespace std;
            if(Q[p].interVal > BestLB)
              BestLB = Q[p].interVal;
 
+
            ObjVal = Q[p].Val; 
 
            approx = Q[p].interVal; //miglioriamo le nostre stime con i valori dati dalla LS
@@ -692,23 +687,52 @@ using namespace std;
            if(approx > 1) releps = approx; //precisione relativa
            else releps = 1;
 
+           //next line originally not in the code
+           if(counter_ite_Ben>200) {solvedflag = 1;} 
+
            counter_ite_Ben++; //numero di punti visitati
            
            //if(Q.size()==2||Q.size()==3) cout<<"numero di punti = "<<Q.size()<<" with rmin = "<<rmin<<endl;
            
-          //}while(solvedflag == 0 && abs(ObjVal - approx) > eps * releps); //(before on the code)
-          }while(counter_ite_Ben <= 100 && solvedflag == 0 && (abs(ObjVal - approx) > eps * releps/100));
+          //}while(solvedflag == 0 && abs(ObjVal - approx) > eps * releps); (before on the code)
+          }while(solvedflag == 0 && (abs(ObjVal - approx) > eps * releps/100));
 
          ObjVal = approx; //in ogni caso dobbiamo restituire un LB!
 
          rmin = Q[p].inter;
-         //cout << "Q[p].Val = " << Q[p].Val << endl;
-         //cout << "rmin = " << rmin << endl;
+/*
+         if(abs(rc.m) > 1e5){
+            cout << Q[0].rmin << "-" << Q[1].rmin << endl;
+            //Q[p].Val = 1e16;
+            for(int index = 0; index <= 1000; index++){
+              double temp = lambda * Flow.burst / (Q[0].inter + index * (Q[1].rmin - Q[0].rmin)/1000) - lambda * Flow.deadline + SPLabels[Flow.sinknode];
+              //cout << index << " Q[p].Val = " << temp << endl;
+              if(Q[p].Val > temp){
+                Q[p].Val = temp;
+              }
+            }
+          }
+*/ 
+          //cout << "Q[p].Val = " << Q[p].Val << endl;
+          //cout << "rmin = " << rmin << endl;
 
        }//se non ci sono errori 
      }//se non era già risolto il problema
-     
+/*
+         cout << "SOLVE" << endl;
+         cout << "rc.m = " << rc.m << endl;
+         cout << "Q[p].Val = " << Q[p].Val << endl;
+         cout << "SPLabels[Flow.sinknode] = " << SPLabels[Flow.sinknode] << endl;
+         cout << "rmin = " << rmin << endl;
+*/
+     //SOL_VALUE = ObjVal;//lagSol.getObjVal();
      SOLUTION = lagSol.getRSOLS();
+
+     /*for(int i =0; i<numLinks; i++){
+      SOLUTION[ i ] = std::min(Links[i].capacity, std::max(rmin, sqrt(lambda*MTU)));
+      //std::cout << i << ", " << SOLUTION[i] - std::min(Links[i].capacity, std::max(rmin, sqrt(lambda * MTU))) << std::endl;
+      //std::cout << i << ", " << SOLUTION[i] << std::endl;
+     }*/
 
    }
 
@@ -766,7 +790,7 @@ using namespace std;
      double min;
      int minpos;
      double releps;
-     int counter;
+     int counter = 0;
 
      int corrflag = 0;
      int minconflag = 0;
@@ -777,7 +801,8 @@ using namespace std;
        { 
          //poscounter = 0;
          isize = Q[i].Cuts.size();
-         max = -Inf<double>(); //per sicurezza lo rinizializziamo.
+         max = -OPTtypes_di_unipi_it::Inf<double>(); //per sicurezza lo rinizializziamo.
+         counter = 0;
 
              if(Q[i].branchedflag == 0)
               {
@@ -790,7 +815,7 @@ using namespace std;
                  if(abs(Q[i-1].inter - Q[i-1].rmin) > 0) //se non era il suo valore ottimo si inizializza
                       {
                         Q[i].solflag = 0;
-                        Q[i].Val = Inf<double>();
+                        Q[i].Val = OPTtypes_di_unipi_it::Inf<double>();
                       }
                       
                  if(i == 1) //altrimenti ci serve di conservare il suo valore
@@ -810,12 +835,9 @@ using namespace std;
                {
                 if(Q[i].pCut.m > 0 && Q[i].mCut.m > 0 && Q[i].Cuts[isize-1].m <= 0) 
                   UpdCut(Q[i].Cuts[isize-1].q, Q[i].Cuts[isize-1].m,i); //se l'ultimo è negativo aggiorniamo
-
-                counter = 0;
                 
                 do //finalmente la LS! //poi in ogni caso partiamo con la LS
                  {
-                 
                   //poscounter = 0;
                   interx = (Q[i].pCut.q - Q[i].mCut.q) / (Q[i].mCut.m - Q[i].pCut.m); //calcoliamo la nuova intersezione
       
@@ -832,18 +854,19 @@ using namespace std;
                         maxpos = j;
                       }            
                    }
-
+   
                   interxVal = Q[i].Cuts[maxpos].q + interx * Q[i].Cuts[maxpos].m; //trovando il vero valore dell'approssimazione
-                  UpdCut(Q[i].Cuts[maxpos].q, Q[i].Cuts[maxpos].m, i); //aggiorniamo quindi uno dei tagli che definisce la soluzione
                   
+                  UpdCut(Q[i].Cuts[maxpos].q, Q[i].Cuts[maxpos].m, i); //aggiorniamo quindi uno dei tagli che definisce la soluzione
+
                   counter++;
 
                   if(abs(interxVal) > 1) releps = abs(interxVal);
                   else releps = 1;
                      
-                 //}while(abs(interxVal - interxApprox) > 1e-3 && counter<=100);
-                 }while(abs(interxVal - interxApprox) > eps*releps/10 && counter<=100); //tanto sono LS esatte, volendo si può aggiungere un releps
-
+                 //}while(abs(interxVal - interxApprox) > 1e-3);
+                 }while(abs(interxVal - interxApprox) > eps*releps/100 && counter<=100); //tanto sono LS esatte, volendo si può aggiungere un releps
+              
              //a questo punto dobbiamo controllare di essere rimasti all'interno del sottointervallo,
              //altrimenti prenderemo come valore l'estremo più vicino.
 
@@ -852,7 +875,7 @@ using namespace std;
                    if(abs(Q[i].inter - interx) >  eps * interx/100) //nuovo valore, rinizializziamo tutto.
                     {                   
                       Q[i].solflag = 0;
-                      Q[i].Val = Inf<double>();
+                      Q[i].Val = OPTtypes_di_unipi_it::Inf<double>();
                     }
 
                    Q[i].inter = interx;
@@ -863,10 +886,10 @@ using namespace std;
                  {
                    if(interx <= Q[i-1].rmin) //se sto nell'intervallo precedente
                    { 
-                      if(abs(Q[i-1].inter - Q[i-1].rmin) > eps * Q[i-1].rmin/100) //se non era il suo valore ottimo si inizializza
+                      if(abs(Q[i-1].inter - Q[i-1].rmin) > eps * Q[i-1].rmin/1000) //se non era il suo valore ottimo si inizializza
                       {
                         Q[i].solflag = 0;
-                        Q[i].Val = Inf<double>();
+                        Q[i].Val = OPTtypes_di_unipi_it::Inf<double>();
                       }
                       
                       if(i == 1) //altrimenti ci serve di conservare il suo valore
@@ -887,7 +910,7 @@ using namespace std;
                      if(abs(Q[i].inter - Q[i].rmin) > eps * Q[i].rmin/100) //se non era il suo valore ottimo si inizializza
                       {
                         Q[i].solflag = 0;
-                        Q[i].Val = Inf<double>();
+                        Q[i].Val = OPTtypes_di_unipi_it::Inf<double>();
                       }
 
                       Q[i].inter = Q[i].rmin;
@@ -897,17 +920,16 @@ using namespace std;
                   }
                 }//se non erano tutti positivi
              }//se non era già escluso che l'ottimo fosse in questo intervallo
-             
        }//per tutti i sottointervalli
-       
+
     //svolte tutte le LS, dobbiamo capire chi sia il minimo tra i minimi e restituire la sua posizione
     // lui sarà il valore più promettente, per cui calcoleremo la soluzione del DL.
     // Potrebbe essere fatto all'interno, per ora messo qui per evitare errori.
     // Mentre scorriamo possiamo anche fare del branching: se per un certo sottointervallo
     // il valore trovato dalla LS è >= di ObjVal, quindi di quello ritenuto ad ora l'ottmo,
-    // potremo eliminare quel sottointervalli
+    // potremo eliminare quel sottointervallo
 
-       min = Inf<double>();
+       min = OPTtypes_di_unipi_it::Inf<double>();
 
        for(i = 1; i < Q.size(); i++)
        {
@@ -925,7 +947,7 @@ using namespace std;
        }
 
        //next line not in the original code
-       //if(Q[minpos].interVal < BestLB)
+       //if(Q[minpos].interVal > BestLB)
        BestLB = Q[minpos].interVal;
        ApproxVal = Q[minpos].interVal;
 
@@ -963,7 +985,7 @@ using namespace std;
    {
 
       int j;
-      double max = -Inf<double>();
+      double max = -OPTtypes_di_unipi_it::Inf<double>();
       int maxpos;
       double interc;
 
@@ -1015,8 +1037,7 @@ using namespace std;
     limits = new double[2];
 
     limits = Limitrmin();//valori limite per cui è garantita l'ammissibilità di r_min
-    //if(limits != NULL) {cout<<"valori limite per rmin: "<<limits[0]<<"-"<<limits[1]<<endl;}
-    //if(limits == NULL) {cout<<"limit is null"<<endl;}
+    //cout<<"valori limite per rmin: "<<limits[0]<<"-"<<limits[1]<<endl;
     
     mystep = 0.9; // before it was 0.9
     /*cout<<"sono qui"<<endl;*/
@@ -1112,7 +1133,7 @@ using namespace std;
               /*cout<<"Q[1].rmin = "<<tempd<<endl;*/
              Q[1].rmin = tempd;
 
-             //cout<<"Q0rmin-Q1rmin = "<<Q[0].rmin<<"-"<<Q[1].rmin<<endl;
+             //cout<<"Q0rmin-Q1rmin = "<<Q[0].rmin<<Q[1].rmin<<endl;
 
          	 }
          	else //anche se lambda != 0 vogliamo partire appena prima della criticità con l'iterazione.
@@ -1181,10 +1202,10 @@ using namespace std;
         
           //cout<<ObjVal<<HeurVal<<endl;
 
-          //before the next line was not commented
-          if(abs(ObjVal - HeurVal) < eps*abs(ObjVal)) {solvedflag = 1;}
+          //before the next line was *not* commented
+          //if(abs(ObjVal - HeurVal) < eps*abs(ObjVal)) {solvedflag = 1;}
           
-         //         cout<<"objval = "<<" Heurval ="<<lagSol.getHeurVal()<<endl;
+         //         cout<<"objval = "<<<<" Heurval ="<<lagSol.getHeurVal()<<endl;
 
         //taglio sinistro
         ///calcolo del valore tenendo conto del contributo di ciascun arco
@@ -1192,41 +1213,47 @@ using namespace std;
 
                 for(i = 0; i < numLinks; i++)
                  {
+                  
                   if(Links[i].capacity > Q[0].rmin)
-                  {  
-                    sqr = sqrt(lambda * MTU / Links[i].cost); //sqrt(lambda * L / f_ij)
+                  {
+                  if(SPLabels[Links[i].endnode] > 1e200) SPLabels[Links[i].endnode] = 0;
+                  if(SPLabels[Links[i].startnode] > 1e200) SPLabels[Links[i].startnode] = 0;
 
-                    //definiamo le duali di SP che sono a +\infty
-                    if(SPLabels[Links[i].endnode] > 1e200) SPLabels[Links[i].endnode] = 0;
-                    if(SPLabels[Links[i].startnode] > 1e200) SPLabels[Links[i].startnode] = 0;
+                  sqr = sqrt(lambda * MTU / Links[i].cost); //sqrt(lambda * L / f_ij)
+                  d =  SPLabels[Links[i].startnode] - SPLabels[Links[i].endnode]; //d_i-d_j
+                  //cout<<"d = "<<d<<endl;
+                  if (d < 0)
+                  {
 
-                    d = -SPLabels[Links[i].endnode] + SPLabels[Links[i].startnode]; //d_i-d_j
-                    
-                    if(d < 0)//altrimenti contributo sicuramente nullo                
-                    {
                      if(lambda == 0) //primo caso semplificato
                       {
-                        zetaunico = (-d) / Links[i].cost;  //(d_j - d_i)/f_ij
+  
+                      zetaunico = (-d) / Links[i].cost;  //(d_j - d_i)/f_ij
 
-                        if( Q[0].rmin < zetaunico && zetaunico < Links[i].capacity ){
-                          ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin-Q[1].rmin);
-                          c.m += ms;
-                          c.q += - ms * Q[1].rmin; 
-                        }
+                      if(zetaunico > Q[0].rmin)
+                      {
+                       if(zetaunico <= Links[i].capacity)
+                        { 
+                         if(Q[1].rmin <= zetaunico)  ms = Links[i].cost; //caso già convesso
+                         else  ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin - Q[1].rmin); //facciamo partire la retta approssimante da un punto noto garantito sopra a 0, ovvero Q[0].rmin
 
-                        if( Q[0].rmin < Links[i].capacity && Links[i].capacity < zetaunico ){
-                          ms = Links[i].cost;
-                          if( Q[1].rmin < zetaunico ){
-                            ms = (Links[i].cost * Links[i].capacity + d)/(Links[i].capacity-Q[1].rmin);
-                            c.m += ms;
-                            c.q += (Links[i].cost * Links[i].capacity + d) - ms * Links[i].capacity;
-                          } else {
-                            ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin-Q[1].rmin);
-                            c.m += ms;
-                            c.q += - ms * Q[1].rmin;
-                          }
+                         c.m += ms;
+                         c.q += - ms * Q[1].rmin;
                         }
-                     } //lambda = 0
+                       else
+                       {
+                        if(Q[1].rmin <= Links[i].capacity)  //caso rmin<c_ij<zeta (non dovrebbe succedere)
+                          {ms = Links[i].cost; } //caso già convesso
+                        else //caso con rmin > c_ij, e zeta > c_ij, qui c'è discontinuità! Aggiriamola
+                           {ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin - Q[1].rmin);}
+                        c.m += ms;
+                        c.q += - ms * Q[1].rmin;
+                          
+                       } //zetaunico > c_ij
+                       } //zetaunico > Q[0].rmin
+                       //cout<<"for i ="<<i<<" c.q = "<<c.q<<"Q[0].rmin - Q[1].rmin = "<<Q[0].rmin - Q[1].rmin<<endl;
+                       //if(i>50) exit(1);
+                      }//lambda = 0
                      else //caso generale
                      { 
                       barl = MTU / Links[i].speed + Links[i].delay + Nodes[Links[i].startnode].delay;
@@ -1335,7 +1362,30 @@ using namespace std;
           //BestLB e BestUB nel caso solvedflag = 1
           ////BestLB = ObjVal;
           ////BestUB = HeurVal;
+          //BestLB = Q[1].rmin * get_Links();
+          //BestUB = Q[1].rmin * get_Links();
+
         }
+/*
+         cout << "INITIAL" << endl;
+         cout << "rc.m = " << Q[1].pCut.m << endl;
+         cout << "Q[1].Val = " << Q[1].Val << endl;
+         cout << "SPLabels[Flow.sinknode] = " << SPLabels[Flow.sinknode] << endl;
+         cout << "rmin = " << rmin << endl;
+*/
+/*
+         if(abs(Q[1].pCut.m) > 1e5){
+            cout << Q[0].rmin << "-" << Q[1].rmin << endl;
+            //Q[1].Val = 1e16;
+            for(int index = 0; index <= 1000; index++){
+              double temp = lambda * Flow.burst / (Q[0].inter + index * (Q[1].rmin - Q[0].rmin)/1000) - lambda * Flow.deadline + SPLabels[Flow.sinknode];
+              //cout << index << " Q[p].Val = " << temp << endl;
+              if(Q[1].Val > temp){
+                Q[1].Val = temp;
+              }
+            }
+          }     
+*/
           //altrimenti inizializiamo Q[1].interval con un il suo valore e passiamo il tutto al solve
        
         Q[1].mCut.q = 0; 
@@ -1395,7 +1445,6 @@ using namespace std;
 
     lagSol.LoadProblem(numNodes, numLinks, Flow, Links, Nodes, MTU, caps[0]);
     feas = lagSol.isFeasible();
-
 /*
     if(feas == 1){
       lagSol.updrmin(std::max(Flow.rate, Flow.burst/Flow.deadline));
@@ -1430,6 +1479,7 @@ using namespace std;
         if (feas == 0) //se per l'ultima capacità va bene abbiamo il range;
          {
            bounds[1] = caps[dx];
+
            return bounds;
          }
         else //altrimenti ricerca binaria sul vettore delle capacità per trovare quella minima
@@ -1451,7 +1501,7 @@ using namespace std;
           lagSol.updrmin(caps[dx]);
           feas = lagSol.isFeasible();
           if(feas == 0) 
-          {bounds[1] = caps[dx];}
+          { bounds[1] = caps[dx];}
         /*lagSol.updrmin(caps[dx]+1);
         feas = lagSol.isFeasible();
         if(feas==0)
@@ -1479,6 +1529,7 @@ using namespace std;
           return bounds;
           
          } 
+
       } //se il problema è ammissibile
     
     else
@@ -1494,7 +1545,7 @@ using namespace std;
    void BenBound::capSort(int sx, int dx) //Quicksort ricorsivo randomizzato.
    {
      int pivot, rango;
-     srand((unsigned)time(NULL));
+     srand(0);//(unsigned)time(NULL));
 
      if(sx < dx)
      { 
@@ -1504,12 +1555,13 @@ using namespace std;
       capSort(sx,rango-1);
       capSort(rango+1,dx);
      }
+
    }
 
 /*--------------------------------------------------------------------------*/
 
    int BenBound::Distrib(int sx, int pv, int dx)  //metodo privato per quicksort 
-   {                                    
+   {                                        
     int i,j;
 
     if(pv != dx)   Swap(pv,dx);

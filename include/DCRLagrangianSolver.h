@@ -275,7 +275,7 @@ class DCRLagrangianSolver
   SPT::Status spstat; //status che dichiara quale esito ha avuto l'SP.
   LAGStatus lagstat;  //status che dichiara quale esito ha avuto in lagrangiano.
 
-  OPTtimers *timer;  ///< timer
+  OPTtypes_di_unipi_it::OPTtimers *timer;  ///< timer
   long tlimit; ///< time limit
 
   void clean_up();

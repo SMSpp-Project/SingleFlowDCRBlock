@@ -171,7 +171,7 @@ class BenBound
     double SOL_VALUE;
     vector<double> SOLUTION;
 
-    OPTtimers *timer;  ///< timer
+    OPTtypes_di_unipi_it::OPTtimers *timer;  ///< timer
     long tlimit; ///< time limit
 
     //dati per la stampa della funzione

@@ -193,7 +193,7 @@ class DCR
 	{
 		if( timeON )
 			if( timer ) timer->ReSet();
-			else timer = new OPTtimers();
+			else timer = new OPTtypes_di_unipi_it::OPTtimers();
 		else
 			delete timer; 
     }
@@ -499,7 +499,7 @@ virtual void DCRcloseArcs( int k , int * whch , int na) = 0;
 	ostream *log; ///< log output
 	int verbosity; ///< verbosity level
 	
-	OPTtimers *timer;  ///< timer
+	OPTtypes_di_unipi_it::OPTtimers *timer;  ///< timer
 	long tlimit; ///< time limit
 	
 	DCRDelay dtype; ///< network delay formula used
