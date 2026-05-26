@@ -29,12 +29,35 @@ using namespace std;
 class BenBound
 {
 
-
 /*--------------------------------------------------------------------------*/
 /*----------------------- PUBLIC PART OF THE CLASS -------------------------*/
 /*--------------------------------------------------------------------------*/	
 
 	public:
+
+/*--------------------------------------------------------------------------*/
+/*--------------------------- Inf() and Eps() ------------------------------*/
+/*--------------------------------------------------------------------------*/
+/** Very small class to simplify extracting the "+ infinity" value for a
+    basic type; just use Inf<type>(). */
+
+ template <typename T>
+  class Inf {
+   public:
+  Inf() {}
+  operator T() { return( std::numeric_limits<T>::max() ); }
+  };
+
+/*--------------------------------------------------------------------------*/
+/** Very small class to simplify extracting the "machine epsilon" for a
+    basic type; just use Eps<type>(). */
+
+ template <typename T>
+  class Eps {
+   public:
+  Eps() {}
+  operator T() { return( std::numeric_limits<T>::epsilon() ); }
+  };
 	
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PUBLIC TYPES --------------------------------*/
@@ -80,7 +103,7 @@ class BenBound
 /*--------------------------------------------------------------------------*/
 
 
-	void LoadProblem(int nnodes, int nlinks, DCR::DCRFlow flow, DCR::DCRLink *links, DCR::DCRNode *nodes, double mtu);
+	void LoadProblem(int nnodes, int nlinks, DCR::DCRFlow flow, vector<DCR::DCRLink> links, vector<DCR::DCRNode> nodes, double mtu);
     //FIXME: aggiungere un metodo pubblico per modificare solo il flusso
     // ed uno per modificare myparam.
     void LoadProblem(DCR::DCRFlow flow);
@@ -171,7 +194,7 @@ class BenBound
     double SOL_VALUE;
     vector<double> SOLUTION;
 
-    OPTtypes_di_unipi_it::OPTtimers *timer;  ///< timer
+    OPTtimers *timer;  ///< timer
     long tlimit; ///< time limit
 
     //dati per la stampa della funzione
@@ -200,7 +223,7 @@ class BenBound
     void UpdCut(double alpha, double beta, int i); // metodo di supporto alla LS.
     
 
-    void copyDataArray(DCR::DCRFlow flow, DCR::DCRLink *links, DCR::DCRNode *nodes);
+    void copyDataArray(DCR::DCRFlow flow, vector<DCR::DCRLink> links, vector<DCR::DCRNode> nodes);
     void clean_up();
 
 

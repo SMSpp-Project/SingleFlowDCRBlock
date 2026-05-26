@@ -32,6 +32,29 @@ class DCRLagrangianSolver
 /*--------------------------------------------------------------------------*/	
 	public:
 
+/*--------------------------------------------------------------------------*/
+/*--------------------------- Inf() and Eps() ------------------------------*/
+/*--------------------------------------------------------------------------*/
+/** Very small class to simplify extracting the "+ infinity" value for a
+    basic type; just use Inf<type>(). */
+
+ template <typename T>
+  class Inf {
+   public:
+  Inf() {}
+  operator T() { return( std::numeric_limits<T>::max() ); }
+  };
+
+/*--------------------------------------------------------------------------*/
+/** Very small class to simplify extracting the "machine epsilon" for a
+    basic type; just use Eps<type>(). */
+
+ template <typename T>
+  class Eps {
+   public:
+  Eps() {}
+  operator T() { return( std::numeric_limits<T>::epsilon() ); }
+  };
 
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PUBLIC TYPES --------------------------------*/
@@ -275,7 +298,7 @@ class DCRLagrangianSolver
   SPT::Status spstat; //status che dichiara quale esito ha avuto l'SP.
   LAGStatus lagstat;  //status che dichiara quale esito ha avuto in lagrangiano.
 
-  OPTtypes_di_unipi_it::OPTtimers *timer;  ///< timer
+  OPTtimers *timer;  ///< timer
   long tlimit; ///< time limit
 
   void clean_up();

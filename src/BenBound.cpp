@@ -14,7 +14,7 @@
 #include "BenBound.h"
 #include "DCRLagrangianSolver.h"
 #include "DCR.h"
-#include "OPTUtils.h"
+//#include "OPTUtils.h"
 
 #include <iostream>
 #include <vector>
@@ -48,7 +48,8 @@ using namespace std;
   	caps = 0;
   	solvedflag = 0;
 
-    myparam = 1-1e-7; //FIXME:creare un metodo pubblico per l'upd (before it was set to 0.995)
+    //myparam = 1-1e-7; //FIXME:creare un metodo pubblico per l'upd (before it was set to 0.995)
+    myparam = 0.995;
     
     SPLabels.resize(1);
   	Q.resize(1);
@@ -58,18 +59,19 @@ using namespace std;
 /*----------------------------------LOAD DATA ------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-  void BenBound::LoadProblem (int nnodes, int nlinks, DCR::DCRFlow flow, DCR::DCRLink *links, DCR::DCRNode *nodes, double mtu)
+//void BenBound::LoadProblem (int nnodes, int nlinks, DCR::DCRFlow flow, DCR::DCRLink *links, DCR::DCRNode *nodes, double mtu)
+  void BenBound::LoadProblem (int nnodes, int nlinks, DCR::DCRFlow flow, vector<DCR::DCRLink> links, vector<DCR::DCRNode> nodes, double mtu)
    {
       clean_up();
 
       numNodes = nnodes;
       numLinks = nlinks;
       MTU = mtu;
-      ObjVal = OPTtypes_di_unipi_it::Inf<double>();
-      HeurVal = OPTtypes_di_unipi_it::Inf<double>();
-      BestUB = OPTtypes_di_unipi_it::Inf<double>();
-      BestLB = -OPTtypes_di_unipi_it::Inf<double>();
-      ApproxVal = -OPTtypes_di_unipi_it::Inf<double>();
+      ObjVal = Inf<double>();
+      HeurVal = Inf<double>();
+      BestUB = Inf<double>();
+      BestLB = -Inf<double>();
+      ApproxVal = -Inf<double>();
       solvedflag = 0;
       counter_ite_Ben = 0;
       counter_ite_Lag = 0;
@@ -95,11 +97,11 @@ using namespace std;
         Q[i].Cuts.clear();
       Q.clear();
 
-      ObjVal = OPTtypes_di_unipi_it::Inf<double>();
-      HeurVal = OPTtypes_di_unipi_it::Inf<double>();
-      BestUB = OPTtypes_di_unipi_it::Inf<double>();
-      BestLB = -OPTtypes_di_unipi_it::Inf<double>();
-      ApproxVal = -OPTtypes_di_unipi_it::Inf<double>();
+      ObjVal = Inf<double>();
+      HeurVal = Inf<double>();
+      BestUB = Inf<double>();
+      BestLB = -Inf<double>();
+      ApproxVal = -Inf<double>();
       solvedflag = 0;
       counter_ite_Ben = 0;
       counter_ite_Lag = 0;
@@ -142,7 +144,8 @@ using namespace std;
    double BenBound::getUB()
    {
      //std::cout << "UB=" << BestUB << std::endl;
-     return(max(ObjVal,HeurVal));
+     //return(max(ObjVal,HeurVal));
+     return(BestUB);
    }
 
 /*--------------------------------------------------------------------------*/
@@ -272,7 +275,7 @@ using namespace std;
   {
     if( timeON )
       if( timer ) timer->ReSet();
-      else timer = new OPTtypes_di_unipi_it::OPTtimers();
+      else timer = new OPTtimers();
     else
       delete timer; 
     }
@@ -669,8 +672,8 @@ using namespace std;
 
            //next line originally not in the code
            //if(Q[p].solflag == 1){noLSneeded = 1;}
-
-           if(noLSneeded == 0) //if(noLSneeded == 0)
+           std::cout<<ObjVal<<std::endl;
+	         if(noLSneeded == 0) //if(noLSneeded == 0)
            {
             p = LineSearch();
             //if(Q.size()==2||Q.size()==3) cout<<"P = "<<p<<endl;
@@ -678,7 +681,6 @@ using namespace std;
 
            if(Q[p].interVal > BestLB)
              BestLB = Q[p].interVal;
-
 
            ObjVal = Q[p].Val; 
 
@@ -750,7 +752,8 @@ using namespace std;
 /*--------------------------------------------------------------------------*/
 
 
-   void BenBound::copyDataArray(DCR::DCRFlow flow, DCR::DCRLink *links, DCR::DCRNode *nodes)
+//void BenBound::copyDataArray(DCR::DCRFlow flow, DCR::DCRLink *links, DCR::DCRNode *nodes)
+   void BenBound::copyDataArray(DCR::DCRFlow flow, vector<DCR::DCRLink> links, vector<DCR::DCRNode> nodes)
    {
 
     int i;
@@ -801,7 +804,7 @@ using namespace std;
        { 
          //poscounter = 0;
          isize = Q[i].Cuts.size();
-         max = -OPTtypes_di_unipi_it::Inf<double>(); //per sicurezza lo rinizializziamo.
+         max = -Inf<double>(); //per sicurezza lo rinizializziamo.
          counter = 0;
 
              if(Q[i].branchedflag == 0)
@@ -815,7 +818,7 @@ using namespace std;
                  if(abs(Q[i-1].inter - Q[i-1].rmin) > 0) //se non era il suo valore ottimo si inizializza
                       {
                         Q[i].solflag = 0;
-                        Q[i].Val = OPTtypes_di_unipi_it::Inf<double>();
+                        Q[i].Val = Inf<double>();
                       }
                       
                  if(i == 1) //altrimenti ci serve di conservare il suo valore
@@ -875,7 +878,7 @@ using namespace std;
                    if(abs(Q[i].inter - interx) >  eps * interx/100) //nuovo valore, rinizializziamo tutto.
                     {                   
                       Q[i].solflag = 0;
-                      Q[i].Val = OPTtypes_di_unipi_it::Inf<double>();
+                      Q[i].Val = Inf<double>();
                     }
 
                    Q[i].inter = interx;
@@ -889,7 +892,7 @@ using namespace std;
                       if(abs(Q[i-1].inter - Q[i-1].rmin) > eps * Q[i-1].rmin/1000) //se non era il suo valore ottimo si inizializza
                       {
                         Q[i].solflag = 0;
-                        Q[i].Val = OPTtypes_di_unipi_it::Inf<double>();
+                        Q[i].Val = Inf<double>();
                       }
                       
                       if(i == 1) //altrimenti ci serve di conservare il suo valore
@@ -910,7 +913,7 @@ using namespace std;
                      if(abs(Q[i].inter - Q[i].rmin) > eps * Q[i].rmin/100) //se non era il suo valore ottimo si inizializza
                       {
                         Q[i].solflag = 0;
-                        Q[i].Val = OPTtypes_di_unipi_it::Inf<double>();
+                        Q[i].Val = Inf<double>();
                       }
 
                       Q[i].inter = Q[i].rmin;
@@ -929,7 +932,7 @@ using namespace std;
     // il valore trovato dalla LS è >= di ObjVal, quindi di quello ritenuto ad ora l'ottmo,
     // potremo eliminare quel sottointervallo
 
-       min = OPTtypes_di_unipi_it::Inf<double>();
+       min = Inf<double>();
 
        for(i = 1; i < Q.size(); i++)
        {
@@ -985,7 +988,7 @@ using namespace std;
    {
 
       int j;
-      double max = -OPTtypes_di_unipi_it::Inf<double>();
+      double max = -Inf<double>();
       int maxpos;
       double interc;
 
@@ -1203,7 +1206,7 @@ using namespace std;
           //cout<<ObjVal<<HeurVal<<endl;
 
           //before the next line was *not* commented
-          //if(abs(ObjVal - HeurVal) < eps*abs(ObjVal)) {solvedflag = 1;}
+          if(abs(ObjVal - HeurVal) < eps*abs(ObjVal)) {solvedflag = 1;}
           
          //         cout<<"objval = "<<<<" Heurval ="<<lagSol.getHeurVal()<<endl;
 

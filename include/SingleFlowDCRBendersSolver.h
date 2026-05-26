@@ -141,12 +141,12 @@ public:
    flows.rate = MCFB->get_rho();        
    flows.deadline = MCFB->get_FlowDeadline();   
 
-   DCR::DCRLink links[narcs];
    vector<double> u = MCFB->get_U(); 
    vector<double> c = MCFB->get_C();
    vector<Index> sn = MCFB->get_SN();
    vector<Index> en = MCFB->get_EN();
    vector<double> link_delay = MCFB->get_LinkDelays();
+   vector<DCR::DCRLink> links(narcs);
 
    for (int i = 0; i < narcs; i++) {
       links[i] = {};
@@ -160,7 +160,7 @@ public:
 
    vector<double> node_delay = MCFB->get_NodeDelays();
 
-   DCR::DCRNode nodes[nnodes];
+   vector<DCR::DCRNode> nodes(nnodes);
    for (int i = 0; i < nnodes; i++) {
       nodes[i] = {};
       nodes[i].delay = node_delay[i];
@@ -212,9 +212,7 @@ public:
 
   // ensure the timer exists (or reset it)
   BenBound::DCRsetTime( true );
-
   // then (try to) solve the SingleFlowDCR
-  BenBound::DCRstartTime();
   BenBound::Solve();
   BenBound::DCRstopTime();
 
@@ -240,15 +238,33 @@ public:
 /*--------------------------------------------------------------------------*/
 
  OFValue get_lb( void ) override { 
-
+  auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
+  //std::cout << this->BenBound::getLB() << std::endl;
   return( this->BenBound::getLB() );
+  if( DCRB->is_feasible_flow() )
+    //return( std::min( this->BenBound::getLB() , this->BenBound::getUB() ) );
+    return( this->BenBound::getLB() );
+    //return( this->BenBound::getLB() );
+  else
+    return( Inf<double>() );
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
  OFValue get_ub( void ) override { 
-
+  auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
   return( this->BenBound::getUB() );
+  //for (int i = 0; i < DCRB->get_NArcs() ; i++)
+    //std::cout << DCRB->get_r( i ) << std::endl;    
+
+  if( DCRB->is_feasible_flow() ){
+    if( this->get_var_value() < 1e200 && this->BenBound::getUB() > 1e200 )
+      return( this->get_var_value() );
+    //std::cout << this->get_var_value() << " " << BenBound::getUB() << std::endl;
+    return( std::max( this->get_var_value() , this->BenBound::getUB() ) );
+  } else {
+    return( Inf<double>() );
+  }
 }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
@@ -367,7 +383,7 @@ bool has_var_solution( void ) override {
         flows.rate = MCFB->get_rho();        
         flows.deadline = MCFB->get_FlowDeadline();   
 
-        DCR::DCRLink links[narcs];
+        vector<DCR::DCRLink> links(narcs);
         vector<double> u = MCFB->get_U();
         vector<double> c = MCFB->get_C();
         vector<Index> sn = MCFB->get_SN();
@@ -386,7 +402,7 @@ bool has_var_solution( void ) override {
 
         vector<double> node_delay = MCFB->get_NodeDelays();
 
-        DCR::DCRNode nodes[nnodes];
+        vector<DCR::DCRNode> nodes(nnodes);
         for (int i = 0; i < nnodes; i++) {
             nodes[i] = {};
             nodes[i].delay = node_delay[i];

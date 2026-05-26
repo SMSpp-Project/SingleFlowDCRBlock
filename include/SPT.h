@@ -31,6 +31,29 @@ class SPT
 
 	public:
 
+/*--------------------------------------------------------------------------*/
+/*--------------------------- Inf() and Eps() ------------------------------*/
+/*--------------------------------------------------------------------------*/
+/** Very small class to simplify extracting the "+ infinity" value for a
+    basic type; just use Inf<type>(). */
+
+ template <typename T>
+  class Inf {
+   public:
+  Inf() {}
+  operator T() { return( std::numeric_limits<T>::max() ); }
+  };
+
+/*--------------------------------------------------------------------------*/
+/** Very small class to simplify extracting the "machine epsilon" for a
+    basic type; just use Eps<type>(). */
+
+ template <typename T>
+  class Eps {
+   public:
+  Eps() {}
+  operator T() { return( std::numeric_limits<T>::epsilon() ); }
+  };
 
 	
 /*--------------------------------------------------------------------------*/

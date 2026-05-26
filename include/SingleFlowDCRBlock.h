@@ -626,6 +626,8 @@ public:
 
  bool is_feasible_flow( bool useabstract = false , Configuration *fsbc = nullptr );
 
+ bool is_feasible_instance();
+
 /** @} ---------------------------------------------------------------------*/
 /*------------------------- Methods for R3 Blocks --------------------------*/
 /*--------------------------------------------------------------------------*/

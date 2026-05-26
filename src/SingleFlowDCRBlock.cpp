@@ -25,6 +25,11 @@
 /*--------------------------------------------------------------------------*/
 
 #include "SingleFlowDCRBlock.h"
+
+#include "DCR.h"
+
+#include "DCR_INDI.h"
+
 #include <iomanip>
 
 /*--------------------------------------------------------------------------*/
@@ -1075,6 +1080,74 @@ bool SingleFlowDCRBlock::is_feasible( bool useabstract , Configuration *fsbc )
 
 /*--------------------------------------------------------------------------*/
 
+bool SingleFlowDCRBlock::is_feasible_instance()
+{
+  DCR_INDI erai;
+
+  vector<double> B = get_B();
+  int source, sink;
+
+  int nnodes = get_NNodes();
+  int narcs = get_NArcs();
+
+  for (int i = 0; i < nnodes; i++) {
+    if (B[i] < 0 )
+      source = i;
+    if (B[i] > 0 )
+      sink = i;
+  }
+
+  DCR::DCRFlow flows;
+  flows = {};
+  flows.sourcenode = source;
+  flows.sinknode = sink;
+  flows.burst = get_FlowBurst();
+  flows.rate = get_rho();        
+  flows.deadline = get_FlowDeadline();   
+
+  vector<double> u = get_U(); 
+  vector<double> c = get_C();
+
+  flows.caps = u.data();
+  flows.costs = c.data();
+
+  vector<Index> sn = get_SN();
+  vector<Index> en = get_EN();
+  vector<double> link_delay = get_LinkDelays();
+  vector<DCR::DCRLink> links(narcs);
+
+  for (int i = 0; i < narcs; i++) {
+    links[i] = {};
+    links[i].startnode = sn[i]-1;
+    links[i].endnode = en[i]-1;
+    links[i].speed = u[i];
+    links[i].capacity = u[i];
+    links[i].delay = link_delay[i];
+    links[i].cost = c[i];
+  }
+
+  vector<double> node_delay = get_NodeDelays();
+
+  vector<DCR::DCRNode> nodes(nnodes);
+  for (int i = 0; i < nnodes; i++) {
+    nodes[i] = {};
+    nodes[i].delay = node_delay[i];
+  }
+
+  double mtu = get_MTU();
+
+  erai.DCRloadProblem( get_NNodes(), get_NArcs(), 1, &flows, links.data(), nodes.data(), get_MTU(), DCR::SRP );
+  erai.DCRsetHeur('1');
+	auto status = erai.DCRsolve();
+
+  if( status )
+    return( false );
+  else 
+	  return( true );
+} // end( SingleFlowDCRBlock::is_feasible_instance )
+
+/*--------------------------------------------------------------------------*/
+
 bool SingleFlowDCRBlock::is_feasible_flow( bool useabstract , Configuration *fsbc )
 {
  // Retrieve the tolerance and the type of violation.
@@ -1846,7 +1919,6 @@ void SingleFlowDCRBlock::chg_costs( c_Vec_double_it NCost , Subset && nms ,
 {
  if( nms.empty() )  // nothing to change
   return;           // cowardly (and silently) return
-
 
  // eliminate from NCost and nms the entries corresponding to either
  // deleted arcs or arcs whose cost actually does not change; meanwhile,
