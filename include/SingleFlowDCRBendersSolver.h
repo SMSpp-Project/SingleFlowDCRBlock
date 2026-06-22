@@ -126,10 +126,10 @@ public:
    int nnodes = MCFB->get_NNodes();
    int narcs = MCFB->get_NArcs();
 
-   for (int i = 0; i < nnodes; i++) {
-    if (B[i] < 0 )
+   for(int i = 0; i < nnodes; i++) {
+    if( B[i] < 0 )
       source = i;
-    if (B[i] > 0 )
+    if( B[i] > 0 )
       sink = i;
    }
 
@@ -238,40 +238,25 @@ public:
 /*--------------------------------------------------------------------------*/
 
  OFValue get_lb( void ) override { 
-  auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
-  //std::cout << this->BenBound::getLB() << std::endl;
+  
   return( this->BenBound::getLB() );
-  if( DCRB->is_feasible_flow() )
-    //return( std::min( this->BenBound::getLB() , this->BenBound::getUB() ) );
-    return( this->BenBound::getLB() );
-    //return( this->BenBound::getLB() );
-  else
-    return( Inf<double>() );
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
  OFValue get_ub( void ) override { 
-  auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
-  return( this->BenBound::getUB() );
-  //for (int i = 0; i < DCRB->get_NArcs() ; i++)
-    //std::cout << DCRB->get_r( i ) << std::endl;    
-
-  if( DCRB->is_feasible_flow() ){
-    if( this->get_var_value() < 1e200 && this->BenBound::getUB() > 1e200 )
-      return( this->get_var_value() );
-    //std::cout << this->get_var_value() << " " << BenBound::getUB() << std::endl;
-    return( std::max( this->get_var_value() , this->BenBound::getUB() ) );
-  } else {
-    return( Inf<double>() );
-  }
+ 
+  if( is_DCR_feasible() )
+    return( this->BenBound::getUB() );
+  else
+    return( this->BenBound::getHeurVal() );
 }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
   OFValue get_var_value( void ) override { 
 
-    ///!return( getObjVal() );
+    //return( this->BenBound::getObjVal() );
     
     double sum = 0.0;
 
@@ -312,22 +297,58 @@ bool has_var_solution( void ) override {
   if( ! f_Block )  // no [SingleFlowDCR]Block to write to
    return;         // cowardly and silently return
 
-  auto tsolc = dynamic_cast< SimpleConfiguration< int > * >( solc );
-  if( tsolc && ( tsolc->f_value == 2 ) )
-   return;
+  //auto tsolc = dynamic_cast< SimpleConfiguration< int > * >( solc );
+  //if( tsolc && ( tsolc->f_value == 2 ) )
+  // return;
   
   auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
   int nnarc = DCRB->get_NArcs();
 
+  double rmin = Inf<double>();
+  double theta_min = Inf<double>();
+
   for( Index i = 0 ; i < nnarc ; ++i ){
     auto v = BenBound::getSolution( i );
-    DCRB->set_r( i, v );
+    DCRB->set_r( i , v );
     if( v > 0.0 ){
-      DCRB->set_x( i, 1 );
+      DCRB->set_x( i , 1 );
+      rmin = std::min( rmin , v );
+      DCRB->set_theta( i , DCRB->get_MTU() / v );
     } else {
-      DCRB->set_x( i, 0 );
+      DCRB->set_x( i , 0 );
+      DCRB->set_theta( i , 0 );
     }
   }
+}
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ bool is_DCR_feasible( void ) { 
+
+  auto DCRB = dynamic_cast< SingleFlowDCRBlock * >( f_Block );
+  int nnarc = DCRB->get_NArcs();
+  auto r_min = BenBound::getr_min();
+  auto theta_min = DCRB->get_FlowBurst() / r_min;
+
+  vector<double> LinkDelays = DCRB->get_LinkDelays();
+  vector<double> NodeDelays = DCRB->get_NodeDelays();
+  double lhs = 0.0;
+
+  for( Index j = 0 ; j < nnarc ; ++j ) {
+    auto v = BenBound::getSolution( j );
+    if( v >= DCRB->get_rho() )
+      lhs += DCRB->get_MTU() / v + ( DCRB->get_MTU() /  DCRB->get_U( j ) +  LinkDelays[ j ] + NodeDelays[ DCRB->get_SN( j ) - 1 ] );
+  }
+
+  lhs += theta_min;
+  bool DCR_feasible = false;
+
+  //std::cout << " pviol=" << ( lhs - DCRB->get_FlowDeadline() ) / DCRB->get_FlowDeadline() << std::endl;
+
+  if( ( lhs - DCRB->get_FlowDeadline() ) / DCRB->get_FlowDeadline() <= 1e-6 ){
+    DCR_feasible = true;
+  }
+  return( DCR_feasible );
 }
 
 /** @} ---------------------------------------------------------------------*/

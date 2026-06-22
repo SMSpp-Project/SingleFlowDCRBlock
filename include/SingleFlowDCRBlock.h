@@ -908,6 +908,31 @@ public:
   x[ arc ].set_value( FSol );
   }
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ void set_rmin( double FSol ) {
+
+  r_min.set_value( FSol );
+}
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ void set_theta_min( double FSol ) {
+
+  theta_min.set_value( FSol );
+}
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+ void set_theta( Index arc , double FSol ) {
+  if( arc >= get_NArcs() )
+   throw( std::invalid_argument( "invalid arc name" ) );
+  
+  theta[ arc ].set_value( FSol );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
 /** @} ---------------------------------------------------------------------*/
 /*-------------------- Methods for handling Modification -------------------*/
 /*--------------------------------------------------------------------------*/

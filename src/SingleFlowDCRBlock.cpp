@@ -28,7 +28,7 @@
 
 #include "DCR.h"
 
-#include "DCR_INDI.h"
+#include "DCR_SPT.h"
 
 #include <iomanip>
 
@@ -749,7 +749,7 @@ void SingleFlowDCRBlock::generate_dynamic_constraints( Configuration *stcc )
               add_dynamic_constraints( PC_cuts_min , cut_min , eNoBlck );
     }
     //}
-    if( FormMsk == PCuts ) 
+    if( FormMsk == PCuts )
       add_dynamic_constraint( PC_cuts_min , "PC_cuts_min" );
 
  }// end( SingleFlowDCRBlock::generate_dynamic_constraints )
@@ -821,7 +821,7 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
   DCR_cnst.set_function( Funct );
   add_static_constraint( DCR_cnst );
 
- Index FormMsk = 2;  // PCuts formulation
+ Index FormMsk = 2;  // SOCP formulation
  if( ( ! stcc ) && f_BlockConfig )
   stcc = f_BlockConfig->f_static_variables_Configuration;
  if( auto sci = dynamic_cast< SimpleConfiguration< int > * >( stcc ) )
@@ -866,7 +866,7 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
     }
 
    if( FormMsk == SOCP ){
-
+    add_static_constraint( cone_min_cnst );
     add_static_constraint( cone_cnst );
   }
 
@@ -1040,7 +1040,7 @@ bool SingleFlowDCRBlock::bound_feasible( c_double feps , bool useabstract )
 bool SingleFlowDCRBlock::is_feasible( bool useabstract , Configuration *fsbc )
 {
  // Retrieve the tolerance and the type of violation.
- double tol = 1e-3;
+ double tol = 1e-4;
  bool rel_viol = true;
 
  // Try to extract, from "c", the parameters that determine feasibility.
@@ -1072,8 +1072,8 @@ bool SingleFlowDCRBlock::is_feasible( bool useabstract , Configuration *fsbc )
   && RowConstraint::is_feasible( Indicator_cnst_rmin , tol , rel_viol )
   && RowConstraint::is_feasible( Indicator_cnst_r1 , tol , rel_viol )
   && RowConstraint::is_feasible( Indicator_cnst_r2 , tol , rel_viol )
-  && RowConstraint::is_feasible( cone_min_cnst , tol , rel_viol )
-  && RowConstraint::is_feasible( cone_cnst , tol , rel_viol )
+  //&& RowConstraint::is_feasible( cone_min_cnst , tol , rel_viol )
+  //&& RowConstraint::is_feasible( cone_cnst , tol , rel_viol )
   );
 
  }  // end( SingleFlowDCRBlock::is_feasible )
@@ -1082,7 +1082,7 @@ bool SingleFlowDCRBlock::is_feasible( bool useabstract , Configuration *fsbc )
 
 bool SingleFlowDCRBlock::is_feasible_instance()
 {
-  DCR_INDI erai;
+  DCR_SPT erai;
 
   vector<double> B = get_B();
   int source, sink;
@@ -1138,9 +1138,9 @@ bool SingleFlowDCRBlock::is_feasible_instance()
 
   erai.DCRloadProblem( get_NNodes(), get_NArcs(), 1, &flows, links.data(), nodes.data(), get_MTU(), DCR::SRP );
   erai.DCRsetHeur('1');
-	auto status = erai.DCRsolve();
+	DCR::DCRStatus status = erai.DCRsolve();
 
-  if( status )
+  if( status == DCR::Infeasible )
     return( false );
   else 
 	  return( true );
@@ -1151,7 +1151,7 @@ bool SingleFlowDCRBlock::is_feasible_instance()
 bool SingleFlowDCRBlock::is_feasible_flow( bool useabstract , Configuration *fsbc )
 {
  // Retrieve the tolerance and the type of violation.
- double tol = 1e-3;
+ double tol = 1e-4;
  bool rel_viol = true;
 
  // Try to extract, from "c", the parameters that determine feasibility.

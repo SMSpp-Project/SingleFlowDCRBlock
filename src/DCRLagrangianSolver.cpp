@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------*/
-/*-------------------------- File DCRLagrangianSolver.cpp ---------------------------*/
+/*-------------------------- File DCRLagrangianSolver.cpp ------------------*/
 /*--------------------------------------------------------------------------*/
 
 /*--------------------------------------------------------------------------*/
@@ -14,7 +14,6 @@
 #include "DCR.h"
 #include "SPT.h"
 #include "DCRLagrangianSolver.h"
-//#include "OPTUtils.h"
 
 #include <string.h>
 #include <fstream>
@@ -24,7 +23,7 @@
 using namespace std;
 
 /*--------------------------------------------------------------------------*/
-/*--------------------- IMPLEMENTATION OF DCRLagrangianSolver-----------------------*/
+/*--------------------- IMPLEMENTATION OF DCRLagrangianSolver---------------*/
 /*--------------------------------------------------------------------------*/
 
 /*<Risolve tramite line search il duale lagrangiano di DCR, rispetto al vincolo sul ritardo.
@@ -160,7 +159,7 @@ using namespace std;
 /*----------------------------------MODIFIERS-------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-   void DCRLagrangianSolver::updrmin (double r_min)
+   void DCRLagrangianSolver::updrmin(double r_min)
 
    {
      
@@ -316,7 +315,7 @@ using namespace std;
 
       epsobj = alpha + lambda * beta;
 
-     // cout<< " valore in eps "<<epsobj<< " valore in 0 "<<nulobj<<endl;
+      //cout<< " valore in eps "<<epsobj<< " valore in 0 "<<nulobj<<endl;
 
       if(epsobj > nulobj) return 1;
       else return 0;
@@ -427,7 +426,8 @@ using namespace std;
    {
     return(OptPath);
    } 
-   
+
+
 /*--------------------------------------------------------------------------*/
 
    vector<double> DCRLagrangianSolver::getRSol()
@@ -661,7 +661,7 @@ using namespace std;
          if(beta < -1e-20 && alpha <= HeurVal)
            {HeurVal = alpha;} //salviamo la migliore soluzione primale ammissibile
          
-
+          /*
          /////salviamo i dati per il CHECK su CPLEX!!!!
          if(beta < 0)
          { 
@@ -690,7 +690,7 @@ using namespace std;
 
          }
          ///fine del salvataggio, commentare in futuro per non appesantire in memoria
-
+        */
          cut.c.m = beta;
          cut.c.q = alpha;
 
@@ -1034,6 +1034,7 @@ using namespace std;
           RSol.resize(nhops);
           RSolCosts.resize(nhops);
 
+          /*
           ////SALVIAMO I DATI PER IL CHECK SU CPLEX
           solneg.resize(nhops);
           checkSolNeg.resize(nhops);
@@ -1047,6 +1048,7 @@ using namespace std;
           betaneg = beta;
           nonposflag = 1;
           //fine salvataggio
+          */
 
           for(i = 0; i < nhops; i++)  //salviamo le coppie (r_ij,f_ij) della soluzione ottima
           {
@@ -1125,6 +1127,7 @@ using namespace std;
               cut.RSol[i] = Linksp[path[i]].rstar;
              }
           
+          /*/
           ////SALVIAMO I DATI PER IL CHECK SU CPLEX
           solneg.resize(nhops);
           checkSolNeg.resize(nhops);
@@ -1138,6 +1141,7 @@ using namespace std;
           betaneg = beta;
           nonposflag = 1;
           //fine salvataggio
+          */
 
           cut.c.m = beta;
           cut.c.q = alpha;         

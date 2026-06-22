@@ -61,7 +61,7 @@ SMSpp_insert_in_factory_cpp_1( MultiFlowDCRBlock );
 /*-------------------------------- CONSTANTS -------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-static const auto FACTOR = 0.9; 
+static const auto FACTOR = 0.85; 
 
 /*--------------------------------------------------------------------------*/
 /*------------------------ OTHER INITIALIZATIONS ---------------------------*/
@@ -123,6 +123,8 @@ void MultiFlowDCRBlock::load( const std::string & input , char frmt )
  for(j=0; j<NC; ++j){
   //std::cout << j << "\n";
 
+  C[j].resize( NArcs ); 
+
   std::ifstream iFile1( input.substr(0,input.find_last_of('.'))+".dcr" );
   if( ! iFile1.is_open() )
     throw( std::invalid_argument( "can't open file .dcr" ) );
@@ -177,7 +179,7 @@ void MultiFlowDCRBlock::load( const std::string & input , char frmt )
    iArc >> UTot[ i ];
    iArc >> numberArc;
    //UTot[ i ] = (j+1)*UTot[ i ];
-   CapTot[ i ] = FACTOR * NC * UTot[ i ];
+   CapTot[ i ] = std::floor( FACTOR * NC * UTot[ i ] );
    foutdmx << "a " << Startn[ i ] << " " << Endn[ i ] << " -1 " << CapTot[ i ] << " " << C[ j ][ i ] << "\n"; //0.5*NC*UTot[ i ]
   }
 

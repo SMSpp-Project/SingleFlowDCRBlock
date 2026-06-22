@@ -45,11 +45,10 @@ SFDCROBJ = $(SFDCRSDR)/obj/SingleFlowDCRBlock.o \
 	$(SFDCRSDR)/obj/BenBound.o \
 	$(SFDCRSDR)/obj/DCRLagrangianSolver.o \
 	$(SFDCRSDR)/obj/SPT.o \
-	$(SFDCRSDR)/obj/DCR_SPT.o \
-	$(SFDCRSDR)/obj/DCR_INDI.o \
-	$(SFDCRSDR)/obj/DCR_MFSP_SOCP_CPX.o
+	$(SFDCRSDR)/obj/DCR_SPT.o 
 
-SFDCRINC = -I$(SFDCRSDR)/include -I/Applications/CPLEX_Studio2211/cplex/include/ilcplex/ #-I$(SFDCRSDR)/../BundleSolver/NdoFiOracle/OPTUtils
+SFDCRINC = -I$(SFDCRSDR)/include -I/opt/ibm/ILOG/CPLEX_Studio2211/cplex/include/ilcplex/
+#-I$(SFDCRSDR)/../BundleSolver/NdoFiOracle/OPTUtils
 
 SFDCRH   = $(SFDCRSDR)/include/SingleFlowDCRBlock.h \
 	$(SFDCRSDR)/include/SingleFlowDCRBendersSolver.h \
@@ -58,9 +57,7 @@ SFDCRH   = $(SFDCRSDR)/include/SingleFlowDCRBlock.h \
 	$(SFDCRSDR)/include/DCRLagrangianSolver.h \
 	$(SFDCRSDR)/include/SPT.h \
 	$(SFDCRSDR)/include/DCR.h \
-	$(SFDCRSDR)/include/DCR_SPT.h \
-	$(SFDCRSDR)/include/DCR_INDI.h \
-	$(SFDCRSDR)/include/DCR_MFSP_SOCP_CPX.h 
+	$(SFDCRSDR)/include/DCR_SPT.h 
 
 # clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -100,16 +97,6 @@ $(SFDCRSDR)/obj/SPT.o: \
 $(SFDCRSDR)/obj/DCR_SPT.o: \
 	$(SFDCRSDR)/src/DCR_SPT.cpp $(SFDCRH) $(SMS++OBJ) $(MILPOBJ)
 	$(CC) -c $(SFDCRSDR)/src/DCR_SPT.cpp -o $@ \
-	$(SFDCRINC) $(SMS++INC) $(libMCFClINC) -I$(MILPINC) $(MCFClssSlvr) $(SW)
-
-$(SFDCRSDR)/obj/DCR_INDI.o: \
-	$(SFDCRSDR)/src/DCR_INDI.cpp $(SFDCRH) $(SMS++OBJ) $(MILPOBJ)
-	$(CC) -c $(SFDCRSDR)/src/DCR_INDI.cpp -o $@ \
-	$(SFDCRINC) $(SMS++INC) $(libMCFClINC) -I$(MILPINC) $(MCFClssSlvr) $(SW)
-
-$(SFDCRSDR)/obj/DCR_MFSP_SOCP_CPX.o: \
-	$(SFDCRSDR)/src/DCR_MFSP_SOCP_CPX.cpp $(SFDCRH) $(SMS++OBJ) $(MILPOBJ)
-	$(CC) -c $(SFDCRSDR)/src/DCR_MFSP_SOCP_CPX.cpp -o $@ \
 	$(SFDCRINC) $(SMS++INC) $(libMCFClINC) -I$(MILPINC) $(MCFClssSlvr) $(SW)
 
 $(SFDCRSDR)/obj/SingleFlowDCRBendersSolver.o: \

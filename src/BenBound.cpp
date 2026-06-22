@@ -22,6 +22,8 @@
 #include <ctime>
 #include <cstdlib>
 
+#include <unistd.h>
+
 using namespace std;
 
 /*--------------------------------------------------------------------------*/
@@ -48,8 +50,9 @@ using namespace std;
   	caps = 0;
   	solvedflag = 0;
 
-    //myparam = 1-1e-7; //FIXME:creare un metodo pubblico per l'upd (before it was set to 0.995)
-    myparam = 0.995;
+    //FIXME:creare un metodo pubblico per l'upd (before it was set to 0.995)
+    myparam = 0.995; //for garr and sndlib 0.995
+    //myparam = 1-1e-6;
     
     SPLabels.resize(1);
   	Q.resize(1);
@@ -59,7 +62,7 @@ using namespace std;
 /*----------------------------------LOAD DATA ------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-//void BenBound::LoadProblem (int nnodes, int nlinks, DCR::DCRFlow flow, DCR::DCRLink *links, DCR::DCRNode *nodes, double mtu)
+  //void BenBound::LoadProblem (int nnodes, int nlinks, DCR::DCRFlow flow, DCR::DCRLink *links, DCR::DCRNode *nodes, double mtu)
   void BenBound::LoadProblem (int nnodes, int nlinks, DCR::DCRFlow flow, vector<DCR::DCRLink> links, vector<DCR::DCRNode> nodes, double mtu)
    {
       clean_up();
@@ -144,17 +147,21 @@ using namespace std;
    double BenBound::getUB()
    {
      //std::cout << "UB=" << BestUB << std::endl;
-     //return(max(ObjVal,HeurVal));
-     return(BestUB);
+     //return(ObjVal);
+     return(min(BestUB,HeurVal));
    }
 
 /*--------------------------------------------------------------------------*/
 
    double BenBound::getLB()
    {
-     //std::cout << "LB=" << BestLB << "," << "UB=" << BestUB << std::endl;
+     //std::cout << "LB=" << BestLB << std::endl;
      //std::cout << HeurVal << "," << ObjVal << "," << ApproxVal << std::endl;
-     return(BestLB);
+     //std::cout<<"BenStat="<<BenStat<<std::endl;
+     //if(BestUB < BestLB || BestLB < -1e-6)
+      //return(min(BestUB,HeurVal));
+     return(max(0.0,min(min(BestUB,HeurVal),BestLB)));
+     //return(HeurVal);
    }
 
 
@@ -359,6 +366,8 @@ using namespace std;
 
     Inizial();
 
+    //std::cout << "Inizial()" << std::endl;
+
    // cout<<"inizializzato"<<endl;
     Qsize = Q.size(); // = 2, valori limite.
 
@@ -379,15 +388,16 @@ using namespace std;
     //           cout<<" : "<<lagSol.isFeasible()<<endl;
     //           }
 
-    //         cout<<"num of iteration"<< counter_ite_Ben<<endl;
-    // cout<<"lagstat = "<<lgstat<<" lambda = " <<lambda<<" Q[p]inter = "<< Q[p].inter<< "valore = "<<Q[p].Val<<endl;
-    // cout<<"Objval = "<<ObjVal<<" Heurval = "<<HeurVal<<endl;
+             //cout<<"num of iteration"<< counter_ite_Ben<<endl;
+     //cout<<"lagstat = "<<lgstat<<" lambda = " <<lambda<<" Q[p]inter = "<< Q[p].inter<< "valore = "<<Q[p].Val<<endl;
+     //cout<<"Objval = "<<ObjVal<<" Heurval = "<<HeurVal<<endl;
+     //cout<<"LB = "<<BestLB<<" UB = "<< BestUB<<endl;
 
             if(Q[p].solflag == 0)
              { 
                if(Q[p].infeasflag == 1) //aggiustiamo le cose per il lagrangiano trovando un nuovo punto di ammissibilità
                 { 
-                  //cout<<"entro in infeasflag ==1"<<endl;
+                   //cout<<"entro in infeasflag ==1"<<endl;
                    double temppoint; //restringiamo l'intervallo con l'ultimo valore non ammissibile come limite inferiore
                    double oldinterx;
                    int feas = 1;
@@ -395,8 +405,9 @@ using namespace std;
                    oldinterx = Q[1].inter;
 
                    //cerchiamo l'altro punto di ammissibilità
-                   
-                   while(feas != 0)
+                   int count_iter_feas = 0;
+
+                   while(feas != 0 && count_iter_feas <= 20)
                     {
                       temppoint = mystep * Q[0].rmin + (1 - mystep) * Q[1].inter; //vediamo chi vari in base alla feasibility
 
@@ -405,8 +416,10 @@ using namespace std;
 
                       if (feas != 0) Q[0].rmin = temppoint;
                       else Q[1].inter = temppoint;
+                      count_iter_feas ++;
+                      
                     }
-                     
+                 
                     Q[1].interVal = Q[1].Cuts[Q[1].bestCutpos].q + Q[1].inter * Q[1].Cuts[Q[1].bestCutpos].m;//FIXME: in realtà non è sicuro che sia bestCutpos la pos ottima
                     Q[1].solflag = 0;
                     Q[1].infeasflag = 0;
@@ -462,7 +475,7 @@ using namespace std;
                     if(SPLabels[Links[i].startnode] > 1e200) SPLabels[Links[i].startnode] = 0;
 
                     d = -SPLabels[Links[i].endnode] + SPLabels[Links[i].startnode]; //d_i-d_j
-                    
+
                     if(d < -1e-10)//altrimenti contributo sicuramente nullo                
                     {
                       if(lambda == 0) //primo caso semplificato
@@ -495,71 +508,77 @@ using namespace std;
                      { 
                       barl = MTU / Links[i].speed + Links[i].delay + Nodes[Links[i].startnode].delay;
                       discrim = pow(lambda * barl + d, 2) - 4*Links[i].cost * lambda * MTU;
-              
-                     if(discrim > 1e-10) //allora sono definiti zeta_\pm
+                      
+                     if(discrim > 0) //allora sono definiti zeta_\pm
                         {
-                         zetap = (-lambda * barl - d + sqrt(discrim))/(2 * Links[i].cost); //radice più grande
-                         zetam = (-lambda * barl - d - sqrt(discrim))/(2 * Links[i].cost); //radice più piccola
+                         zetap = (-lambda * barl - d + sqrt(discrim))/(2 * Links[i].cost); //radice pi�ï�� grande
+                         zetam = (-lambda * barl - d - sqrt(discrim))/(2 * Links[i].cost); //radice pi�ï�� piccola
 
-                         if( zetam < Links[i].capacity && Links[i].capacity < sqr && Q[1].rmin > Links[i].capacity ) {
-                            ms = (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d) / ( Links[i].capacity - Q[1].rmin );
+                         if( zetam - Links[i].capacity < eps*Links[i].capacity && Links[i].capacity - sqr < eps*Links[i].capacity && Q[p].inter - Links[i].capacity > eps*Links[i].capacity ) { //&& Q[p].inter - Links[i].capacity > eps*Links[i].capacity
+                            ms = (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d) / ( Links[i].capacity - Q[p].inter );
                             lc.m += ms;
-                            //lc.q += (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d) - ms * Links[i].capacity;
-                            lc.q += - ms * Q[1].rmin;
+                            //c.q += (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d) - ms * Links[i].capacity;
+                            lc.q += - ms * Q[p].inter;
+                            //std::cout << ms << std::endl;
                          } 
 
-                         if( sqr < Links[i].capacity && Links[i].capacity < zetap && Q[1].rmin >= Links[i].capacity ) {
-                            if( Q[1].rmin < zetap ){
-                              ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d) / (sqr - Q[1].rmin);
-                              if( Links[i].cost > ms ){
-                                tildez = - 1/ms * (lambda * MTU - pow(lambda * barl + d - ms, 2.0)/(4*Links[i].cost));
-                                if(zetap-tildez<0){
-                                  lc.q += - ms * tildez;
+                         if( sqr - Links[i].capacity < eps*sqr && Links[i].capacity - zetap < eps*zetap && Q[p].inter >= Links[i].capacity ) { //&& Q[p].inter >= Links[i].capacity
+                            if( Q[p].inter - zetap < Q[p].inter*eps ){
+                              if ( std::abs(sqr - Q[p].inter) > eps*sqr ){
+                                ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d)/(sqr - Q[p].inter);
+                                if( Links[i].cost - ms > eps*Links[i].cost && ms >= 0.1 ){
+                                  tildez = sqrt((lambda * MTU)/(Links[i].cost - ms));
+                                  lc.q += Links[i].cost * tildez + lambda * MTU / tildez + lambda * barl + d  - tildez * ms;
                                   lc.m += ms; 
+                                  std::cout << ms << std::endl;
+                                } else {
+                                  lc.q += (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d) - ms * Links[i].capacity;
+                                  lc.m += ms; 
+                                  //std::cout << ms << std::endl;
                                 }
-                              } else {
-                                lc.q += (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d) - ms * Links[i].capacity;
-                                lc.m += ms; 
                               }
                             } else {
-                              if( Links[i].cost > ms ){
-                                ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d) / (sqr - Q[1].rmin);
-                                tildez = - 1/ms * (lambda * MTU - pow(lambda * barl + d - ms, 2.0)/(4*Links[i].cost));
-                                if(zetap-tildez<0){
+                               if ( std::abs(sqr - Q[p].inter) > eps*sqr ){
+                                ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d)/(sqr - Q[p].inter);
+                                if( Links[i].cost - ms > eps*Links[i].cost && ms >= 0.1 ){
+                                  ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d)/(sqr - Q[p].inter);
                                   lc.m += ms; 
-                                  lc.q += - ms * tildez;
+                                  tildez = sqrt((lambda * MTU)/(Links[i].cost - ms));
+                                  lc.q += Links[i].cost * tildez + lambda * MTU / tildez + lambda * barl + d  - tildez * ms;
+                                  //std::cout << ms << std::endl;
                                 }
                               }
                             }
                          }
 
-                         if( Links[i].capacity > zetap ){
-                            if( Q[1].rmin < Links[i].capacity ){
-                              ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d) / (sqr - Q[1].rmin);
-                              //cout<<Links[i].cost - ms <<","<< Q[1].rmin - zetap<<endl;
-                              if( Links[i].cost - ms > 0 && Q[1].rmin > zetap ){
-                                tildez = - 1/ms * (lambda * MTU - pow(lambda * barl + d - ms, 2.0)/(4*Links[i].cost));
-                                if(zetap-tildez<0){
+                         if( Links[i].capacity - zetap > eps*Links[i].capacity ){
+                            if( Links[i].capacity - Q[p].inter > eps*Links[i].capacity ){
+                              if ( std::abs(sqr - Q[p].inter) > eps*sqr ){
+                                ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d)/(sqr - Q[p].inter);
+                                if(Links[i].cost - ms > eps*Links[i].cost && ms >= 0.1 ){ //-10
                                   lc.m += ms; 
-                                  lc.q += - ms * tildez;
-                                } 
+                                  tildez = sqrt((lambda * MTU)/(Links[i].cost - ms));
+                                  lc.q += Links[i].cost * tildez + lambda * MTU / tildez + lambda * barl + d  - tildez * ms;
+                                  //std::cout << ms << std::endl;
+                                }
                               }
                             } else {
-                              ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d) / (sqr - Q[1].rmin);
-                              if( Links[i].cost - ms > 0 && Q[1].rmin > zetap ){
-                                tildez = - 1/ms * (lambda * MTU - pow(lambda * barl + d - ms, 2.0)/(4*Links[i].cost));
-                                if(zetap-tildez<0){
+                              if ( std::abs(sqr - Q[p].inter) > eps*sqr ){
+                                ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d)/(sqr - Q[p].inter );
+                                if(Links[i].cost - ms > eps*Links[i].cost && ms >= 0.1){ 
                                   lc.m += ms; 
-                                  lc.q += - ms * tildez;
+                                  tildez = sqrt((lambda * MTU)/(Links[i].cost - ms));
+                                  lc.q += Links[i].cost * tildez + lambda * MTU / tildez + lambda * barl + d  - tildez * ms;
+                                  //std::cout << ms << std::endl;
                                 }
                               }
                             }
-                         }
+                          }
                         }//se sono definiti i punti in cui si annulla il contributo dell'arco
-                         //altrimenti il contributo sarà nullo.
+                         //altrimenti il contributo sar�  nullo.
                       }//caso lambda > 0
                    }//se d < 0
-                  }//solo gli archi con capacità più grandi della minima ammissibile!
+                  }//solo gli archi con capacit�  pi�ï�� grandi della minima ammissibile!
                   }//per tutti gli archi.
 
                 //infine dobbiamo sommare i contributi della funzione g(z).
@@ -672,8 +691,8 @@ using namespace std;
 
            //next line originally not in the code
            //if(Q[p].solflag == 1){noLSneeded = 1;}
-           std::cout<<ObjVal<<std::endl;
-	         if(noLSneeded == 0) //if(noLSneeded == 0)
+
+           if(noLSneeded == 0) //if(noLSneeded == 0)
            {
             p = LineSearch();
             //if(Q.size()==2||Q.size()==3) cout<<"P = "<<p<<endl;
@@ -686,55 +705,34 @@ using namespace std;
 
            approx = Q[p].interVal; //miglioriamo le nostre stime con i valori dati dalla LS
 
+           //std::cout << "OV = " << ObjVal << std::endl;
+
            if(approx > 1) releps = approx; //precisione relativa
            else releps = 1;
-
-           //next line originally not in the code
-           if(counter_ite_Ben>200) {solvedflag = 1;} 
 
            counter_ite_Ben++; //numero di punti visitati
            
            //if(Q.size()==2||Q.size()==3) cout<<"numero di punti = "<<Q.size()<<" with rmin = "<<rmin<<endl;
            
           //}while(solvedflag == 0 && abs(ObjVal - approx) > eps * releps); (before on the code)
-          }while(solvedflag == 0 && (abs(ObjVal - approx) > eps * releps/100));
+          }while(solvedflag == 0 && (abs(ObjVal - approx) > eps * releps/100) && counter_ite_Ben<200);
+          //std::cout << "HV = " << HeurVal << std::endl;
+          //}while(counter_ite_Ben<100 && abs(BestUB-BestLB)>eps*BestUB);
 
-         ObjVal = approx; //in ogni caso dobbiamo restituire un LB!
+          if(solvedflag == 0)
+            ObjVal = approx; //in ogni caso dobbiamo restituire un LB!
 
          rmin = Q[p].inter;
-/*
-         if(abs(rc.m) > 1e5){
-            cout << Q[0].rmin << "-" << Q[1].rmin << endl;
-            //Q[p].Val = 1e16;
-            for(int index = 0; index <= 1000; index++){
-              double temp = lambda * Flow.burst / (Q[0].inter + index * (Q[1].rmin - Q[0].rmin)/1000) - lambda * Flow.deadline + SPLabels[Flow.sinknode];
-              //cout << index << " Q[p].Val = " << temp << endl;
-              if(Q[p].Val > temp){
-                Q[p].Val = temp;
-              }
-            }
-          }
-*/ 
           //cout << "Q[p].Val = " << Q[p].Val << endl;
           //cout << "rmin = " << rmin << endl;
 
        }//se non ci sono errori 
      }//se non era già risolto il problema
-/*
-         cout << "SOLVE" << endl;
-         cout << "rc.m = " << rc.m << endl;
-         cout << "Q[p].Val = " << Q[p].Val << endl;
-         cout << "SPLabels[Flow.sinknode] = " << SPLabels[Flow.sinknode] << endl;
-         cout << "rmin = " << rmin << endl;
-*/
-     //SOL_VALUE = ObjVal;//lagSol.getObjVal();
-     SOLUTION = lagSol.getRSOLS();
 
-     /*for(int i =0; i<numLinks; i++){
-      SOLUTION[ i ] = std::min(Links[i].capacity, std::max(rmin, sqrt(lambda*MTU)));
-      //std::cout << i << ", " << SOLUTION[i] - std::min(Links[i].capacity, std::max(rmin, sqrt(lambda * MTU))) << std::endl;
-      //std::cout << i << ", " << SOLUTION[i] << std::endl;
-     }*/
+     //SOL_VALUE = ObjVal;//lagSol.getObjVal();
+     //std::cout << "BUB=" << BestUB << " BLB=" << BestLB << std::endl;
+     //std::cout << "GAP=" << std::abs(getUB() - getLB())/getUB() << std::endl;
+     SOLUTION = lagSol.getRSOLS();
 
    }
 
@@ -752,7 +750,7 @@ using namespace std;
 /*--------------------------------------------------------------------------*/
 
 
-//void BenBound::copyDataArray(DCR::DCRFlow flow, DCR::DCRLink *links, DCR::DCRNode *nodes)
+   //void BenBound::copyDataArray(DCR::DCRFlow flow, DCR::DCRLink *links, DCR::DCRNode *nodes)
    void BenBound::copyDataArray(DCR::DCRFlow flow, vector<DCR::DCRLink> links, vector<DCR::DCRNode> nodes)
    {
 
@@ -889,7 +887,7 @@ using namespace std;
                  {
                    if(interx <= Q[i-1].rmin) //se sto nell'intervallo precedente
                    { 
-                      if(abs(Q[i-1].inter - Q[i-1].rmin) > eps * Q[i-1].rmin/1000) //se non era il suo valore ottimo si inizializza
+                      if(abs(Q[i-1].inter - Q[i-1].rmin) > eps * Q[i-1].rmin/100) //se non era il suo valore ottimo si inizializza
                       {
                         Q[i].solflag = 0;
                         Q[i].Val = Inf<double>();
@@ -905,7 +903,7 @@ using namespace std;
                         {
                           Q[i].inter = Q[i-1].rmin;
                           Q[i].interVal = Q[i].pCut.q + Q[i-1].rmin * Q[i].pCut.m;
-                        }
+                        }   
                    }
           
                    else //se sto nell'intervallo successivo
@@ -951,8 +949,11 @@ using namespace std;
 
        //next line not in the original code
        //if(Q[minpos].interVal > BestLB)
-       BestLB = Q[minpos].interVal;
+        BestLB = Q[minpos].interVal;
        ApproxVal = Q[minpos].interVal;
+
+       //std::cout << "LB=" << BestLB << std::endl;
+       //std::cout << "minpos=" << minpos << std::endl;
 
        if(corrflag == 0) return minpos;
        else return minconflag;
@@ -1049,7 +1050,6 @@ using namespace std;
      {
       if(limits[0] == limits[1])
       {
-        
         lagSol.updrmin(limits[1]);
       //  lambda = lagSol.getLambda();
         lagSol.Solve();
@@ -1206,7 +1206,7 @@ using namespace std;
           //cout<<ObjVal<<HeurVal<<endl;
 
           //before the next line was *not* commented
-          if(abs(ObjVal - HeurVal) < eps*abs(ObjVal)) {solvedflag = 1;}
+          //if(abs(ObjVal - HeurVal) < eps*abs(ObjVal)) {solvedflag = 1;}
           
          //         cout<<"objval = "<<<<" Heurval ="<<lagSol.getHeurVal()<<endl;
 
@@ -1227,7 +1227,6 @@ using namespace std;
                   //cout<<"d = "<<d<<endl;
                   if (d < 0)
                   {
-
                      if(lambda == 0) //primo caso semplificato
                       {
   
@@ -1264,67 +1263,68 @@ using namespace std;
               
                      if(discrim > 0) //allora sono definiti zeta_\pm
                         {
-                         zetap = (-lambda * barl - d + sqrt(discrim))/(2 * Links[i].cost); //radice più grande
-                         zetam = (-lambda * barl - d - sqrt(discrim))/(2 * Links[i].cost); //radice più piccola
+                         zetap = (-lambda * barl - d + sqrt(discrim))/(2 * Links[i].cost); //radice pi�ï�� grande
+                         zetam = (-lambda * barl - d - sqrt(discrim))/(2 * Links[i].cost); //radice pi�ï�� piccola
 
-                         if( zetam < Links[i].capacity && Links[i].capacity < sqr && Q[1].rmin > Links[i].capacity ) {
+                         if( zetam - Links[i].capacity < eps*Links[i].capacity && Links[i].capacity - sqr < eps*Links[i].capacity && Q[1].rmin - Links[i].capacity > eps*Links[i].capacity ) { //&& Q[p].inter - Links[i].capacity > eps*Links[i].capacity
                             ms = (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d) / ( Links[i].capacity - Q[1].rmin );
                             c.m += ms;
                             //c.q += (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d) - ms * Links[i].capacity;
                             c.q += - ms * Q[1].rmin;
                          } 
 
-                         if( sqr < Links[i].capacity && Links[i].capacity < zetap && Q[1].rmin >= Links[i].capacity ) {
-                            if( Q[1].rmin < zetap ){
-                              ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d) / (sqr - Q[1].rmin);
-                              if( Links[i].cost > ms ){
-                                tildez = - 1/ms * (lambda * MTU - pow(lambda * barl + d - ms, 2.0)/(4*Links[i].cost));
-                                if(zetap-tildez<0){
-                                  c.q += - ms * tildez;
+                         if( sqr - Links[i].capacity < eps*sqr && Links[i].capacity - zetap < eps*zetap && Q[1].rmin >= Links[i].capacity ) { 
+                            if( Q[1].rmin - zetap < Q[1].rmin*eps ){
+                              if ( std::abs(sqr - Q[1].rmin) > eps*sqr ){
+                                ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d)/(sqr - Q[1].rmin);
+                                if( Links[i].cost - ms > eps*Links[i].cost && ms >= 0.1 ){
+                                  tildez = sqrt((lambda * MTU)/(Links[i].cost - ms));
+                                  c.q += Links[i].cost * tildez + lambda * MTU / tildez + lambda * barl + d  - tildez * ms;
+                                  c.m += ms; 
+                                } else {
+                                  c.q += (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d) - ms * Links[i].capacity;
                                   c.m += ms; 
                                 }
-                              } else {
-                                c.q += (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d) - ms * Links[i].capacity;
-                                c.m += ms; 
                               }
                             } else {
-                              if( Links[i].cost > ms ){
-                                ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d) / (sqr - Q[1].rmin);
-                                tildez = - 1/ms * (lambda * MTU - pow(lambda * barl + d - ms, 2.0)/(4*Links[i].cost));
-                                if(zetap-tildez<0){
+                               if ( std::abs(sqr - Q[1].rmin) > eps*sqr ){
+                                ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d)/(sqr - Q[1].rmin);
+                                if( Links[i].cost - ms > eps*Links[i].cost && ms >= 0.1 ){
+                                  ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d)/(sqr - Q[1].rmin);
                                   c.m += ms; 
-                                  c.q += - ms * tildez;
+                                  tildez = sqrt((lambda * MTU)/(Links[i].cost - ms));
+                                  c.q += Links[i].cost * tildez + lambda * MTU / tildez + lambda * barl + d  - tildez * ms;
                                 }
                               }
                             }
                          }
 
-                         if( Links[i].capacity > zetap ){
-                            if( Q[1].rmin < Links[i].capacity ){
-                              ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d) / (sqr - Q[1].rmin);
-                              if(Links[i].cost - ms > 0 && Q[1].rmin > zetap ){
-                                tildez = - 1/ms * (lambda * MTU - pow(lambda * barl + d - ms, 2.0)/(4*Links[i].cost));
-                                if(zetap-tildez<0){
+                         if( Links[i].capacity - zetap > eps*Links[i].capacity ){
+                            if( Links[i].capacity - Q[1].rmin > eps*Links[i].capacity ){
+                              if ( std::abs(sqr - Q[1].rmin) > eps*sqr ){
+                                ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d)/(sqr - Q[1].rmin);
+                                if(Links[i].cost - ms > eps*Links[i].cost && ms >= 0.1){ 
                                   c.m += ms; 
-                                  c.q += - ms * tildez;
-                                } 
+                                  tildez = sqrt((lambda * MTU)/(Links[i].cost - ms));
+                                  c.q += Links[i].cost * tildez + lambda * MTU / tildez + lambda * barl + d  - tildez * ms;
+                                }
                               }
                             } else {
-                              ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d) / (sqr - Q[1].rmin);
-                              if(Links[i].cost - ms > 0 && Q[1].rmin > zetap ){
-                                tildez = - 1/ms * (lambda * MTU - pow(lambda * barl + d - ms, 2.0)/(4*Links[i].cost));
-                                if(zetap-tildez<0){
+                              if ( std::abs(sqr - Q[1].rmin) > eps*sqr ){
+                                ms = (Links[i].cost * sqr + lambda * MTU / sqr + lambda * barl + d)/(sqr - Q[1].rmin );
+                                if(Links[i].cost - ms > eps*Links[i].cost && ms >= 0.1 ){ 
                                   c.m += ms; 
-                                  c.q += - ms * tildez;
+                                  tildez = sqrt((lambda * MTU)/(Links[i].cost - ms));
+                                  c.q += Links[i].cost * tildez + lambda * MTU / tildez + lambda * barl + d  - tildez * ms;
                                 }
                               }
                             }
                           }
                         }//se sono definiti i punti in cui si annulla il contributo dell'arco
-                         //altrimenti il contributo sarà nullo.
+                         //altrimenti il contributo sar�  nullo.
                       }//caso lambda > 0
                    }//se d < 0
-                  }//solo gli archi con capacità più grandi della minima ammissibile!
+                  }//solo gli archi con capacit�  pi�ï�� grandi della minima ammissibile!
                   }//per tutti gli archi.
 
                //infine dobbiamo sommare i contributi della funzione g(z).
@@ -1332,7 +1332,6 @@ using namespace std;
                 ms = - lambda * Flow.burst / pow(Q[1].rmin,2);
                 c.m += ms;
                 c.q += lambda * Flow.burst / Q[1].rmin - lambda * Flow.deadline + SPLabels[Flow.sinknode] - Q[1].rmin * ms; //g(r_min) - r_min * ms
-
                 // cout<<"Q[1].rmin = "<<Q[1].rmin<<" SpLabels[sinknode] = "<<SPLabels[Flow.sinknode]<<endl;
                 // cout<<"ms ="<<ms<<" c.m ="<<c.m<<" c.q ="<<c.q<<endl;
                 
@@ -1362,33 +1361,7 @@ using namespace std;
 
           HeurVal = lagSol.getHeurVal();
 
-          //BestLB e BestUB nel caso solvedflag = 1
-          ////BestLB = ObjVal;
-          ////BestUB = HeurVal;
-          //BestLB = Q[1].rmin * get_Links();
-          //BestUB = Q[1].rmin * get_Links();
-
         }
-/*
-         cout << "INITIAL" << endl;
-         cout << "rc.m = " << Q[1].pCut.m << endl;
-         cout << "Q[1].Val = " << Q[1].Val << endl;
-         cout << "SPLabels[Flow.sinknode] = " << SPLabels[Flow.sinknode] << endl;
-         cout << "rmin = " << rmin << endl;
-*/
-/*
-         if(abs(Q[1].pCut.m) > 1e5){
-            cout << Q[0].rmin << "-" << Q[1].rmin << endl;
-            //Q[1].Val = 1e16;
-            for(int index = 0; index <= 1000; index++){
-              double temp = lambda * Flow.burst / (Q[0].inter + index * (Q[1].rmin - Q[0].rmin)/1000) - lambda * Flow.deadline + SPLabels[Flow.sinknode];
-              //cout << index << " Q[p].Val = " << temp << endl;
-              if(Q[1].Val > temp){
-                Q[1].Val = temp;
-              }
-            }
-          }     
-*/
           //altrimenti inizializiamo Q[1].interval con un il suo valore e passiamo il tutto al solve
        
         Q[1].mCut.q = 0; 
@@ -1548,7 +1521,7 @@ using namespace std;
    void BenBound::capSort(int sx, int dx) //Quicksort ricorsivo randomizzato.
    {
      int pivot, rango;
-     srand(0);//(unsigned)time(NULL));
+     srand((unsigned)time(NULL));
 
      if(sx < dx)
      { 
