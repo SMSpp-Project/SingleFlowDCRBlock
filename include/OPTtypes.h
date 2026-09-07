@@ -25,7 +25,7 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * Copyright 1994 - 2004
+ * \copyright &copy; 1994 - 2004 by Antonio Frangioni
  */
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -37,12 +37,12 @@
 /*--------------------------------------------------------------------------*/
 /*----------------------------- MACROS -------------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @defgroup OPTTYPES_MACROS Compile-time switches in OPTtypes.h
-    These macros control how the classes OPTTimers and OPTrand are
-    implemented; choose the appropriate value for your environment,
-    or program a new version if no value suits you.
-    Also, namespaces can be eliminated if they create problems.
-    @{ */
+/** @name Compile-time switches in OPTtypes.h
+ *  These macros control how the classes OPTTimers and OPTrand are
+ *  implemented; choose the appropriate value for your environment,
+ *  or program a new version if no value suits you.
+ *  Also, namespaces can be eliminated if they create problems.
+ *  @{ */
 
 
 /*----------------------- OPT_USE_NAMESPACES -------------------------------*/
@@ -108,7 +108,7 @@
    zero, which is not nice but useful to quickly fix problems if you don't
    use random numbers at all. */
 
-/*@} -----------------------------------------------------------------------*/
+/** @} ---------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -206,16 +206,16 @@ namespace OPTtypes_di_unipi_it
 /*--------------------------------------------------------------------------*/
 /*------------------------ DBL_EPS and FLT_EPS -----------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @defgroup EPS DBL_EPS and FLT_EPS
-    These two constants represent the machine precision of doubles and floats,
-    i.e., the relative error that one should expect from performing arithmetic
-   operations with doubles and floats.
-   They can be automatically calculated if the number of significant bits for
-   doubles and floats is known: however, not all versions of values.h return
-   that information. In the unlucky case that your one is among them, you
-   have to provide the numbers by yourself: the ones above are for IEEE
-   standard 64- and 32-bits floating point numbers.
-    @{ */
+/** @name DBL_EPS and FLT_EPS
+ *  These two constants represent the machine precision of doubles and
+ *  floats, i.e., the relative error that one should expect from performing
+ *  arithmetic operations with doubles and floats.
+ *  They can be automatically calculated if the number of significant bits
+ *  for doubles and floats is known: however, not all versions of values.h
+ *  return that information. In the unlucky case that your one is among
+ *  them, you have to provide the numbers by yourself: the ones above are
+ *  for IEEE standard 64- and 32-bits floating point numbers.
+ *  @{ */
 
 #ifdef DSIGNIF
  const double DBL_EPS = pow( 2.0 , -DSIGNIF );
@@ -229,18 +229,18 @@ namespace OPTtypes_di_unipi_it
  const double FLT_EPS = 5.96046448e-08;
 #endif
 
-/*@} -----------------------------------------------------------------------*/
+/** @} ---------------------------------------------------------------------*/
 /*---------------------------- TYPES ---------------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @defgroup OPTTYPES_TYPES Types in OPTtypes.h
-    @{ */
+/** @name Types in OPTtypes.h
+ *  @{ */
 
 /*--------------------------------------------------------------------------*/
-/** @defgroup OPTTYPES_INTREAL INT_TYPE and REAL_TYPE
-    Some type will have an associated macro, that must be set to INT_TYPE if
-    it is short, int, long ... and to REAL_TYPE if it is float, double ...
-    so that codes using that type can distinguish the two cases.
-    @{ */
+/** @name INT_TYPE and REAL_TYPE
+ *  Some type will have an associated macro, that must be set to INT_TYPE if
+ *  it is short, int, long ... and to REAL_TYPE if it is float, double ...
+ *  so that codes using that type can distinguish the two cases.
+ *  @{ */
 
 #define INT_TYPE  1
 ///< This is an "int" type
@@ -248,11 +248,11 @@ namespace OPTtypes_di_unipi_it
 #define REAL_TYPE 0
 ///< This is a "float" type
 
-/*@} -----------------------------------------------------------------------*/
+/** @} ---------------------------------------------------------------------*/
 /*------------------- General-purpose type definitions ---------------------*/
 /*--------------------------------------------------------------------------*/
-/** @defgroup OPTTYPES_GENPUR General-purpose type definitions
-    @{ */
+/** @name General-purpose type definitions
+ *  @{ */
 
 typedef unsigned char   BOOL;            ///< booleans
 typedef BOOL           *Bool_Vec;        ///< vector of booleans
@@ -325,11 +325,11 @@ typedef cHpNum        *cHpRow;          ///< read-only array
 cHpNum HpeM = DBL_EPS;                  ///< machine precision of HpNum
 cHpNum HpINF = DBL_MAX;                 ///< the largest HpNum
 
-/*@} -----------------------------------------------------------------------*/
+/** @} ---------------------------------------------------------------------*/
 /*------------ Type definitions for flow-related algorithms ----------------*/
 /*--------------------------------------------------------------------------*/
-/** @defgroup OPTTYPES_FLOWT Type definitions for flow-related algorithms
-    @{ */
+/** @name Type definitions for flow-related algorithms
+ *  @{ */
 
 typedef double          FNumber;        ///< type of a variable for an arc flow
 typedef FNumber        *FRow;           ///< vector of flows
@@ -400,11 +400,11 @@ cMFNumber MF_INF = DBL_MAX;             ///< the largest MFNumber
  cMFNumber MF_em = DBL_EPS;             ///< machine precision of MFNumber
 #endif
 
-/*@} -----------------------------------------------------------------------*/
+/** @} ---------------------------------------------------------------------*/
 /*----------- Type definitions for subgradient-based algorithms ------------*/
 /*--------------------------------------------------------------------------*/
-/** @defgroup OPTTYPES_SUBGT Type definitions for subgradient-based algorithms
-    @{ */
+/** @name Type definitions for subgradient-based algorithms
+ *  @{ */
 
 typedef double          SgNum;          ///< subgradient entries
 typedef SgNum          *SgRow;          ///< a subgradient
@@ -438,17 +438,18 @@ typedef cLMNum        *cLMRow;          ///< a read-only vector of LMs
 cLMNum LMeM = DBL_EPS;                  ///< machine precision of LMNum
 cLMNum LMINF = DBL_MAX;                 ///< the largest Lagrangean Multiplier
 
-/*@} -----------------------------------------------------------------------*/
+/** @} ---------------------------------------------------------------------*/
 
-/* @} end( group( OPTTYPES_TYPES ) ) */
+/** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------- OPT_TIMERS -----------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @defgroup OPTTYPES_CLASSES Classes in OPTtypes.h
-    @{ */
+/** @name Classes in OPTtypes.h
+ *  @{ */
 
 #if( OPT_TIMERS )
 
+/// a common interface to the platform-dependent timing routines
 /** Provides a common interface to the different timing routines that are
     available in different platforms. */
 
@@ -554,6 +555,7 @@ class OPTtimers {
 /*------------------------------ OPTrand() ---------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+/// a common interface to the platform-dependent random generators
 /** Provide a common interface to the different random generators that are
     available in different platforms. */
 
@@ -662,13 +664,14 @@ class OPTrand {
 
  };  // end( class( OPTrand ) )
 
-/* @} end( group( OPTTYPES_CLASSES ) ) */
+/** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------- DfltdSfInpt() --------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @defgroup OPTTYPES_FUNCTIONS Functions in OPTtypes.h
-    @{ */
+/** @name Functions in OPTtypes.h
+ *  @{ */
 
+/// reads a parameter of type T out of a istream, "safely"
 /** Template function for reading parameters from a istream. The function is
    "safe" because it works also if the istream is not given, is not be long
    enough or contains erroneous things.
@@ -679,6 +682,15 @@ class OPTrand {
    be interpreted as a `T'. If, for any reason, the read operation fails,
    then the parameter is given the default value `Dflt'. Otherwise, all the
    rest of the line up to the nearest newline ('\n') carachter is flushed.
+
+   @param iStrm   a pointer to the istream to read from (possibly nullptr)
+
+   @param Param   the variable, of type T, where the value read is stored
+
+   @param Dflt    the default value assigned to Param if the read fails
+
+   @param cmntc   the character that, if found at the beginning of a line,
+                  marks the line as a comment to be skipped (default '#')
 
    \note lines should not be longer than 255 carachters. */
 
@@ -713,7 +725,7 @@ inline void DfltdSfInpt( istream *iStrm , T &Param , const T Dflt ,
 
  }  // end( DfltdSfInpt )
 
-/* @} end( group( OPTTYPES_FUNCTIONS ) ) */
+/** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 
 #if( OPT_USE_NAMESPACES )

@@ -1,6 +1,31 @@
 /*--------------------------------------------------------------------------*/
-/*-------------------------- File SPT.cpp ---------------------------*/
+/*---------------------------- File SPT.cpp ---------------------------------*/
 /*--------------------------------------------------------------------------*/
+/** @file
+ * Implementation of the SPT class.
+ *
+ * \version 1.00
+ *
+ * \date April - 2013
+ *
+* \author Antonio Frangioni \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \author Laura Galli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \author Luca Mencarelli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \author Enrico Sorbera \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ * 
+ * \copyright &copy; by Antonio Frangioni
+ */ 
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------- IMPLEMENTATION -------------------------------*/
@@ -31,6 +56,9 @@ using namespace std;
 /*----------------------------- CONSTRUCTOR --------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+  // gives default ("empty") values to all data members; LoadProblem() must
+  // be called before Solve() can do anything useful
+
   SPT::SPT()
   {
     Links.resize(1);
@@ -48,11 +76,14 @@ using namespace std;
 /*----------------------------------LOAD DATA ------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+  // loads a brand new graph, discarding any previous instance, and sets the
+  // source/sink nodes for the Shortest Path computation
+
   void SPT::LoadProblem (int nnodes, int nlinks, vector<SPTLink> links, int sourcenode, int sinknode)
   {
 
    clean_up();
-   
+
    stat = OK;
    s = sourcenode;
    t = sinknode;
@@ -60,9 +91,12 @@ using namespace std;
    numLinks = nlinks;
    copyDataArrays(links);
 
-  } 
+  }
 
 /*--------------------------------------------------------------------------*/
+
+  // updates only the arc costs (topology, source and sink are unchanged)
+  // and clears any previously computed solution
 
   void SPT::updCosts(vector<SPTLink> links)
   {
@@ -85,12 +119,16 @@ using namespace std;
 /*--------------------------- GET METHODS-----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+   /// returns the optimal s-t path, as arc indices in source-to-sink order
+
    vector<int> SPT::getPath(void)
    {
     return(Sol);
    }
 
 /*--------------------------------------------------------------------------*/
+
+   /// returns the status of the last Solve() call
 
    SPT::Status SPT::getStatus()
    {
@@ -99,6 +137,8 @@ using namespace std;
 
 /*--------------------------------------------------------------------------*/
 
+   /// returns the dual solution (shortest-distance label of every node)
+
    vector<double> SPT::getLabel()
    {
     return(DualSol);
@@ -106,20 +146,49 @@ using namespace std;
 
 /*--------------------------------------------------------------------------*/
 
+   /// returns the number of arcs (hops) of the optimal s-t path
+
    int SPT::getNHops()
    {
     return(nhops);
    }
-   
+
 /*--------------------------------------------------------------------------*/
 /*----------------------------------SOLVE-----------------------------------*/
 /*--------------------------------------------------------------------------*/
+
+   /// computes the Shortest Path Tree from the source node s
+   /** FIFO-queue label-correcting algorithm (a variant of Bellman-Ford,
+    * sometimes attributed to D'Esopo-Pape): distance[] is initialized to
+    * +Infinity everywhere but the source (distance[ s ] = 0), and nodes
+    * are processed out of a FIFO queue Q[] (initially containing only s):
+    * when node h is extracted, every arc leaving h is relaxed, and
+    * whenever the relaxation improves the distance label of the head node
+    * "next", that node is appended to the tail of the queue -- unless it
+    * is already the head, the tail, or somewhere in the middle of it
+    * (Q[ next ] == -1 tests exactly this), in which case it is left where
+    * it is and will naturally be reprocessed with the updated label. Since
+    * a node can be enqueued several times (which is what allows the
+    * algorithm, unlike Dijkstra, to correctly handle negative arc costs),
+    * the loop terminates only when the queue becomes empty, i.e., no
+    * further improvement is possible; this implicitly assumes the graph
+    * has no negative-cost cycle reachable from s (which is not checked
+    * for directly: an infinite loop would ensue in that case).
+    *
+    * Once distances have stabilized, the shortest s-t path is
+    * reconstructed backwards from t by repeatedly following previous[]
+    * (the predecessor labels set while relaxing) until s is reached; if at
+    * any point the arc from previous[ i ] to i cannot be found (getLink()
+    * returns -1 and sets stat = Error), the reconstruction stops early,
+    * signalling that t is not reachable from s. The resulting arc indices
+    * are stored, in source-to-sink order, in Sol (see getPath()), and the
+    * final node distances in DualSol (see getLabel()). */
 
    void SPT::Solve()
    {
     int i, j, h;
     //int maxIter = pow(numNodes,2);
-    //int iterat=0; //se supera n^2, allora vi sarà almeno un ciclo di costo negativo (?)
+    //int iterat=0; //if it exceeds n^2, then there will be at least one negative-cost cycle (?)
     double *distance = new double[numNodes];
     int *previous = new int[numNodes];
     int *Q = new int[numNodes]; //FIFO queue
@@ -128,7 +197,7 @@ using namespace std;
     int HEAD; //FIFO head
     int TAIL; //FIFO tail
 
-    //inizializzazione delle strutture
+    //initialization of the structures
     for(i = 0; i < numNodes; i++)
     {
       distance[i] = inf; 
@@ -172,26 +241,26 @@ using namespace std;
       
       }//for (all arcs)
     }//while (head != -1)
-    //Sistema le variabili per i get methods.
+    //Set up the variables for the get methods.
 
-    ////////va bene così? oppure new[nnodes] e ignorare quanto fatto in load pr, oppure delete e new??
+    ////////is this ok? or new[nnodes] and ignore what was done in load pr, or delete and new??
     DualSol.resize(numNodes);
-    //cout<<"distanza totale in SP = "<<distance[t]<<endl;
+    //cout<<"total distance in SP = "<<distance[t]<<endl;
 
-    for(j = 0; j < numNodes; j++) 
-        DualSol[j] = distance[j]; //serve il for?
+    for(j = 0; j < numNodes; j++)
+        DualSol[j] = distance[j]; //is the for loop needed?
 
     i=t;
     int* indices = new int[numNodes];
     int index;
-    nhops = 0; //serve per le chiamate successive
+    nhops = 0; //needed for subsequent calls
 
-    while(i != s && stat == OK) 
+    while(i != s && stat == OK)
      {
-      index = getLink(previous[i],i); //se non trova un link conclude che il grafo è sconnesso
-      indices[nhops] = index; //copia a ritroso gli indici del cammino ottimo
+      index = getLink(previous[i],i); //if no link is found, it concludes that the graph is disconnected
+      indices[nhops] = index; //copies the indices of the optimal path in reverse
       i = previous[i];
-      nhops++;  //salva il numero di questi indici
+      nhops++;  //saves the number of these indices
      }
 
     if(stat == OK)
@@ -200,7 +269,7 @@ using namespace std;
 
      for(j = 0; j < nhops; j++)
       {
-       Sol[nhops-j-1]=indices[j];  //prende il cammino ottimo rimettendolo in ordine s-t.
+       Sol[nhops-j-1]=indices[j];  //takes the optimal path, putting it back in s-t order.
       }
      }
     
@@ -216,6 +285,8 @@ using namespace std;
 /*------------------------------ DESTRUCTOR --------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+  // releases all dynamically allocated (container) memory
+
   SPT::~SPT()
    {
 	  clean_up();
@@ -224,6 +295,9 @@ using namespace std;
 /*--------------------------------------------------------------------------*/
 /*--------------------------- PRIVATE METHODS -------------------------------*/
 /*--------------------------------------------------------------------------*/
+
+   // deep-copies links (startnode/endnode/cost) into the Links data member;
+   // numLinks must already be set
 
    void SPT::copyDataArrays(vector<SPTLink> links)
    {
@@ -236,39 +310,47 @@ using namespace std;
 		  Links[j].startnode = links[j].startnode;
 		  Links[j].endnode = links[j].endnode;
 		  Links[j].cost = links[j].cost;
-      //inutile copiare Link.rstar a questo livello.
+      //no need to copy Link.rstar at this level.
 	  }	
 
    }
 
 /*--------------------------------------------------------------------------*/
 
+   // returns the index (in Links) of the arc with tail == from, head == to;
+   // if no such arc exists (the graph is disconnected there, which for the
+   // caller of Solve() typically means it was over-restricted, e.g. to a
+   // reduced graph, when trying to reconstruct the s-t path) sets
+   // stat = Error and returns -1
+
    int SPT::getLink(int from, int to)
    {
     int i;
-  
+
      for(i = 0; i < numLinks; i++)
      {
        if(Links[i].startnode == from && Links[i].endnode == to)
-         return i; 
-     } 
-    //cout<<"rmin troppo grande: si è sconnesso il grafo\n";
+         return i;
+     }
+    //cout<<"rmin too large: the graph has become disconnected\n";
     stat = Error;
     return -1;
    }
 
 
 /*--------------------------------------------------------------------------*/
- 
+
+   // clears all container data members (Links, Sol, DualSol)
+
    void SPT::clean_up()
-   { 
+   {
     //cout<<"Links"<<endl;
 	  Links.clear();
     //cout<<"Sol"<<endl;
 	  Sol.clear();
     //cout<<"DualSol"<<endl;
     DualSol.clear();
-   }  
+   }
 
 
 /*--------------------------------------------------------------------------*/

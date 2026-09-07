@@ -4,7 +4,7 @@
 /** @file
  * Implementation of the SingleFlowDCRBlock class.
  *
- * \author Antonio Frangioni \n
+* \author Antonio Frangioni \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
@@ -16,8 +16,13 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
+ * \author Enrico Sorbera \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ * 
  * \copyright &copy; by Antonio Frangioni
- */
+ */ 
+
 /*--------------------------------------------------------------------------*/
 /*---------------------------- IMPLEMENTATION ------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -475,6 +480,10 @@ void SingleFlowDCRBlock::load( std::istream & input , char frmt )
 
 /*--------------------------------------------------------------------------*/
 
+// reads, in order, the NNodes node delays, the NArcs link delays, the flow
+// burst, the flow deadline, the MTU and rho, completing an already-loaded
+// "plain MCF" instance with the DCR-specific parameters [see the .h]
+
 void SingleFlowDCRBlock::load_dcr( std::istream & inFile , Index NNodes, Index NArcs )
 {
  // read file .dcr (parameters for DCR part of the problem)
@@ -646,6 +655,7 @@ void SingleFlowDCRBlock::generate_abstract_variables( Configuration *stvv )
   return;           // nothing to do
 
  if( HasStaticX() ) {
+  // the binary routing variables X[ i , j ], one per arc- - - - - - - - - -
   x.resize( get_NArcs() );
   for( auto & var : x ){
    var.set_type( ColVariable::kBinary );
@@ -654,18 +664,23 @@ void SingleFlowDCRBlock::generate_abstract_variables( Configuration *stvv )
 
   add_static_variable( x );
 
+  // the continuous reserved-rate variables R[ i , j ], one per arc - - - - -
   r.resize( get_NArcs() );
   for( auto & var : r )
    var.set_type( ColVariable::kNonNegative );
 
   add_static_variable( r );
 
+  // the continuous per-arc burst-delay variables Theta[ i , j ] - - - - - -
   theta.resize( get_NArcs() );
   for( auto & var : theta )
    var.set_type( ColVariable::kNonNegative );
 
   add_static_variable( theta );
   }
+
+  // the aggregate minimum reserved rate r_min and its burst-delay term
+  // theta_min, not indexed over arcs - - - - - - - - - - - - - - - - - - -
 
   r_min.set_type( ColVariable::kNonNegative );
 
@@ -681,10 +696,28 @@ void SingleFlowDCRBlock::generate_abstract_variables( Configuration *stvv )
 
 /*--------------------------------------------------------------------------*/
 
+/* This method implements the "P/C" (Perspective Cuts) alternative to the
+ * rotated-cone constraints cone_cnst and cone_min_cnst [see
+ * generate_abstract_constraints()]. Rather than the (convex but nonlinear)
+ * hyperbolic terms MTU * X[i,j]^2 / R[i,j] and FlowBursts / R_min, it looks
+ * at the *current* value of the (x, r, theta) and (r_min, theta_min)
+ * Variable and, whenever the corresponding cone is violated by more than a
+ * tolerance, adds to PC_cuts (respectively, PC_cuts_min) the linear cut
+ * obtained by taking the first-order Taylor expansion of the hyperbolic
+ * term around the current point: since the term is convex (for X binary),
+ * any such tangent cut is globally valid. This is essentially a lazy outer
+ * linearization of the two rotated cones, to be used within a cutting-plane
+ * scheme on the (cheaper) "P/C" LP relaxation instead of solving the full
+ * "SOCP" formulation directly. */
+
 void SingleFlowDCRBlock::generate_dynamic_constraints( Configuration *stcc )
 {
 
  Index FormMsk = 1;  // PCuts formulation
+
+ // retrieve, from stcc or f_BlockConfig, which of the two alternative
+ // formulations (P/C or SOCP) is currently in use: cuts are only actually
+ // *added* to the abstract representation if the P/C one is selected- - - -
  if( ( ! stcc ) && f_BlockConfig )
   stcc = f_BlockConfig->f_static_variables_Configuration;
  if( auto sci = dynamic_cast< SimpleConfiguration< int > * >( stcc ) )
@@ -693,6 +726,9 @@ void SingleFlowDCRBlock::generate_dynamic_constraints( Configuration *stcc )
   double tol = 1e-5;  // threshold parameter for P/C separation
   double eps = 1e-4;  // tolerance value to consider a binary variable
 
+  // retrieve tol (the separation tolerance) and eps (the tolerance below
+  // which a routing variable is considered to be "zero", and therefore no
+  // cut is generated for the corresponding arc) from the Configuration - -
   auto extract_parameters = [ & tol , & eps ]( Configuration * c )
     -> bool {
     if( auto tc = dynamic_cast< SimpleConfiguration< double > * >( c ) ) {
@@ -712,6 +748,14 @@ void SingleFlowDCRBlock::generate_dynamic_constraints( Configuration *stcc )
     // if the given Configuration is not valid, try the one from the BlockConfig
     extract_parameters( f_BlockConfig->f_dynamic_constraints_Configuration );
 
+  // per-arc cuts: for every arc j whose routing variable is "active"
+  // (x[j] > eps), check whether the current (x[j], r[j], theta[j]) point
+  // violates theta[j] >= MTU * x[j]^2 / r[j] by more than tol; if so, add
+  // the linearization of the RHS around the current point, i.e.
+  //   theta[j] >= MTU * x[j]^2 / r[j]
+  //             + ( 2 * MTU * x[j] / r[j] ) * ( x - x[j] )
+  //             - ( MTU * x[j]^2 / r[j]^2 ) * ( r - r[j] )
+  // rearranged as a "<=" linear constraint on (theta[j], x[j], r[j]) - - - -
   LinearFunction::v_coeff_pair v_var;
   for(Index j = 0; j < get_NArcs(); j++){
     if( x[ j ].get_value() > eps ) {
@@ -730,16 +774,22 @@ void SingleFlowDCRBlock::generate_dynamic_constraints( Configuration *stcc )
     }
     }
   }
-  
-  if( FormMsk == PCuts ) 
-    add_dynamic_constraint( PC_cuts , "PC_cuts" );  
 
+  // the cuts are only *added* to the abstract representation if the P/C
+  // formulation is selected (otherwise they are just discarded: with the
+  // SOCP formulation the cone is already exactly represented) - - - - - - -
+  if( FormMsk == PCuts )
+    add_dynamic_constraint( PC_cuts , "PC_cuts" );
+
+  // the aggregate cut: same as above, but for the single "source" cone
+  // theta_min >= FlowBursts / r_min, linearized around the current
+  // (theta_min, r_min) point- - - - - - - - - - - - - - - - - - - - - - - -
   LinearFunction::v_coeff_pair v_var_min;
   //if( r_min.get_value() > eps ) {
       if( theta_min.get_value() <
           ( FlowBursts /
             r_min.get_value() ) - tol ) {
-              std::list< FRowConstraint > cut_min( 1 ); 
+              std::list< FRowConstraint > cut_min( 1 );
               v_var_min.push_back( std::make_pair( &theta_min , -1.0 ));
               v_var_min.push_back( std::make_pair( &r_min , -( FlowBursts / std::pow( r_min.get_value() , 2 ))));
               LinearFunction* Funct_min = new LinearFunction( std::move( v_var_min ));
@@ -808,6 +858,14 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
   AR |= HasFlw;
 
  // generate the DCR constraint- - - - - - - - - - - - - - - - - - - - - -
+ // the end-to-end delay constraint
+ //   sum_j theta[ j ] + x[ j ] * ( MTU / U[ j ] + LinkDelays[ j ] +
+ //                                 NodeDelays[ SN[ j ] - 1 ] ) + theta_min
+ //     <= FlowDeadlines
+ // note that arcs *not* selected by the flow (x[ j ] == 0) still
+ // contribute their (zero, if theta[ j ] == 0) burst-delay term, but not
+ // their MTU/U[j] + LinkDelays[j] + NodeDelays[SN[j]-1] term, which is
+ // switched off by the x[ j ] coefficient
 
  LinearFunction::v_coeff_pair v_var;
  for( Index j = 0 ; j < get_NArcs() ; ++j ) {
@@ -821,12 +879,20 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
   DCR_cnst.set_function( Funct );
   add_static_constraint( DCR_cnst );
 
+ // generate the rotated-cone constraints of the "SOCP" formulation- - - - -
+ // (constructed unconditionally, but only added to the abstract
+ // representation if FormMsk selects the SOCP formulation, i.e., is not
+ // overridden to select the "P/C" one, see generate_dynamic_constraints())
+
  Index FormMsk = 2;  // SOCP formulation
  if( ( ! stcc ) && f_BlockConfig )
   stcc = f_BlockConfig->f_static_variables_Configuration;
  if( auto sci = dynamic_cast< SimpleConfiguration< int > * >( stcc ) )
   FormMsk = sci->f_value;
 
+    // theta_min * r_min >= FlowBursts, encoded as the QuadFunction with only
+    // the (theta_min, r_min) off-diagonal (cross) term active, i.e.
+    //   0 <= theta_min * r_min - FlowBursts <= +Inf
     DQuadFunction::v_coeff_triple v_vars_q;
     DQuadFunction::coeff_triple t1( &theta_min , 0.0 , 0.0 );
     DQuadFunction::coeff_triple t2( &r_min , 0.0 , 0.0 );
@@ -844,6 +910,8 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
 
     add_static_constraint( cone_min_cnst );
  
+    // theta[ j ] * r[ j ] >= MTU * x[ j ]^2 for every arc j, i.e.
+    //   0 <= theta[ j ] * r[ j ] - MTU * x[ j ]^2 <= +Inf
     cone_cnst.resize( get_NArcs() );
     for( Index j = 0 ; j < get_NArcs() ; ++j ) {
       DQuadFunction::v_coeff_triple v_vars_q1;
@@ -876,9 +944,17 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
    U_max = std::max( U_max , U[ i ] );
 
  // generate the indicator constraints- - - - - - - - - - - - - - - - - - - - - -
- 
+ // these three families of constraints "link" the reserved-rate variables
+ // r[] and r_min to the routing variables x[]
+
+ // "big-M" constraint r_min + U_max * x[ j ] - r[ j ] <= U_max, i.e.
+ //   r_min - r[ j ] <= U_max * ( 1 - x[ j ] )
+ // which is vacuous if x[ j ] == 0 (thanks to U_max being the largest arc
+ // capacity) and forces r_min <= r[ j ] if x[ j ] == 1, i.e., whenever arc
+ // j is actually used by the flow
+
  Indicator_cnst_rmin.resize( NArcs );
- 
+
  for(j = 0; j < NArcs; j++){
   LinearFunction::v_coeff_pair v_var;
   v_var.push_back( std::make_pair( &r_min , 1.0 ));
@@ -892,6 +968,9 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
 
  add_static_constraint( Indicator_cnst_rmin );
 
+ // r[ j ] <= U[ j ] * x[ j ]: the reserved rate on arc j can only be
+ // positive if the arc is actually selected by the flow (x[ j ] == 1), and
+ // is in any case capped by the arc capacity
  Indicator_cnst_r1.resize( NArcs );
  for(j = 0; j < NArcs; j++){
   LinearFunction::v_coeff_pair v_var;
@@ -905,6 +984,8 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
 
  add_static_constraint( Indicator_cnst_r1 );
 
+ // r[ j ] >= rho * x[ j ]: if arc j is selected by the flow, the reserved
+ // rate on it must be at least rho, the minimum guaranteed rate parameter
  Indicator_cnst_r2.resize( NArcs );
  for(j = 0; j < NArcs; j++){
   LinearFunction::v_coeff_pair v_var;
@@ -919,6 +1000,10 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
  add_static_constraint( Indicator_cnst_r2 );
 
  // generate the bound constraints- - - - - - - - - - - - - - - - - - - - - -
+ // NOTE: unlike MCFBlock, the LB0Constraint UB[] are *not* actually
+ // constructed here (the capacity link between x[] and r[] being already
+ // enforced by Indicator_cnst_r1 above); the HasBnd bit is nonetheless set
+ // for consistency with the rest of the "abstract representation" logic
 
  if( AR & HasBnd )  // bound constraints there already
   return;           // nothing to do
@@ -939,25 +1024,22 @@ void SingleFlowDCRBlock::generate_objective( Configuration *objc )
   return;           // cowardly (and silently) return
 
  // initialize objective function - - - - - - - - - - - - - - - - - - - - - -
+ // the objective is min sum_j C[ j ] * r[ j ], the cost-weighted sum of the
+ // reserved-rate variables; as in MCFBlock::generate_objective(), the
+ // v_coeff_pair is pre-sized to get_NArcs() before being indexed
 
- LinearFunction::v_coeff_pair p;
+ LinearFunction::v_coeff_pair p( get_NArcs() );
 
  // construct a "dense" LinearFunction- - - - - - - - - - - - - - - - - - - -
 
  Index i = 0;
  auto Cit = C.begin();
 
- // static part
- //if( HasStaticX() )
+ // static part: p[ i ] associates cost C[ i ] to r[ i ]
  for( ; i < get_NArcs() ; ++i ) {
    p[ i ].first = &r[ i ];
    auto ci = *(Cit++);
    p[ i ].second = std::isnan( ci ) ? 0 : ci;
-   }
-
- i = 0;
- for( ; i < get_NArcs() ; ++i ) {
-   p.push_back( std::make_pair( &r[ i ], 1.0 ));
    }
 
  // ensure no Modification is issued: this may happen in case a SingleFlowDCRBlock
@@ -1080,6 +1162,14 @@ bool SingleFlowDCRBlock::is_feasible( bool useabstract , Configuration *fsbc )
 
 /*--------------------------------------------------------------------------*/
 
+/* Checks instance-level (as opposed to current-solution-level, see
+ * is_feasible() and is_feasible_flow()) feasibility of the DCR instance by
+ * translating the SingleFlowDCRBlock data into the DCR::DCRFlow / DCRLink /
+ * DCRNode format [see DCR.h] and handing it to a DCR_SPT heuristic solver
+ * (the "ERA-I" Single-Flow Single-Path heuristic), using the Strictly-
+ * Rate-Proportional delay formula. Returns false if and only if the
+ * heuristic reports the instance as infeasible. */
+
 bool SingleFlowDCRBlock::is_feasible_instance()
 {
   DCR_SPT erai;
@@ -1090,6 +1180,8 @@ bool SingleFlowDCRBlock::is_feasible_instance()
   int nnodes = get_NNodes();
   int narcs = get_NArcs();
 
+  // identify the (unique) source and sink of the flow from the sign of the
+  // node deficits: negative deficit == source, positive deficit == sink
   for (int i = 0; i < nnodes; i++) {
     if (B[i] < 0 )
       source = i;
@@ -1097,6 +1189,7 @@ bool SingleFlowDCRBlock::is_feasible_instance()
       sink = i;
   }
 
+  // fill in the DCRFlow descriptor of the (single) flow to be routed
   DCR::DCRFlow flows;
   flows = {};
   flows.sourcenode = source;
@@ -1111,6 +1204,8 @@ bool SingleFlowDCRBlock::is_feasible_instance()
   flows.caps = u.data();
   flows.costs = c.data();
 
+  // fill in one DCRLink descriptor per arc (node names shifted by -1 since
+  // SN[]/EN[] are 1-based while DCRLink::startnode/endnode are 0-based)
   vector<Index> sn = get_SN();
   vector<Index> en = get_EN();
   vector<double> link_delay = get_LinkDelays();
@@ -1126,6 +1221,7 @@ bool SingleFlowDCRBlock::is_feasible_instance()
     links[i].cost = c[i];
   }
 
+  // fill in one DCRNode descriptor per node
   vector<double> node_delay = get_NodeDelays();
 
   vector<DCR::DCRNode> nodes(nnodes);
@@ -1136,6 +1232,9 @@ bool SingleFlowDCRBlock::is_feasible_instance()
 
   double mtu = get_MTU();
 
+  // load the instance into the heuristic solver (single flow, hence the
+  // "1"), select the Strictly-Rate-Proportional delay formula and the
+  // "ERA-I" heuristic, and solve
   erai.DCRloadProblem( get_NNodes(), get_NArcs(), 1, &flows, links.data(), nodes.data(), get_MTU(), DCR::SRP );
   erai.DCRsetHeur('1');
 	DCR::DCRStatus status = erai.DCRsolve();
@@ -2403,6 +2502,9 @@ void SingleFlowDCRBlock::chg_st( Index ns , Index nt , ModParam issueMod ,
  if( ns >= get_NNodes() || nt >= get_NNodes() )
   throw( std::invalid_argument( "invalid node name" ) );
 
+ // reset all node deficits to 0, then set node ns as the (unique) source
+ // (deficit -1) and node nt as the (unique) sink (deficit +1); each change
+ // is done via chg_dfct(), and therefore issues its own Modification
  for( Index i = 0 ; i < get_NNodes() ; ++i )
   chg_dfct( 0 , i , issueMod, issueAMod );
 
@@ -2779,6 +2881,10 @@ void SingleFlowDCRBlock::guts_of_add_Modification( p_Mod mod , ChnlName chnl )
   *
   * This assumption drastically simplifies some of the logic here.*/
 
+ // C05FunctionModVarsAddd - - - - - - - - - - - - - - - - - - - - - - - - -
+ // NOTE: the loop below (meant to recompute/re-issue the coefficients of
+ // the newly-added Variable in the Objective) is currently an empty stub
+ // ("///!"); handling of this Modification is therefore incomplete.
    if( const auto tmod = dynamic_cast< C05FunctionModVarsAddd * >( mod ) ) {
     if( ! ( AR & HasObj ) )
       throw( std::invalid_argument( "Modification to non-constructed Objective"

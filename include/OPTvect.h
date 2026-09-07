@@ -1,54 +1,42 @@
 /*--------------------------------------------------------------------------*/
-/*----------------------- File OPTvect.h -----------------------------------*/
+/*-------------------------- File OPTvect.h ---------------------------------*/
 /*--------------------------------------------------------------------------*/
-/*--                                                                      --*/
-/*--         A bunch of little useful template inline functions.          --*/
-/*--                                                                      --*/
-/*--  Scalar functions:                                                   --*/
-/*--                                                                      --*/
-/*--   ABS(), sgn(), min(), max(), Swap(), CeilDiv()                      --*/
-/*--                                                                      --*/
-/*--  Number-returning vector functions:                                  --*/
-/*--                                                                      --*/
-/*--   Norm(), OneNorm(), INFNorm(), SumV()                               --*/
-/*--   MaxVecV(), MinVecV(), MaxVecI(), MinVecI()                         --*/
-/*--   ScalarProduct(), ScalarProduct[B[B]]()                             --*/
-/*--                                                                      --*/
-/*--  Sparse/dense vector transformations:                                --*/
-/*--                                                                      --*/
-/*--   Sparsify(), SparsifyT(), SparsifyAT(), Densify(), Compact()        --*/
-/*--                                                                      --*/
-/*--  Vector operations:                                                  --*/
-/*--                                                                      --*/
-/*--   Vect[M]Assign[B[B]](), VectSum[B[B]](), VectSubtract[B[B]](),      --*/
-/*--   Vect[I]Scale[B[B]](), VectAdd(), VectDiff(), VectMult(),           --*/
-/*--   VectDivide(), VectXcg[B[B]]()                                      --*/
-/*--                                                                      --*/
-/*--  Array manipulation:                                                 --*/
-/*--                                                                      --*/
-/*--   Merge(), ShiftVect(), RotateVect(), ShiftRVect(), RotateRVect()    --*/
-/*--                                                                      --*/
-/*--  Searching:                                                          --*/
-/*--                                                                      --*/
-/*--   Match(), EqualVect()                                               --*/
-/*--   BinSearch(), BinSearch1(), BinSearch2()                            --*/
-/*--   HeapIns(), HeapDel()                                               --*/
-/*--                                                                      --*/
-/*--                             Version 2.40                             --*/
-/*--                            23 - 0 - 2003                            --*/
-/*--                                                                      --*/
-/*--                 Original Idea and Implementation by:                 --*/
-/*--                                                                      --*/
-/*--                          Antonio Frangioni                           --*/
-/*--                                                                      --*/
-/*--                       Operations Research Group                      --*/
-/*--                      Dipartimento di Informatica                     --*/
-/*--                          Universita' di Pisa                         --*/
-/*--                                                                      --*/
-/*--------------------------------------------------------------------------*/
+/** @file
+ * A bunch of little useful template inline functions for manipulating
+ * scalars and (dense and sparse) vectors, comprising:
+ *
+ * - Scalar functions: ABS(), sgn(), min(), max(), Swap(), CeilDiv()
+ *
+ * - Number-returning vector functions: Norm(), OneNorm(), INFNorm(),
+ *   SumV(), MaxVecV(), MinVecV(), MaxVecI(), MinVecI(), ScalarProduct(),
+ *   ScalarProduct[B[B]]()
+ *
+ * - Sparse/dense vector transformations: Sparsify(), SparsifyT(),
+ *   SparsifyAT(), Densify(), Compact()
+ *
+ * - Vector operations: Vect[M]Assign[B[B]](), VectSum[B[B]](),
+ *   VectSubtract[B[B]](), Vect[I]Scale[B[B]](), VectAdd(), VectDiff(),
+ *   VectMult(), VectDivide(), VectXcg[B[B]]()
+ *
+ * - Array manipulation: Merge(), ShiftVect(), RotateVect(), ShiftRVect(),
+ *   RotateRVect()
+ *
+ * - Searching: Match(), EqualVect(), BinSearch(), BinSearch1(),
+ *   BinSearch2(), HeapIns(), HeapDel()
+ *
+ * \version 2.40
+ *
+ * \date 23 - 0 - 2003
+ *
+ * \author Antonio Frangioni \n
+ *         Operations Research Group \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \copyright &copy; by Antonio Frangioni
+ */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
-/*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 
 #ifndef __OPTvect
@@ -77,6 +65,10 @@ namespace OPTtypes_di_unipi_it
 /*--                                                                      --*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/** @name Scalar functions
+ *  @{ */
+
+/// absolute value of x, avoiding the (sometimes costly) abs()/fabs() calls
 
 template<class T>
 inline T ABS( const T x )
@@ -85,6 +77,7 @@ inline T ABS( const T x )
  }
 
 /*--------------------------------------------------------------------------*/
+/// sign of x: 1 if x > 0, -1 if x < 0, 0 if x == 0
 
 template<class T>
 inline T sgn( const T x )
@@ -97,11 +90,15 @@ inline T sgn( const T x )
 
 #ifndef __GNUC__
 
+/// the smaller of x and y
+
 template<class T>
 inline T min( const T x , const T y )
-{ 
+{
  return( x <= y ? x : y );
  }
+
+/// the larger of x and y
 
 template<class T>
 inline T max( const T x , const T y )
@@ -112,11 +109,15 @@ inline T max( const T x , const T y )
 #else
 #if __GNUC__ < 3
 
+/// the smaller of x and y
+
 template<class T>
 inline T min( const T x , const T y )
-{ 
+{
  return( x <= y ? x : y );
  }
+
+/// the larger of x and y
 
 template<class T>
 inline T max( const T x , const T y )
@@ -128,6 +129,7 @@ inline T max( const T x , const T y )
 #endif
 
 /*--------------------------------------------------------------------------*/
+/// exchanges the values of v1 and v2
 
 template<class T>
 inline void Swap( T &v1 , T &v2 )
@@ -139,13 +141,20 @@ inline void Swap( T &v1 , T &v2 )
  }
 
 /*--------------------------------------------------------------------------*/
+/// the ceiling of the integer division x / y
+/** Returns the ceiling of (smallest integer number not smaller than) x / y.
+ * Both x and y have to be of integer types, since the `%' operation is
+ * used.
+ *
+ * @param x   the numerator
+ *
+ * @param y   the denominator
+ *
+ * @return the smallest integer value >= x / y. */
 
 template<class T1, class T2>
 inline T1 CeilDiv( const T1 x , const T2 y )
 {
- // returns the ceiling of (smallest integer number not smaller than) x / y,
- // which have both to be integer types because the `%' operation is used
-
  T1 temp = x / y;
  if( x % y )
   temp++;
@@ -153,6 +162,7 @@ inline T1 CeilDiv( const T1 x , const T2 y )
  return( temp );
  }
 
+/** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 /*--                                                                      --*/
@@ -180,12 +190,14 @@ inline T1 CeilDiv( const T1 x , const T2 y )
 /*--       Number-returning functions (norms, scalar products ...)        --*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/** @name Number-returning vector functions
+ *  @{ */
+
+/// returns Sum{ i = 0 .. n - 1 } g[ i ]^2 = g * g
 
 template<class T>
 inline T Norm( register const T *g , register Index n )
 {
- // returns Sum{ i = 0 .. n - 1 } g[ i ]^2 = g * g
-
  register T t = 0;
  for( ; n-- ; )
  {
@@ -197,12 +209,11 @@ inline T Norm( register const T *g , register Index n )
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// Norm( g{B} )
 
 template<class T>
 inline T Norm( register const T *g , register cIndex_Set B )
 {
- // Norm( g{B} )
-
  register T t = 0;
  for( register Index h ; ( h = *(B++) ) < InINF ; )
  {
@@ -214,12 +225,11 @@ inline T Norm( register const T *g , register cIndex_Set B )
  }
 
 /*--------------------------------------------------------------------------*/
+/// returns Sum{ i = 0 .. n - 1 } ABS( g[ i ] )
 
 template<class T>
 inline T OneNorm( register const T *g , register Index n )
 {
- // returns Sum{ i = 0 .. n - 1 } ABS( g[ i ] )
-
  register T t = 0;
  for( ; n-- ; )
   t += ABS( *(g++) );
@@ -228,12 +238,11 @@ inline T OneNorm( register const T *g , register Index n )
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// OneNorm( g{B} )
 
 template<class T>
 inline T OneNorm( register const T *g , register cIndex_Set B )
 {
- // OneNorm( g{B} )
-
  register T t = 0;
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   t += ABS( g[ h ] );
@@ -242,12 +251,11 @@ inline T OneNorm( register const T *g , register cIndex_Set B )
  }
 
 /*--------------------------------------------------------------------------*/
+/// returns Max{ i = 0 .. n - 1 } ABS( g[ i ] )
 
 template<class T>
 inline T INFNorm( register const T *g , register Index n )
 {
- // returns Max{ i = 0 .. n - 1 } ABS( g[ i ] )
-
  register T t = 0;
  for( ; n-- ; )
  {
@@ -260,12 +268,11 @@ inline T INFNorm( register const T *g , register Index n )
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// INFNorm( g{B} )
 
 template<class T>
 inline T INFNorm( register const T *g , register cIndex_Set B )
 {
- // INFNorm( g{B} )
-
  register T t = 0;
  for( register Index h ; ( h = *(B++) ) < InINF ; )
  {
@@ -279,12 +286,11 @@ inline T INFNorm( register const T *g , register cIndex_Set B )
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/// returns Sum{ i = 0 .. n - 1 } g[ i ]
 
 template<class T>
 inline T SumV( register const T *g , register Index n )
 {
- // returns Sum{ i = 0 .. n - 1 } g[ i ]
-
  register T t = 0;
  for( ; n-- ; )
   t += *(g++);
@@ -293,12 +299,11 @@ inline T SumV( register const T *g , register Index n )
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// SumV( g{B} )
 
 template<class T>
 inline T SumV( register const T *g , register cIndex_Set B )
 {
- // SumV( g{B} )
-
  register T t = 0;
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   t += g[ h ];
@@ -307,12 +312,11 @@ inline T SumV( register const T *g , register cIndex_Set B )
  }
 
 /*--------------------------------------------------------------------------*/
+/// returns Max{ i = 0 .. n - 1 } g[ i ]; n *must* be > 0
 
 template<class T>
 inline T MaxVecV( register const T *g , register Index n )
 {
- // returns Max{ i = 0 .. n - 1 } g[ i ]; n *must* be > 0
-
  register T max = *g;
  for( ; --n ; )
   if( *(++g) > max )
@@ -322,12 +326,11 @@ inline T MaxVecV( register const T *g , register Index n )
  }
 
 /*--------------------------------------------------------------------------*/
+/// returns Min{ i = 0 .. n - 1 } g[ i ]; n *must* be > 0
 
 template<class T>
 inline T MinVecV( register const T *g , register Index n )
 {
- // returns Min{ i = 0 .. n - 1 } g[ i ]; n *must* be > 0
-
  register T min = *g;
  for( ; --n ; )
   if( *(++g) < min )
@@ -337,12 +340,11 @@ inline T MinVecV( register const T *g , register Index n )
  }
 
 /*--------------------------------------------------------------------------*/
+/// returns the *index* of the maximum element of the n-vector v
 
 template<class T>
 inline Index MaxVecI( register const T *g , register cIndex n )
 {
- // returns the *index* of the maximum element of the n-vector v
-
  register T max = *g;
  register Index maxi = 0;
  for( register Index i = maxi ; ++i < n ; )
@@ -356,12 +358,11 @@ inline Index MaxVecI( register const T *g , register cIndex n )
  }
 
 /*--------------------------------------------------------------------------*/
+/// returns the *index* of the minimum element of the n-vector v
 
 template<class T>
 inline Index MinVecI( register const T *g , register cIndex n )
 {
- // returns the *index* of the minimum element of the n-vector v
-
  register T min = *g;
  register Index mini = 0;
  for( register Index i = mini ; ++i < n ; )
@@ -376,13 +377,12 @@ inline Index MinVecI( register const T *g , register cIndex n )
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/// returns Sum{ i = 0 .. n - 1 } g1[ i ] * g2[ i ]
 
 template<class T1, class T2>
 inline T1 ScalarProduct( register const T1 *g1 , register const T2 *g2 ,
                          register Index n )
 {
- // returns Sum{ i = 0 .. n - 1 } g1[ i ] * g2[ i ]
-
  register T1 t = 0;
  for( ; n-- ; )
   t += (*(g1++)) * (*(g2++));
@@ -391,13 +391,12 @@ inline T1 ScalarProduct( register const T1 *g1 , register const T2 *g2 ,
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// ScalarProduct( g1 , g2{B} )
 
 template<class T1, class T2>
 inline T1 ScalarProduct( register const T1 *g1 , const T2 *g2 ,
                          register cIndex_Set B )
 {
- // ScalarProduct( g1 , g2{B} )
-
  register T1 t = 0;
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   t += (*(g1++)) * g2[ h ];
@@ -406,13 +405,12 @@ inline T1 ScalarProduct( register const T1 *g1 , const T2 *g2 ,
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// ScalarProduct( g1{B} , g2{B} ), B = intersection of B1 and B2
 
 template<class T1, class T2>
 inline T1 ScalarProduct( register const T1 *g1 , register cIndex_Set B1 ,
                          register const T2 *g2 , register cIndex_Set B2 )
 {
- // ScalarProduct( g1{B} , g2{B} ), B = intersection of B1 and B2
-
  register T1 t = 0;
  register Index h = *B1;
  register Index k = *B2;
@@ -446,13 +444,12 @@ inline T1 ScalarProduct( register const T1 *g1 , register cIndex_Set B1 ,
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/// ScalarProduct( g1{B} , g2 )
 
 template<class T1, class T2>
 inline T1 ScalarProductB( register const T1 *g1 , const T2 *g2 ,
 			  register cIndex_Set B )
 {
- // ScalarProduct( g1{B} , g2 )
-
  register T1 t = 0;
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   t += g1[ h ] * (*(g2++));
@@ -462,13 +459,12 @@ inline T1 ScalarProductB( register const T1 *g1 , const T2 *g2 ,
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/// ScalarProduct( g1{B} , g2{B} )
 
 template<class T1, class T2>
 inline T1 ScalarProductBB( register const T1 *g1 , const T2 *g2 ,
 			   register cIndex_Set B )
 {
- // ScalarProduct( g1{B} , g2{B} )
-
  register T1 t = 0;
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   t += g1[ h ] * g2[ h ];
@@ -476,24 +472,41 @@ inline T1 ScalarProductBB( register const T1 *g1 , const T2 *g2 ,
  return( t );
  }
 
+/** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 /*-- Sparse/dense vector transformations: turn "sparse" vectors into      --*/
 /*-- "dense" ones and vice-versa.                                         --*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/** @name Sparse/dense vector transformations
+ *  @{ */
+
+/// turns a "dense" vector into a "sparse" one, dropping the zero entries
+/** Turns g from a "dense" n-vector to a "sparse" one, eliminating all items
+ * that are exactly == 0. The set of nonzero items is written in B, with
+ * names from Bs onwards, ordered in increasing sense; note that g itself is
+ * compacted "in place" to only contain the nonzero entries.
+ *
+ * @param g    the "dense" n-vector to be sparsified, compacted in place to
+ *             contain only its (former) nonzero entries
+ *
+ * @param B    the vector where the (increasing) indices of the nonzero
+ *             entries of g are written; it is *not* InINF-terminated by
+ *             this function
+ *
+ * @param n    the (original) size of g
+ *
+ * @param Bs   the index to be assigned to the first entry of g (default 0)
+ *
+ * @return a pointer to the first element of B after the last index
+ *         written: this can be used for computing the number of nonzeroes
+ *         in the "sparsified" vector and/or for InINF-terminating B. */
 
 template<class T>
 inline Index_Set Sparsify( register T* g , register Index_Set B ,
 			   register Index n , register Index Bs = 0 )
 {
- // turns g from a "dense" n-vector to a "sparse" one, eliminating all items
- // that are exactly == 0; writes the set of nonzero items in B, with names
- // from Bs onwards, ordered in increasing sense; returns a pointer to the
- // first element in B after the last index vritten: this can be used for
- // computing the number of nonzeroes in the "sparsified" vector and/or for
- // InINF-terminating the set
-
  for( ; n ; n-- , g++ )
   if( *g )
    *(B++) = Bs++;
@@ -516,15 +529,16 @@ inline Index_Set Sparsify( register T* g , register Index_Set B ,
  }  // end( Sparsify )
 
 /*--------------------------------------------------------------------------*/
+/// as Sparsify(), but with an explicit tolerance for "being nonzero"
+/** As Sparsify(), but elements are considered nonzero only if they are
+ * >= eps (the idea being that all elements of g are >= 0). See Sparsify()
+ * for the detailed semantics of the parameters and of the return value. */
 
 template<class T>
 inline Index_Set SparsifyT( register T* g , register Index_Set B ,
 			    register Index n , register const T eps ,
 			    register Index Bs = 0 )
 {
- // as Sparsify(), but elements are considered nonzero only if they are >=
- // eps (the idea is that all elements are >= 0)
-
  for( ; n ; n-- , g++ )
   if( *g >= eps )
    *(B++) = Bs++;
@@ -547,15 +561,16 @@ inline Index_Set SparsifyT( register T* g , register Index_Set B ,
  }  // end( SparsifyT )
 
 /*--------------------------------------------------------------------------*/
+/// as SparsifyT(), but the tolerance is compared against the absolute value
+/** As SparsifyT(), but elements are considered nonzero only if their
+ * ABS() is >= eps. See Sparsify() for the detailed semantics of the
+ * parameters and of the return value. */
 
 template<class T>
 inline Index_Set SparsifyAT( register T* g , register Index_Set B ,
 			     register Index n , register const T eps ,
 			     register Index Bs = 0 )
 {
- // as SparsifyT(), but elements are considered nonzero only if their ABS()
- // is >= eps
-
  for( ; n ; n-- , g++ )
   if( ABS( *g ) >= eps )
    *(B++) = Bs++;
@@ -578,21 +593,32 @@ inline Index_Set SparsifyAT( register T* g , register Index_Set B ,
  }  // end( SparsifyAT )
 
 /*--------------------------------------------------------------------------*/
+/// turns a "sparse" vector into a "dense" one, padding with zeroes
+/** Turns g from a "sparse" m-vector, whose set of nonzero elements is B, to
+ * a "dense" n-vector padded with zeroes where necessary. B has to be
+ * ordered in increasing sense, but does not need to be InINF-terminated
+ * (m gives the same information). Note that the function will write in
+ * g[ n - 1 ], hence the vector has to have been properly allocated.
+ *
+ * @param g    the vector, containing the m nonzero entries "compacted" at
+ *             its beginning, to be expanded in place to a "dense" n-vector
+ *
+ * @param B    the (increasing) indices, in 0 .. n - 1, of the m nonzero
+ *             entries of g
+ *
+ * @param m    the number of nonzero entries in g (== the size of B)
+ *
+ * @param n    the size of the "dense" vector to be produced
+ *
+ * @param k    if k > 0, the function only works on the subvector of g
+ *             between k and n - 1, i.e., g[ 0 ] .. g[ k - 1 ] are left
+ *             intact while the rest is densified; it is required that B[]
+ *             only contains indices >= k (and, of course, < n). */
 
 template<class T>
 inline void Densify( register T* g , register cIndex_Set B ,
 		     register Index m , register Index n , cIndex k = 0 )
 {
- // turns g from a "sparse" m-vector, whose set of nonzero elements is B, to
- // a "dense" n-vector padded with zeroes where necessary; B has to be ordered
- // in increasing sense, but does not need to be InINF-terminated (m gives the
- // same information); note that the function will write in g[ n - 1 ], hence
- // the vector has to have been properly allocated
- // if k > 0, the function only works for the subvector of g between k and
- // n - 1, that is, g[ 0 ] .. g[ k - 1 ] are left intact, while the
- // subvector is densified; it is required that B[] only contains indices
- // >= k (and < n, of course)
-
  if( m )  // there is at least a nonzero element
  {
   B += m;
@@ -615,17 +641,23 @@ inline void Densify( register T* g , register cIndex_Set B ,
  } // end( Densify )
 
 /*--------------------------------------------------------------------------*/
+/// removes from a "dense" vector all the entries whose index is in B
+/** Takes a "dense" n-vector g and "compacts" it, deleting the elements
+ * whose indices are in B; the remaining entries in g[] are shifted left of
+ * the minimum possible amount in order to fill the holes left by the
+ * deleted ones.
+ *
+ * @param g   the "dense" n-vector to be compacted in place
+ *
+ * @param B   the (increasing), InINF-terminated indices, all in the range
+ *            0 .. n - 1, of the entries of g to be deleted
+ *
+ * @param n   the (original) size of g. */
 
 template<class T>
 inline void Compact( register T* g , register cIndex_Set B ,
 		     register Index n )
 {
- // takes a "dense" n-vector g and "compacts" it deleting the elements whose
- // indices are in B (all elements of B[] must be in the range 0 .. n, B[]
- // must be ordered in increasing sense and InINF-terminated)
- // the remaining entries in g[] are shifted left of the minimum possible
- // amount in order to fill the holes left by the deleted ones
-
  register Index i = *(B++);  // current position where to write
  register Index j = i + 1;   // element to copy
 
@@ -641,54 +673,59 @@ inline void Compact( register T* g , register cIndex_Set B ,
 
  }  // end( Compact )
 
+/** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 /*-- Vector operations: sum/difference of vectors, multiplication by a    --*/
 /*-- scalar, assignment, setting, scaling ...                             --*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/** @name Vector operations
+ *  @{ */
+
+/// g[ i ] = x for each i = 0 .. n - 1
 
 template<class T>
 inline void VectAssign( T *const g , register const T x , cIndex n )
 {
- // g[ i ] = x for each i = 0 .. n - 1
-
  for( register T *tg = g + n ; tg > g ; )
   *(--tg) = x;
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g{B} = x, all other entries of g unchanged
 
 template<class T>
 inline void VectAssign( register T *const g , register const T x ,
 			register cIndex_Set B )
 {
- // g{B} = x, all other entries of g unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g[ h ] = x;
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1 := g2
 
 template<class T1, class T2>
 inline void VectAssign( register T1 *g1 , register const T2 *g2 ,
                         register Index n )
 {
- // g1 := g2
-
  for( ; n-- ; )
   *(g1++) = *(g2++);
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1 := g2, special version for g2 an InINF-terminated vector of indices
+/** Special version of VectAssign( g1 , g2 , n ) for the case where g2 is an
+ * InINF-terminated vector of indices: the terminating InINF is *not*
+ * written into g1.
+ *
+ * @return a pointer to the position in g1 right after the last index
+ *         copied, where the terminating InINF should be written by the
+ *         caller if needed. */
 
 inline Index_Set VectAssign( register Index_Set g1 , register cIndex_Set g2 )
 {
- // special version of the above for g2 an InINF-terminated vector of indices
- // do not write the terminating InINF, but returns the pointer to the
- // position where it should be written
-
  for( register Index h ; ( h = *(g2++) ) < InINF ; )
   *(g1++) = h;
 
@@ -696,25 +733,23 @@ inline Index_Set VectAssign( register Index_Set g1 , register cIndex_Set g2 )
  }  
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1 = g2{B}
 
 template<class T1, class T2>
 inline void VectAssign( register T1 *g1 , register const T2 *g2 ,
                         register cIndex_Set B )
 {
- // g1 = g2{B}
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   *(g1++) = g2[ h ];
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} = g2{B}, B = intersection of B1 and B2, all other unchanged
 
 template<class T1, class T2>
 inline void VectAssign( register T1 *g1 , register cIndex_Set B1 ,
 			register const T2 *g2 , register cIndex_Set B2 )
 {
- // g1{B} = g2{B}, B = intersection of B1 and B2, all other unchanged
-
  register Index h = *B1;
  register Index k = *B2;
  if( ( h < InINF ) && ( k < InINF ) )
@@ -744,14 +779,13 @@ inline void VectAssign( register T1 *g1 , register cIndex_Set B1 ,
  }  // end( VectAssign( g1 , B1 , g2 , B2 )
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} = g2{B}, B = intersection of B1 and B2, g1{B1 / B} = gg
 
 template<class T1, class T2>
 inline void VectAssign( register T1 *g1 , register cIndex_Set B1 ,
 			register const T2 *g2 , register cIndex_Set B2 ,
 			register const T1 gg )
 {
- // g1{B} = g2{B}, B = intersection of B1 and B2, g1{B1 / B} = gg 
-
  register Index k = *B2;
  for( register Index h ; ( h = *(B1++) ) < InINF ; )
  {
@@ -772,38 +806,35 @@ inline void VectAssign( register T1 *g1 , register cIndex_Set B1 ,
  }  // end( VectAssign( g1 , B1 , g2 , B2 , gg )
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1 := x * g2
 
 template<class T1, class T2, class T3>
 inline void VectAssign( register T1 *g1 , register  const T2 *g2 ,
                         register const T3 x , register Index n )
 {
- // g1 := x * g2
-
  for( ; n-- ; )
   *(g1++) = x * (*(g2++));
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1 = x * g2{B}
 
 template<class T1, class T2, class T3>
 inline void VectAssign( register T1 *g1 , register const T2 *g2 ,
                         register const T3 x , register cIndex_Set B )
 {
- // g1 = x * g2{B}
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   *(g1++) = x * g2[ h ];
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} = x * g2{B}, B = intersection of B1 and B2, all other unchanged
 
 template<class T1, class T2, class T3>
 inline void VectAssign( register T1 *g1 , register cIndex_Set B1 ,
 			register const T3 x , register const T2 *g2 ,
 			register cIndex_Set B2 )
 {
- // g1{B} = x * g2{B}, B = intersection of B1 and B2, all other unchanged
-
  register Index h = *B1;
  register Index k = *B2;
  if( ( h < InINF ) && ( k < InINF ) )
@@ -833,14 +864,13 @@ inline void VectAssign( register T1 *g1 , register cIndex_Set B1 ,
  }  // end( VectAssign( g1 , B1 , x , g2 , B2 )
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} = x * g2{B}, B = intersection of B1 and B2, g1{B1 / B} = gg
 
 template<class T1, class T2, class T3>
 inline void VectAssign( register T1 *g1 , register cIndex_Set B1 ,
 			register const T3 x , register const T2 *g2 ,
 			register cIndex_Set B2 , register const T1 gg )
 {
- // g1{B} = x * g2{B}, B = intersection of B1 and B2, g1{B1 / B} = gg 
-
  register Index k = *B2;
  for( register Index h ; ( h = *(B1++) ) < InINF ; )
  {
@@ -861,26 +891,24 @@ inline void VectAssign( register T1 *g1 , register cIndex_Set B1 ,
  }  // end( VectAssign( g1 , B1 , x , g2 , B2 , gg )
 
 /*--------------------------------------------------------------------------*/
+/// g{B} = x, all other entries of g unchanged
 
 template<class T>
 inline void VectAssignB( register T *const g , register const T x ,
 			 register cIndex_Set B )
 {
- // g{B} = x, all other entries of g unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g[ h ] = x;
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g{B} = x, all other entries (0 .. n - 1) of g1 = gg
 
 template<class T>
 inline void VectAssignB( register T *g , register const T x ,
 			 register cIndex_Set B , register cIndex n ,
 			 register const T gg = 0 )
 {
- // g{B} = x, all other entries (0 .. n - 1) of g1 = gg
-
  register Index h = *(B++);
  for( register Index i = 0 ; i < n ; )
   if( h == i++ )
@@ -893,26 +921,24 @@ inline void VectAssignB( register T *g , register const T x ,
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} = g2, all other entries of g1 unchanged
 
 template<class T1, class T2>
 inline void VectAssignB( register T1 *g1 , register const T2 *g2 ,
 			 register cIndex_Set B )
 {
- // g1{B} = g2, all other entries of g1 unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g1[ h ] = *(g2++);
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} = g2, all other entries (0 .. n - 1) of g1 = gg
 
 template<class T1, class T2>
 inline void VectAssignB( register T1 *g1 , register const T2 *g2 ,
 			 register cIndex_Set B , register cIndex n ,
 			 register const T1 gg = 0 )
 {
- // g1{B} = g2, all other entries (0 .. n - 1) of g1 = gg
-
  register Index h = *(B++);
  for( register Index i = 0 ; i < n ; )
   if( h == i++ )
@@ -925,26 +951,24 @@ inline void VectAssignB( register T1 *g1 , register const T2 *g2 ,
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} = x * g2, all other entries of g1 unchanged
 
 template<class T1, class T2>
 inline void VectAssignB( register T1 *g1 , register const T2 *g2 ,
 			 register const T1 x , register cIndex_Set B )
 {
- // g1{B} = g2, all other entries of g1 = unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g1[ h ] = x * (*(g2++));
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} = x * g2, all other entries (0 .. n - 1) of g1 = gg
 
 template<class T1, class T2>
 inline void VectAssignB( register T1 *g1 , register const T2 *g2 ,
 			 register const T1 x , register cIndex_Set B ,
 			 register cIndex n , register const T1 gg = 0 )
 {
- // g1{B} = x * g2, all other entries (0 .. n - 1) of g1 = gg
-
  register Index h = *(B++);
  for( register Index i = 0 ; i < n ; )
   if( h == i++ )
@@ -957,62 +981,57 @@ inline void VectAssignB( register T1 *g1 , register const T2 *g2 ,
  }
 
 /*--------------------------------------------------------------------------*/
+/// g1{B} = g2{B}, all other entries unchanged
 
 template<class T1, class T2>
 inline void VectAssignBB( register T1 *g1 , register const T2 *g2 ,
 			  register cIndex_Set B )
 {
- // g1{B} = g2{B}, all other entries unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g1[ h ] = g2[ h ];
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} = x * g2{B}, all other entries unchanged
 
 template<class T1, class T2>
 inline void VectAssignBB( register T1 *g1 , register const T2 *g2 ,
 			  register const T1 x , register cIndex_Set B )
 {
- // g1{B} = x * g2{B}, all other entries unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g1[ h ] = x * g2[ h ];
  }
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/// g1 := - g2
 
 template<class T1, class T2>
 inline void VectMAssign( register T1 *g1 , register const T2 *g2 ,
 			 register Index n )
 {
- // g1 := - g2
-
  for( ; n-- ; )
   *(g1++) = - *(g2++);
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1 = - g2{B}
 
 template<class T1, class T2>
 inline void VectMAssign( register T1 *g1 , register const T2 *g2 ,
 			 register cIndex_Set B )
 {
- // g1 = - g2{B}
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   *(g1++) = - g2[ h ];
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} = - g2{B}, B = intersection of B1 and B2, all other unchanged
 
 template<class T1, class T2>
 inline void VectMAssign( register T1 *g1 , register cIndex_Set B1 ,
 			 register const T2 *g2 , register cIndex_Set B2 )
 {
- // g1{B} = - g2{B}, B = intersection of B1 and B2, all other unchanged
-
  register Index h = *B1;
  register Index k = *B2;
  if( ( h < InINF ) && ( k < InINF ) )
@@ -1042,14 +1061,13 @@ inline void VectMAssign( register T1 *g1 , register cIndex_Set B1 ,
  }  // end( VectMAssign( g1 , B1 , g2 , B2 )
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} = - g2{B}, B = intersection of B1 and B2, g1{B1 / B} = gg
 
 template<class T1, class T2>
 inline void VectMAssign( register T1 *g1 , register cIndex_Set B1 ,
 			 register const T2 *g2 , register cIndex_Set B2 ,
 			 register const T1 gg )
 {
- // g1{B} = - g2{B}, B = intersection of B1 and B2, g1{B1 / B} = gg 
-
  register Index k = *B2;
  for( register Index h ; ( h = *(B1++) ) < InINF ; )
  {
@@ -1070,26 +1088,24 @@ inline void VectMAssign( register T1 *g1 , register cIndex_Set B1 ,
  }  // end( VectMAssign( g1 , B1 , g2 , B2 , gg )
 
 /*--------------------------------------------------------------------------*/
+/// g1{B} = - g2, all other entries of g1 = unchanged
 
 template<class T1, class T2>
 inline void VectMAssignB( register T1 *g1 , register const T2 *g2 ,
 			  register cIndex_Set B )
 {
- // g1{B} = - g2, all other entries of g1 = unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   *(g1++) = - g2[ h ];
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} = - g2, all other entries (0 .. n - 1) of g1 = gg
 
 template<class T1, class T2>
 inline void VectMAssignB( register T1 *g1 , register const T2 *g2 ,
 			  register cIndex_Set B , register cIndex n ,
 			  register const T1 gg = 0 )
 {
- // g1{B} = - g2, all other entries (0 .. n - 1) of g1 = gg
-
  register Index h = *(B++);
  for( register Index i = 0 ; i < n ; )
   if( h == i++ )
@@ -1102,83 +1118,76 @@ inline void VectMAssignB( register T1 *g1 , register const T2 *g2 ,
  }
 
 /*--------------------------------------------------------------------------*/
+/// g1{B} = - g2{B}, all other entries unchanged
 
 template<class T1, class T2>
 inline void VectMAssignBB( register T1 *g1 , register const T2 *g2 ,
 			   register cIndex_Set B )
 {
- // g1{B} = - g2{B}, all other entries unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g1[ h ] = - g2[ h ];
  }
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/// g[ i ] += x for each i = 0 .. n - 1
 
 template<class T>
 inline void VectSum( T *const g , register const T x , cIndex n )
 {
- // g[ i ] += x for each i = 0 .. n - 1
-
  for( register T *tg = g + n ; tg > g ; )
   *(--tg) += x;
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// special version of the above for g an InINF-terminated vector of indices
 
 inline void VectSum( register Index_Set g , cIndex x )
 {
- // special version of the above for g an InINF-terminated vector of indices
-
  while( *g < InINF )
   *(g++) += x;
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g{B} += x, all other entries of g unchanged
 
 template<class T>
 inline void VectSum( register T *const g , register const T x ,
 		     register cIndex_Set B )
 {
- // g{B} += x, all other entries of g unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g[ h ] += x;
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1 += g2
 
 template<class T1, class T2>
 inline void VectSum( register T1 *g1 , register const T2 *g2 ,
                      register Index n )
 {
- // g1 += g2
-
  for( ; n-- ; )
   *(g1++) += *(g2++);
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1 += g2{B}
 
 template<class T1, class T2>
 inline void VectSum( register T1 *g1 , register const T2 *g2 , 
                      register cIndex_Set B )
 {
- // g1 += g2{B}
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   *(g1++) += g2[ h ];
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} += g2{B}, B = intersection of B1 and B2, all other unchanged
 
 template<class T1, class T2>
 inline void VectSum( register T1 *g1 , register cIndex_Set B1 ,
 		     register const T2 *g2 , register cIndex_Set B2 )
 {
- // g1{B} += g2{B}, B = intersection of B1 and B2, all other unchanged
-
  register Index h = *B1;
  register Index k = *B2;
  if( ( h < InINF ) && ( k < InINF ) )
@@ -1208,38 +1217,35 @@ inline void VectSum( register T1 *g1 , register cIndex_Set B1 ,
  }  // end( VectSum( g1 , B1 , g2 , B2 )
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1 += x * g2
 
 template<class T1, class T2, class T3>
 inline void VectSum( register T1 *g1 , register const T2 *g2 , 
                      register const T3 x , register Index n )
 {
- // g1 += x * g2
-
  for( ; n-- ; )
   *(g1++) += x * (*(g2++));
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1 += x * g2{B}
 
 template<class T1, class T2, class T3>
 inline void VectSum( register T1 *g1 , register const T2 *g2 , 
                      register const T3 x , register cIndex_Set B )
 {
- // g1 += x * g2{B}
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   *(g1++) += g2[ h ];
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} += x * g2{B}, B = intersection of B1 and B2, all other unchanged
 
 template<class T1, class T2, class T3>
 inline void VectSum( register T1 *g1 , register cIndex_Set B1 ,
 		     register const T3 x , register const T2 *g2 ,
 		     register cIndex_Set B2 )
 {
- // g1{B} += x * g2{B}, B = intersection of B1 and B2, all other unchanged
-
  register Index h = *B1;
  register Index k = *B2;
  if( ( h < InINF ) && ( k < InINF ) )
@@ -1269,14 +1275,13 @@ inline void VectSum( register T1 *g1 , register cIndex_Set B1 ,
  }  // end( VectSum( g1 , B1 , x , g2 , B2 )
 
 /*--------------------------------------------------------------------------*/
+/// g{B} += x, all other entries (0 .. n - 1) of g1 += gg
 
 template<class T>
 inline void VectSumB( register T *g , register const T x ,
 		      register cIndex_Set B , register cIndex n ,
 		      register const T gg )
 {
- // g{B} += x, all other entries (0 .. n - 1) of g1 += gg
-
  register Index h = *(B++);
  for( register Index i = 0 ; i < n ; )
   if( h == i++ )
@@ -1289,26 +1294,24 @@ inline void VectSumB( register T *g , register const T x ,
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} += g2, all other entries of g1 unchanged
 
 template<class T1, class T2>
 inline void VectSumB( register T1 *g1 , register const T2 *g2 ,
 		      register cIndex_Set B )
 {
- // g1{B} += g2, all other entries of g1 unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g1[ h ] += *(g2++);
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} += g2, all other entries (0 .. n - 1) of g1 += gg
 
 template<class T1, class T2>
 inline void VectSumB( register T1 *g1 , register const T2 *g2 ,
 		      register cIndex_Set B , register cIndex n ,
 		      register const T1 gg )
 {
- // g1{B} += g2, all other entries (0 .. n - 1) of g1 += gg
-
  register Index h = *(B++);
  for( register Index i = 0 ; i < n ; )
   if( h == i++ )
@@ -1321,26 +1324,24 @@ inline void VectSumB( register T1 *g1 , register const T2 *g2 ,
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} += x * g2, all other entries of g1 unchanged
 
 template<class T1, class T2, class T3>
 inline void VectSumB( register T1 *g1 , register const T2 *g2 ,
 		      register const T3 x , register cIndex_Set B )
 {
- // g1{B} += x * g2, all other entries of g1 unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g1[ h ] += x * (*(g2++));
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} += x * g2, all other entries (0 .. n - 1) of g1 += gg
 
 template<class T1, class T2, class T3>
 inline void VectSumB( register T1 *g1 , register const T2 *g2 ,
 		      register const T3 x , register cIndex_Set B ,
 		      register cIndex n , register const T1 gg )
 {
- // g1{B} += x * g2, all other entries (0 .. n - 1) of g1 += gg
-
  register Index h = *(B++);
  for( register Index i = 0 ; i < n ; )
   if( h == i++ )
@@ -1353,97 +1354,92 @@ inline void VectSumB( register T1 *g1 , register const T2 *g2 ,
  }
 
 /*--------------------------------------------------------------------------*/
+/// g1{B} += g2{B}, all other entries unchanged
 
 template<class T1, class T2>
 inline void VectSumBB( register T1 *g1 , register const T2 *g2 ,
 		       register cIndex_Set B )
 {
- // g1{B} += g2{B}, all other entries unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g1[ h ] += g2[ h ];
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} += x * g2{B}, all other entries unchanged
 
 template<class T1, class T2, class T3>
 inline void VectSumBB( register T1 *g1 , register const T2 *g2 ,
 		       register const T3 x , register cIndex_Set B )
 {
- // g1{B} += x * g2{B}, all other entries unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g1[ h ] += x * g2[ h ];
  }
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/// g[ i ] -= x for each i = 0 .. n - 1
+/** Subtracts the scalar x from each entry of g. Useful for *unsigned* data
+ * types, for which VectSum( g , -x , n ) would not work. */
 
 template<class T>
 inline void VectSubtract( T *const g , register const T x , cIndex n )
 {
- // g[ i ] -= x for each i = 0 .. n - 1; useful for *unsigned* data types
- // where VectSum( g , -x , n ) would not work
-
  for( register T *tg = g + n ; tg > g ; )
   *(--tg) -= x;
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// as VectSubtract( g , x , n ), for g an InINF-terminated vector of indices
+/** Special version of VectSubtract( g , x , n ) for the case where g is an
+ * InINF-terminated vector of indices (note that indices are generally
+ * unsigned, hence the same caveat about VectSum( g , -x , n ) applies). */
 
 inline void VectSubtract( register Index_Set g , cIndex x )
 {
- // special version of the above for g an InINF-terminated vector of indices
- // (note that indices are generally unsigned)
-
  while( *g < InINF )
   *(g++) -= x;
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g{B} -= x, all other entries of g unchanged
 
 template<class T>
 inline void VectSubtract( T *const g , register const T x ,
 			  register cIndex_Set B )
 {
- // g{B} -= x, all other entries of g unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g[ h ] -= x;
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1 -= g2 (element-wise)
 
 template<class T1, class T2>
 inline void VectSubtract( register T1 *g1 , register const T2 *g2 ,
                           register Index n )
 {
- // g1 -= g2 (element-wise)
-
  for( ; n-- ; )
   *(g1++) -= *(g2++);
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1 -= g2{B} (element-wise)
 
 template<class T1, class T2>
 inline void VectSubtract( register T1 *g1 , register const T2 *g2 , 
                           register cIndex_Set B )
 {
- // g1 -= g2{B} (element-wise)
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   *(g1++) -= g2[ h ];
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} -= g2{B}, B = intersection of B1 and B2, all other unchanged
 
 template<class T1, class T2>
 inline void VectSubtract( register T1 *g1 , register cIndex_Set B1 ,
 			  register const T2 *g2 , register cIndex_Set B2 )
 {
- // g1{B} -= g2{B}, B = intersection of B1 and B2, all other unchanged
-
  register Index h = *B1;
  register Index k = *B2;
  if( ( h < InINF ) && ( k < InINF ) )
@@ -1473,14 +1469,13 @@ inline void VectSubtract( register T1 *g1 , register cIndex_Set B1 ,
  }  // end( VectSubtract( g1 , B1 , g2 , B2 )
 
 /*--------------------------------------------------------------------------*/
+/// g{B} -= x, all other entries (0 .. n - 1) of g1 -= gg
 
 template<class T>
 inline void VectSubtractB( register T *g , register const T x ,
 			   register cIndex_Set B , register cIndex n ,
 			   register const T gg )
 {
- // g{B} -= x, all other entries (0 .. n - 1) of g1 -= gg
-
  register Index h = *(B++);
  for( register Index i = 0 ; i < n ; )
   if( h == i++ )
@@ -1493,26 +1488,24 @@ inline void VectSubtractB( register T *g , register const T x ,
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} -= g2, all other entries of g1 unchanged
 
 template<class T1, class T2>
 inline void VectSubtractB( register T1 *g1 , register const T2 *g2 ,
 			   register cIndex_Set B )
 {
- // g1{B} -= g2, all other entries of g1 unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g1[ h ] -= *(g2++);
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} -= g2, all other entries (0 .. n - 1) of g1 -= gg
 
 template<class T1, class T2>
 inline void VectSubtractB( register T1 *g1 , register const T2 *g2 ,
 			   register cIndex_Set B , register cIndex n ,
 			   register const T1 gg )
 {
- // g1{B} -= g2, all other entries (0 .. n - 1) of g1 -= gg
-
  register Index h = *(B++);
  for( register Index i = 0 ; i < n ; )
   if( h == i++ )
@@ -1525,73 +1518,67 @@ inline void VectSubtractB( register T1 *g1 , register const T2 *g2 ,
  }
 
 /*--------------------------------------------------------------------------*/
+/// g1{B} -= g2{B}, all other entries unchanged
 
 template<class T1, class T2>
 inline void VectSubtractBB( register T1 *g1 , register const T2 *g2 ,
 			    register cIndex_Set B )
 {
- // g1{B} -= g2{B}, all other entries unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g1[ h ] -= g2[ h ];
  }
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/// g *= x, x a scalar
 
 template<class T>
 inline void VectScale( register T *g , register const T x , register Index n )
 {
- // g *= x, x a scalar
-
  for( ; n-- ; )
   *(g++) *= x;
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g{B} *= x, x a scalar
 
 template<class T>
 inline void VectScale( register T *g , register const T x ,
 		       register cIndex_Set B )
 {
- // g{B} *= x, x a scalar
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g[ h ] *= x;
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1 *= g2
 
 template<class T1, class T2>
 inline void VectScale( register T1 *g1 , register const T2 *g2 ,
 		       register Index n )
 {
- // g1 *= g2
-
  for( ; n-- ; )
   *(g1++) *= *(g2++);
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1 *= g2{B}
 
 template<class T1, class T2>
 inline void VectScale( register T1 *g1 , register const T2 *g2 , 
 		       register cIndex_Set B )
 {
- // g1 *= g2{B}
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   *(g1++) *= g2[ h ];
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} *= g2{B}, B = intersection of B1 and B2, all other unchanged
 
 template<class T1, class T2>
 inline void VectScale( register T1 *g1 , register cIndex_Set B1 ,
 		       register const T2 *g2 , register cIndex_Set B2 )
 {
- // g1{B} *= g2{B}, B = intersection of B1 and B2, all other unchanged
-
  register Index h = *B1;
  register Index k = *B2;
  if( ( h < InINF ) && ( k < InINF ) )
@@ -1621,38 +1608,35 @@ inline void VectScale( register T1 *g1 , register cIndex_Set B1 ,
  }  // end( VectScale( g1 , B1 , g2 , B2 )
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1 *= x * g2
 
 template<class T1, class T2, class T3>
 inline void VectScale( register T1 *g1 , register const T2 *g2 , 
 		       register const T3 x , register Index n )
 {
- // g1 *= x * g2
-
  for( ; n-- ; )
   *(g1++) *= x * (*(g2++));
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1 *= x * g2{B}
 
 template<class T1, class T2, class T3>
 inline void VectScale( register T1 *g1 , register const T2 *g2 , 
 		       register const T3 x , register cIndex_Set B )
 {
- // g1 *= x * g2{B}
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   *(g1++) *= g2[ h ];
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} *= x * g2{B}, B = intersection of B1 and B2, all other unchanged
 
 template<class T1, class T2, class T3>
 inline void VectScale( register T1 *g1 , register cIndex_Set B1 ,
 		       register const T3 x , register const T2 *g2 ,
 		       register cIndex_Set B2 )
 {
- // g1{B} *= x * g2{B}, B = intersection of B1 and B2, all other unchanged
-
  register Index h = *B1;
  register Index k = *B2;
  if( ( h < InINF ) && ( k < InINF ) )
@@ -1682,111 +1666,103 @@ inline void VectScale( register T1 *g1 , register cIndex_Set B1 ,
  }  // end( VectScale( g1 , B1 , x , g2 , B2 )
 
 /*--------------------------------------------------------------------------*/
+/// g1{B} *= g2, all other entries of g1 unchanged
 
 template<class T1, class T2>
 inline void VectScaleB( register T1 *g1 , register const T2 *g2 ,
 			register cIndex_Set B )
 {
- // g1{B} *= g2, all other entries of g1 unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g1[ h ] *= *(g2++);
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} *= x * g2, all other entries of g1 unchanged
 
 template<class T1, class T2, class T3>
 inline void VectScaleB( register T1 *g1 , register const T2 *g2 ,
 			register const T3 x , register cIndex_Set B )
 {
- // g1{B} *= x * g2, all other entries of g1 unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g1[ h ] *= x * (*(g2++));
  }
 
 /*--------------------------------------------------------------------------*/
+/// g1{B} *= g2{B}, all other entries unchanged
 
 template<class T1, class T2>
 inline void VectScaleBB( register T1 *g1 , register const T2 *g2 ,
 			 register cIndex_Set B )
 {
- // g1{B} *= g2{B}, all other entries unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g1[ h ] *= g2[ h ];
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} *= x * g2{B}, all other entries unchanged
 
 template<class T1, class T2, class T3>
 inline void VectScaleBB( register T1 *g1 , register const T2 *g2 ,
 			 register const T3 x , register cIndex_Set B )
 {
- // g1{B} *= x * g2{B}, all other entries unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g1[ h ] *= x * g2[ h ];
  }
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/// g := g / x, x a scalar
+/** Divides each entry of g by the scalar x, in place. Useful e.g. for
+ * *integer* types, for which VectScale( g , 1 / x , n ) would not work. */
 
 template<class T>
 inline void VectIScale( register T *g , register const T x ,
 			register Index n )
 {
- // g := g / x, x a scalar; useful e.g. for *integer* types where
- // VectScale( g , 1 / x , n ) would not work
-
  for( ; n-- ; )
   *(g++) /= x;
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g{B} := g{B} / x, x a scalar
 
 template<class T>
 inline void VectIScale( register T *g , register const T x ,
 		       register cIndex_Set B )
 {
- // g{B} := g{B} / x, x a scalar
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g[ h ] /= x;
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1 /= g2
 
 template<class T1, class T2>
 inline void VectIScale( register T1 *g1 , register const T2 *g2 ,
 		        register Index n )
 {
- // g1 /= g2
-
  for( ; n-- ; )
   *(g1++) /= *(g2++);
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1 /= g2{B}
 
 template<class T1, class T2>
 inline void VectIScale( register T1 *g1 , register const T2 *g2 , 
 		        register cIndex_Set B )
 {
- // g1 /= g2{B}
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   *(g1++) /= g2[ h ];
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} /= g2{B}, B = intersection of B1 and B2, all other unchanged
 
 template<class T1, class T2>
 inline void VectIScale( register T1 *g1 , register cIndex_Set B1 ,
 			register const T2 *g2 , register cIndex_Set B2 )
 {
- // g1{B} /= g2{B}, B = intersection of B1 and B2, all other unchanged
-
  register Index h = *B1;
  register Index k = *B2;
  if( ( h < InINF ) && ( k < InINF ) )
@@ -1816,38 +1792,35 @@ inline void VectIScale( register T1 *g1 , register cIndex_Set B1 ,
  }  // end( VectIScale( g1 , B1 , g2 , B2 )
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1 /= x * g2
 
 template<class T1, class T2, class T3>
 inline void VectIScale( register T1 *g1 , register const T2 *g2 , 
 		        register const T3 x , register Index n )
 {
- // g1 /= x * g2
-
  for( ; n-- ; )
   *(g1++) /= ( x * (*(g2++)) );
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1 /= x * g2{B}
 
 template<class T1, class T2, class T3>
 inline void VectIScale( register T1 *g1 , register const T2 *g2 , 
 		        register const T3 x , register cIndex_Set B )
 {
- // g1 /= x * g2{B}
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   *(g1++) /= ( x * g2[ h ] );
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} /= x * g2{B}, B = intersection of B1 and B2, all other unchanged
 
 template<class T1, class T2, class T3>
 inline void VectIScale( register T1 *g1 , register cIndex_Set B1 ,
 			register const T3 x , register const T2 *g2 ,
 			register cIndex_Set B2 )
 {
- // g1{B} /= x * g2{B}, B = intersection of B1 and B2, all other unchanged
-
  register Index h = *B1;
  register Index k = *B2;
  if( ( h < InINF ) && ( k < InINF ) )
@@ -1877,117 +1850,109 @@ inline void VectIScale( register T1 *g1 , register cIndex_Set B1 ,
  }  // end( VectIScale( g1 , B1 , x , g2 , B2 )
 
 /*--------------------------------------------------------------------------*/
+/// g1{B} /= g2, all other entries of g1 unchanged
 
 template<class T1, class T2>
 inline void VectIScaleB( register T1 *g1 , register const T2 *g2 ,
 			 register cIndex_Set B )
 {
- // g1{B} /= g2, all other entries of g1 unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g1[ h ] /= *(g2++);
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} /= x * g2, all other entries of g1 unchanged
 
 template<class T1, class T2, class T3>
 inline void VectIScaleB( register T1 *g1 , register const T2 *g2 ,
 			 register const T3 x , register cIndex_Set B )
 {
- // g1{B} /= x * g2, all other entries of g1 unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g1[ h ] /= x * (*(g2++));
  }
 
 /*--------------------------------------------------------------------------*/
+/// g1{B} /= g2{B}, all other entries unchanged
 
 template<class T1, class T2>
 inline void VectIScaleBB( register T1 *g1 , register const T2 *g2 ,
 			  register cIndex_Set B )
 {
- // g1{B} /= g2{B}, all other entries unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g1[ h ] *= g2[ h ];
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g1{B} /= x * g2{B}, all other entries unchanged
 
 template<class T1, class T2, class T3>
 inline void VectIScaleBB( register T1 *g1 , register const T2 *g2 ,
 			  register const T3 x , register cIndex_Set B )
 {
- // g1{B} /= x * g2{B}, all other entries unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   g1[ h ] *= x * g2[ h ];
  }
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/// g := g1 + x
 
 template<class T1, class T2>
 inline void VectAdd( register T1 *g , register const T2 *g1 ,
                      register const T1 x , register Index n )
 {
- // g := g1 + x
-
  for( ; n-- ; )
   *(g++) = *(g1++) + x;
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g := g1 + g2
 
 template<class T1, class T2, class T3>
 inline void VectAdd( register T1 *g , register const T2 *g1 ,
                      register const T3 *g2 , register Index n )
 {
- // g := g1 + g2
-
  for( ; n-- ; )
   *(g++) = *(g1++) + *(g2++);
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g := g1 + g2{B}
 
 template<class T1, class T2, class T3>
 inline void VectAdd( register T1 *g , register const T2 *g1 ,
 		     register const T3 *g2 , register cIndex_Set B ) 
 { 
- // g := g1 + g2{B}
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   *(g++) = *(g1++) + g2[ h ];
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g := g1 + x * g2
 
 template<class T1, class T2, class T3>
 inline void VectAdd( register T1 *g , register const T2 *g1 ,
                      register const T3 *g2 , register const T3 x ,
                      register Index n )
 {
- // g := g1 + x * g2
-
  for( ; n-- ; )
   *(g++) = *(g1++) + x * (*(g2++));
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g := x1 * g1 + x
 
 template<class T1, class T2>
 inline void VectAdd( register T1 *g ,
 		     register const T2 *g1 , register const T2 x1 ,
                      register const T1 x , register Index n )
 {
- // g := x1 * g1 + x
-
  for( ; n-- ; )
   *(g++) = x1 * (*(g1++)) + x;
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g := x1 * g1 + x2 * g2
 
 template<class T1, class T2, class T3>
 inline void VectAdd( register T1 *g ,
@@ -1995,210 +1960,194 @@ inline void VectAdd( register T1 *g ,
                      register const T3 *g2 , register const T3 x2 ,
                      register Index n )
 {
- // g := x1 * g1 + x2 * g2
-
  for( ; n-- ; )
   *(g++) = x1 * (*(g1++)) + x2 * (*(g2++));
  }
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/// g := g1 - g2
 
 template<class T1, class T2, class T3>
 inline void VectDiff( register T1 *g , register const T2 *g1 ,
                       register const T3 *g2 , register Index n )
 {
- // g := g1 - g2
-
  for( ; n-- ; )
   *(g++) = *(g1++) - *(g2++);
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g := g1 - g2{B}
 
 template<class T1, class T2, class T3>
 inline void VectDiff( register T1 *g , register const T2 *g1 ,
                       register const T3 *g2 , register cIndex_Set B ) 
 { 
- // g := g1 - g2{B}
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   *(g++) = *(g1++) - g2[ h ];
  }
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/// g := g1 * x
 
 template<class T1, class T2>
 inline void VectMult( register T1 *g , register const T2 *g1 ,
                       register const T1 x , register Index n )
 {
- // g := g1 * x
-
  for( ; n-- ; )
   *(g++) = *(g1++) * x;
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g := g1 * g2
 
 template<class T1, class T2, class T3>
 inline void VectMult( register T1 *g , register const T2 *g1 ,
                       register const T3 *g2 , register Index n )
 {
- // g := g1 * g2
-
  for( ; n-- ; )
   *(g++) = *(g1++) * (*(g2++));
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g += g1 * g2
+
 template<class T1, class T2, class T3>
 inline void VectMultAndSum( register T1 *g , register const T2 *g1 ,
                       register const T3 *g2 , register Index n )
 {
- // g += g1 * g2
-
  for( ; n-- ; )
   *(g++) += *(g1++) * (*(g2++));
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g := g1 * g2{B}
 
 template<class T1, class T2, class T3>
 inline void VectMult( register T1 *g , register const T2 *g1 ,
                       register const T3 *g2 , register cIndex_Set B ) 
 { 
- // g := g1 * g2{B}
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   *(g++) = *(g1++) * g2[ h ];
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g := x * g1 * g2
 
 template<class T1, class T2, class T3, class T4>
 inline void VectMult( register T1 *g ,
 		      register const T2 x , register const T3 *g1 ,
                       register const T4 *g2 , register Index n )
 {
- // g := x * g1 * g2
-
  for( ; n-- ; )
   *(g++) = x * (*(g1++)) * (*(g2++));
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g := x * g1 * g2{B}
 
 template<class T1, class T2, class T3, class T4>
 inline void VectMult( register T1 *g ,
 		      register const T2 x , register const T3 *g1 ,
                       register const T4 *g2 , register cIndex_Set B ) 
 { 
- // g := x * g1 * g2{B}
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   *(g++) = x * (*(g1++)) * g2[ h ];
  }
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/// g := g1 / g2
 
 template<class T1, class T2, class T3>
 inline void VectDivide( register T1 *g , register const T2 *g1 ,
 		        register const T3 *g2 , register Index n )
 {
- // g := g1 / g2
-
  for( ; n-- ; )
   *(g++) = *(g1++) / (*(g2++));
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g := g1 / g2{B}
 
 template<class T1, class T2, class T3>
 inline void VectDivide( register T1 *g , register const T2 *g1 ,
 		        register const T3 *g2 , register cIndex_Set B ) 
 { 
- // g := g1 / g2{B}
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   *(g++) = *(g1++) / g2[ h ];
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g := x * ( g1 / g2 )
 
 template<class T1, class T2, class T3, class T4>
 inline void VectDivide( register T1 *g ,
 		        register const T2 x , register const T3 *g1 ,
 		        register const T4 *g2 , register Index n )
 {
- // g := x * ( g1 / g2 )
-
  for( ; n-- ; )
   *(g++) = x * ( (*(g1++)) / (*(g2++)) );
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g := x * ( g1 / g2{B} )
 
 template<class T1, class T2, class T3, class T4>
 inline void VectDivide( register T1 *g ,
 		        register const T2 x , register const T3 *g1 ,
 		        register const T4 *g2 , register cIndex_Set B ) 
 { 
- // g := x * ( g1 / g2{B} )
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   *(g++) = x * ( (*(g1++)) / g2[ h ] );
  }
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/// swap of g1 and g2 (element-wise)
 
 template<class T>
 inline void VectXcg( register T *g1 , register T *g2 , register Index n )
 {
- // swap of g1 and g2 (element-wise)
-
  for( ; n-- ; g1++ , g2++ )
   Swap( *g1 , *g2 );
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// swap of g1 and g2{B}
 
 template<class T>
 inline void VectXcg( register T *g1 , register T *g2 ,
                      register cIndex_Set B )
 {
- // swap of g1 and g2{B}
-
  for( register Index h ; ( h = *(B++) ) < InINF ; g1++ )
   Swap( *g1 , g2[ h ] );
  }
 
 /*--------------------------------------------------------------------------*/
+/// swap of g1{B} and g2
 
 template<class T>
 inline void VectXcgB( register T *g1 , register T *g2 ,
                      register cIndex_Set B )
 {
- // swap of g1{B} and g2
-
  for( register Index h ; ( h = *(B++) ) < InINF ; g2++ )
   Swap( g1[ h ] , *g2 );
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// swap of g1{B} and g2{B}, all other entries are unchanged
 
 template<class T>
 inline void VectXcgBB( register T *g1 , register T *g2 ,
 		       register cIndex_Set B )
 {
- // swap of g1{B} and g2{B}, all other entries are unchanged
-
  for( register Index h ; ( h = *(B++) ) < InINF ; )
   Swap( g1[ h ] , g2[ h ] );
  }
 
+/** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 /*--                                                                      --*/
@@ -2208,16 +2157,28 @@ inline void VectXcgBB( register T *g1 , register T *g2 ,
 /*--                                                                      --*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/** @name Array manipulation
+ *  @{ */
+
+/// merges two ordered, "Stp-terminated" vectors into a third one
+/** Merges the two ordered and "Stp-terminated" vectors g2 and g3 (that is,
+ * there must be an element in both g2 and g3 that is >= Stp, which is
+ * considered to be the terminator) into g, which will therefore also be
+ * ordered and Stp-terminated.
+ *
+ * @param g     the vector where the merged, ordered, Stp-terminated result
+ *              is written
+ *
+ * @param g2    the first ordered, Stp-terminated vector to be merged
+ *
+ * @param g3    the second ordered, Stp-terminated vector to be merged
+ *
+ * @param Stp   the common terminator value of g2 and g3. */
 
 template<class T>
 inline void Merge( register T *g , register const T *g2 ,
                    register const T *g3 , register const T Stp )
 {
- // merges the two ordered and "Stp-terminated" vectors g2 and g3 (that is,
- // there must be an element in both g2 and g3 that is >= Stp, and that is
- // is considered to be the terminator) into g1, that will therefore be
- // ordered and Stp-terminated
-
  register T i = *g2;
  register T j = *g3;
 
@@ -2243,34 +2204,31 @@ inline void Merge( register T *g , register const T *g2 ,
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/// g[ 0 ] = g[ 1 ], g[ 1 ] = g[ 2 ] ... g[ n - 1 ] = g[ n ]
 
 template<class T>
 inline void ShiftVect( register T *g , register Index n )
 {
- // g[ 0 ] = g[ 1 ], g[ 1 ] = g[ 2 ] ... g[ n - 1 ] = g[ n ]
-
  for( register T *t = g ; n-- ; t = g )
   *t = *(++g);
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g[ i ] = g[ i + k ], i = 0 ... n - 1
 
 template<class T>
 inline void ShiftVect( register T *g , register Index n , cIndex k )
 {
- // g[ i ] = g[ i + k ], i = 0 ... n - 1
-
  for( register T *t = g + k ; n-- ; )
   *(g++) = *(t++);
  }
 
 /*--------------------------------------------------------------------------*/
+/// as ShiftVect(), but g[ 0 ] is moved to g[ n ]
 
 template<class T>
 inline void RotateVect( register T *g , register Index n )
 {
- // as ShiftVect(), but g[ 0 ] is moved to g[ n ]
-
  const T tmp = *g;
 
  for( register T *t = g ; n-- ; t = g )
@@ -2280,35 +2238,32 @@ inline void RotateVect( register T *g , register Index n )
  }
 
 /*--------------------------------------------------------------------------*/
+/// g[ n - 1 ] = g[ n - 2 ], g[ n - 2 ] = g[ n - 3 ], ..., g[ 1 ] = g[ 0 ]
 
 template<class T>
 inline void ShiftRVect( register T *g , register Index n )
 {
- // g[ n - 1 ] = g[ n - 2 ], g[ n - 2 ] = g[ n - 3 ], ..., g[ 1 ] = g[ 0 ]
-
  for( register T *t = ( g += n ) ; n-- ; t = g )
   *t = *(--g);
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// g[ i ] = g[ i - k ], i = n - 1 ... 0
 
 template<class T>
 inline void ShiftRVect( register T *g , register Index n , cIndex k )
 {
- // g[ i ] = g[ i - k ], i = n - 1 ... 0
-
  g += n;
  for( register T *t = g + k ; n-- ; )
   *(--t) = *(--g);
  }
 
 /*--------------------------------------------------------------------------*/
+/// as ShiftRVect(), but g[ n ] is moved to g[ 0 ]
 
 template<class T>
 inline void RotateRVect( register T *g , register Index n )
 {
- // as ShiftRVect(), but g[ n ] is moved to g[ 0 ]
-
  register T *t = ( g += n );
  const T tmp = *t;
 
@@ -2318,6 +2273,7 @@ inline void RotateRVect( register T *g , register Index n )
  *g = tmp;
  }
 
+/** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 /*--                                                                      --*/
@@ -2327,13 +2283,16 @@ inline void RotateRVect( register T *g , register Index n )
 /*--                                                                      --*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/** @name Searching
+ *  @{ */
+
+/// returns the smallest index i such that g[ i ] == x, or n if none
+/** If g contains elements identical to x, then the smallest index among all
+ * such elements is reported (a number in 0 .. n - 1), else n is reported. */
 
 template<class T>
 inline Index Match( register const T *g , const T x , cIndex n )
 {
- // if v contains elements identical to x, then the smallest index among all
- // such elements is reported (0 .. n - 1), else n is reported
-
  register Index i = 0;
  for( ; ( i < n ) && ( *(g++) != x ) ; )
   i++;
@@ -2342,13 +2301,12 @@ inline Index Match( register const T *g , const T x , cIndex n )
  }
 
 /*--------------------------------------------------------------------------*/
+/// returns TRUE <=> the two n-vectors g1 and g2 are element-wise identical
 
 template<class T>
 inline BOOL EqualVect( register const T *g1 ,  register const T *g2 ,
                        register Index n )
 {
- // returns TRUE <=> the two n-vectors g1 and g2 are element-wise identical
-
  for( ; n-- ; )
   if( *(g1++) != *(g2++) )
    return( FALSE );
@@ -2357,14 +2315,17 @@ inline BOOL EqualVect( register const T *g1 ,  register const T *g2 ,
  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/// as EqualVect( g1 , g2 , n ), but with g2 given in "sparse" form
+/** Returns TRUE if and only if the two n-vectors g1 and g2 are element-wise
+ * identical, where g2 is given in "sparse" form, i.e., g2[ i ] is the
+ * B[ i ]-th element of the (implicitly "dense") vector to be compared with
+ * g1, and all the entries of g1 whose index is not in B are required to be
+ * == 0 for the vectors to be considered equal. */
 
 template<class T>
 inline BOOL EqualVect( register const T *g1 ,  register const T *g2 ,
                        register cIndex n , register cIndex_Set B )
 {
- // returns TRUE <=> the two n-vectors g1 and g2 are element-wise identical,
- // where g2 is given in sparse form, i.e., g2[ i ] is the B[ i ]-th element
-
  register Index i = 0;
  for( register Index h ; ( h = *(B++) ) < InINF ; i++ )
  {
@@ -2385,18 +2346,26 @@ inline BOOL EqualVect( register const T *g1 ,  register const T *g2 ,
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/// binary search for What in the ordered, "infinity-terminated" set Set
+/** Performs a binary search on the ordered set of Stop elements (of type T
+ * and without replications) contained in the array Set: Set must be
+ * "infinity-terminated", i.e., Set[ Stop ] > What. Searches for the
+ * element What, that may or may not be in Set.
+ *
+ * @param Set    the ordered, "infinity-terminated" array to be searched
+ *
+ * @param Stop   the number of (valid) elements in Set
+ *
+ * @param What   the element being searched for
+ *
+ * @return if What is found, its position is reported; otherwise, the
+ *         position of the smallest element > What in Set is reported. If
+ *         there are no elements > What in Set, then Stop is reported. */
 
 template<class T>
 inline Index BinSearch( register const T *Set , register Index Stop ,
                         register const T What )
 {
- // perform a binary search on the ordered set of Stop elements (of type T and
- // without replications) contained in the array Set: Set must be "infinity-
- // terminated", i.e. Set[ Stop ] > What. Searches for the element What, that
- // may or may not be in Set: if What is found, its position is reported,
- // otherwise the position of the smallest element > What in Set is reported.
- // If there are no elements > What in Set, then Stop is reported
-
  register Index i = Stop / 2;
  for( register Index Strt = 0 ; Strt != Stop ; )
  {
@@ -2416,13 +2385,12 @@ inline Index BinSearch( register const T *Set , register Index Stop ,
  }  // end( BinSearch )
 
 /*--------------------------------------------------------------------------*/
+/// like BinSearch() above, but What *must be* in Set (=> Set is nonempty)
 
 template<class T>
 inline Index BinSearch1( register const T *Set , register Index Stop ,
                          register const T What )
 {
- // like BinSearch() above, but What *must be* in Set (=> Set is nonempty)
-
  register Index Strt = 0;
  register Index i = Stop / 2;
  for( register Index h ; ( h = Set[ i ] ) != What ; )
@@ -2440,14 +2408,15 @@ inline Index BinSearch1( register const T *Set , register Index Stop ,
  }  // end( BinSearch1 )
 
 /*--------------------------------------------------------------------------*/
+/// like BinSearch(), but What is required *not* to be in Set
+/** Like BinSearch(), but What is required *not* to be in Set, so that the
+ * position of the smallest element > What in Set is always returned (Stop
+ * if there is none). */
 
 template<class T>
 inline Index BinSearch2( register const T *Set , register Index Stop ,
                          register const T What )
 {
- // like BinSearch() above, but What must *not* be in Set (=> the position
- // of the smallest element > What in Set will be returned)
-
  register Index i = Stop / 2;
  for( register Index Strt = 0 ; Strt != Stop ; )
  {
@@ -2465,14 +2434,16 @@ inline Index BinSearch2( register const T *Set , register Index Stop ,
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
+/// inserts x into the binary heap H of n elements
+/** H is a binary heap of elements of type T, ordered in increasing sense
+ * (i.e., the root of the heap, H[ 1 ], is the smallest element) and
+ * containing n elements: the new element x is inserted in H, which grows
+ * to n + 1 elements. H is assumed to have room for the new element, i.e.,
+ * H[ 1 .. n + 1 ] must be valid storage. */
 
 template<class T>
 inline void HeapIns( register T *H , const T x , register Index n )
 {
- // H is a binary heap of elements of type T, ordered in increasing sense
- // (i.e. the root of the heap is the smallest element) and containing n
- // elements: the new element x is inserted in H
-
  for( H-- , n++ ;;)
  {
   register Index p = n / 2;
@@ -2489,14 +2460,21 @@ inline void HeapIns( register T *H , const T x , register Index n )
 
 /*--------------------------------------------------------------------------*/
 
+/// deletes and returns the root (smallest element) of the binary heap H
+/** H is a binary heap of elements of type T, as in HeapIns() [see above]
+ * but here 0-based, i.e., H[ 0 ] is the root; returns the smallest element
+ * (the root), deleting it from H and re-establishing the heap property.
+ *
+ * @param H   the (0-based) binary heap, modified in place
+ *
+ * @param n   the number of elements of H *after* the deletion, i.e.,
+ *            | H | - 1 where | H | is the size of H before the call
+ *
+ * @return the smallest element of H (the root) prior to the deletion. */
+
 template<class T>
 inline Index HeapDel( register T *H , cIndex n )
 {
- // H is a binary heap of elements of type T, as above: returns the smallest
- // element (the root) deleting it from H. n is now intended to be the
- // position of the last element in H, i.e. | H | - 1, i.e. | H | *after*
- // the deletion
-
  const T h = *H;
  *H = H[ n ];
 
@@ -2523,6 +2501,7 @@ inline Index HeapDel( register T *H , cIndex n )
  return( h );
  }
 
+/** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 
 #if( OPT_USE_NAMESPACES )

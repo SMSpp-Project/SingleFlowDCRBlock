@@ -6,25 +6,24 @@
  * Header file for the class DCR_SPT, which implements
  * two heuristics for Single-Flow Single-Path (SFSP) DCR problems. 
  * 
- * \version 1.00
- *
- * \date April - 2013
- *
  * \author Antonio Frangioni \n
- *         Operations Research Group \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
  * \author Laura Galli \n
- *         Operations Research Group \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * Copyright &copy 2013 by Antonio Frangioni, 
- * 	   Operations Research Group \n
+ * \author Luca Mencarelli \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
- */
+ *
+ * \author Enrico Sorbera \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ * 
+ * \copyright &copy; by Antonio Frangioni
+ */ 
  
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
@@ -42,11 +41,35 @@
 /*--------------------------------------------------------------------------*/
 /*--------------------------- CLASS DCR_SPT --------------------------------*/
 /*--------------------------------------------------------------------------*/
-
+/*--------------------------- GENERAL NOTES --------------------------------*/
+/*--------------------------------------------------------------------------*/
+/// two Shortest-Path-Tree based heuristics for Single-Flow, Single-Path DCR
 /** This class implements two heuristics for Single-Flow Single-Path (SFSP)
- *  DCR problems.
- *  */
- 
+ *  DCR problems, both due to Orda and collaborators (the "Extended Routing
+ *  Algorithm", ERA): for a Single-Flow DCR instance, only a *single* path
+ *  from source to sink needs to be found, whose delay (comprised of a
+ *  transmission term MTU / r_min, depending on the rate r_min reserved on
+ *  every arc of the path, plus fixed per-arc/per-node delays, plus a term
+ *  MTU / r_min * burst accounting for the flow's burstiness) must not
+ *  exceed the flow's deadline, while minimizing the total routing cost.
+ *
+ *  Both heuristics restrict attention to a finite set of candidate values
+ *  for r_min, namely the (distinct) capacities of the flow's links: for
+ *  each such candidate rmin, only links whose capacity is >= rmin can be
+ *  used (the "reduced graph"), and a Shortest Path Tree from the source is
+ *  computed on it (see DCRheurERAI() and DCRheurERAH()) to check whether a
+ *  feasible s-t path exists and, if so, at what cost; the best (lowest
+ *  cost) feasible path found over all candidate values of rmin is
+ *  returned. ERA-I (DCRheurERAI(), heur == 1) prices each arc of a
+ *  candidate path using its own individual capacity as reserved rate,
+ *  while ERA-H (DCRheurERAH(), heur == 2) additionally optimizes, for each
+ *  candidate path, a single common reserved rate r0 shared by all its arcs
+ *  (chosen as small as the deadline allows), typically yielding cheaper
+ *  (and only single-path, mixed-integer) solutions. Since only single-path
+ *  solutions are considered, the class cannot represent or solve the
+ *  continuous (multi-path) relaxation of the DCR problem: DCRgetPSolNPaths()
+ *  and DCRgetPSolPath() are therefore not supported. */
+
 class DCR_SPT : public DCR
 {
 
@@ -205,31 +228,44 @@ virtual void DCRcloseArcs( int k , int * whch, int na );
     @{ */
     	
 	private:
-	
+
 	//network data
-	DCRNode *Nodes;
-	DCRLink *Links;
-	DCRFlow *Flows;
-	
+	DCRNode *Nodes;  ///< array of numNodes node data (node delays)
+	DCRLink *Links;  ///< array of numLinks link data (capacity, speed,
+	                 /// delay, cost)
+	DCRFlow *Flows;  ///< the (single) flow to be routed, Flows[ 0 ]
+
 	//can be either 1=ERA-I or 2=ERA-H
-	int heur;
-		
+	int heur;        ///< which heuristic to use, set by DCRsetHeur()
+
 	//solution info
-	int *Xsol;
-	double *Rsol;	
-	double objval;
-	int nhops;
-	
+	int *Xsol;       ///< indices (in Links) of the arcs of the best path
+	                 /// found so far, in reverse (sink-to-source) order
+	double *Rsol;	 ///< reserved rate on each arc of Xsol, same order
+	double objval;   ///< cost of the best feasible path found so far
+	int nhops;       ///< number of arcs (hops) of the best path found
+
 	//private methods
+
+	/// returns the index (in Links) of the arc from "from" to "to"
 	int DCRgetLink(int from, int to);
+
+	/// runs the ERA-I heuristic (see DCR_SPT.cpp for the details)
 	void DCRheurERAI();
+
+	/// runs the ERA-H heuristic (see DCR_SPT.cpp for the details)
 	void DCRheurERAH();
+
 	//memory management methods
+
+	/// deep-copies flows/links/nodes into the Flows/Links/Nodes members
 	void copyDataArrays(DCRFlow *flows, DCRLink *links, DCRNode *nodes);
+
+	/// releases all dynamically allocated memory
 	void clean_up( void );
 	//solution management methods
-	
-	/** @} */ 
+
+	/** @} */
 
 };
 

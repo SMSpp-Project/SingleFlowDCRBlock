@@ -1,24 +1,30 @@
 /*--------------------------------------------------------------------------*/
-/*---------------------------- File MultiFlowDCRBlock.h ----------------------------*/
+/*------------------------ File MultiFlowDCRBlock.h ------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @file
- * Header file for the *concrete* class MultiFlowDCRBlock, which implements the
- * Block concept [see Block.h] for a Multicommodity Min Cost Flow problem.
+ * Header file for the *concrete* class MultiFlowDCRBlock, which implements
+ * the Block concept [see Block.h] for a Multicommodity Delay-Constrained
+ * Routing (DCR) problem, i.e., the multi-flow extension of the single-flow
+ * DCR problem implemented by SingleFlowDCRBlock [see SingleFlowDCRBlock.h].
+ * Each commodity (flow) is represented by its own SingleFlowDCRBlock
+ * sub-Block, and the sub-Blocks are coupled together by "mutual capacity"
+ * constraints limiting the total rate that all the commodities can jointly
+ * reserve on each arc.
  *
  * \author Antonio Frangioni \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \author Enrico Gorgone \n
+ * \author Laura Galli \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * \author Francesco Demelas \n
- *         Laboratoire d'Informatique de Paris Nord \n
- *         Universite' Sorbonne Paris Nord \n
- *
- * Copyright &copy by Antonio Frangioni, Enrico Gorgone, Francesco Demelas
- */
+ * \author Luca Mencarelli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ * 
+ * \copyright &copy; by Antonio Frangioni
+ */ 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -45,7 +51,7 @@
 namespace SMSpp_di_unipi_it
 {
 /*--------------------------------------------------------------------------*/
-/*----------------------- MultiFlowDCRBlock-RELATED TYPES --------------------------*/
+/*-------------------- MultiFlowDCRBlock-RELATED TYPES ---------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Public Types
  *
@@ -53,14 +59,19 @@ namespace SMSpp_di_unipi_it
  *
  *  @{ */
 
- using c_RHSValue = RowConstraint::c_RHSValue;
- using Vec_double = SingleFlowDCRBlock::Vec_double;
+ using c_RHSValue = RowConstraint::c_RHSValue;  ///< a read-only RHS value
+
+ using Vec_double = SingleFlowDCRBlock::Vec_double;    ///< a vector of double
  using c_Vec_double = SingleFlowDCRBlock::c_Vec_double;
+ ///< a const vector of double
 
  using MultiVector = std::vector< Vec_double >;
- using MultiSubset = std::vector< Block::Subset >;
+ ///< a "matrix" (vector of vectors of double), one row per commodity
 
- using Vec_Bool = std::vector< bool >;
+ using MultiSubset = std::vector< Block::Subset >;
+ ///< a vector of Subset, one per commodity
+
+ using Vec_Bool = std::vector< bool >;  ///< a vector of bool
 
 /** @}  end( types ) */
 /*--------------------------------------------------------------------------*/
@@ -70,11 +81,59 @@ namespace SMSpp_di_unipi_it
  *  @{ */
 
 /*--------------------------------------------------------------------------*/
-/*-------------------------- CLASS MultiFlowDCRBlock ------------------------------*/
+/*------------------------ CLASS MultiFlowDCRBlock -------------------------*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------- GENERAL NOTES --------------------------------*/
 /*--------------------------------------------------------------------------*/
-/// Implementation of a simple MMCF Block concept.
+/// implementation of the Block concept for the Multi-Flow DCR problem
+/** The MultiFlowDCRBlock class implements the Block concept [see Block.h]
+ * for the Multi-Flow Delay-Constrained Routing (DCR) problem, i.e., the
+ * extension of the (single-flow) DCR problem implemented by
+ * SingleFlowDCRBlock [see SingleFlowDCRBlock.h] to the case where several
+ * flows ("commodities") k = 0, ..., NComm - 1 have to be simultaneously
+ * routed on the same (directed) graph G = ( N , A ), with n = |N| nodes and
+ * m = |A| arcs, while sharing the physical bandwidth of the arcs.
+ *
+ * Each commodity k is a DCR instance in its own right: it has its own
+ * source/sink pair (encoded by its own node deficits), its own arc costs,
+ * its own traffic parameters (burst, rate, deadline) and its own worst-case
+ * delay bound to be respected (computed via network calculus, exactly as
+ * in SingleFlowDCRBlock). Accordingly, MultiFlowDCRBlock does not implement
+ * the whole per-commodity model itself: rather, for every commodity it
+ * builds (see generate_abstract_variables()) a father-owned
+ * SingleFlowDCRBlock sub-Block, which is charged with the per-commodity
+ * flow-conservation, capacity and delay constraints and with the reserved
+ * rate variables r^k[ i , j ] for each arc ( i , j ) of A. In principle an
+ * alternative "knapsack" formulation, based on a BinaryKnapsackBlock per
+ * commodity, is also part of the design (see the KnapsackRelaxation bit of
+ * AR); however, the current implementation always uses the SingleFlowDCRBlock
+ * ("flow relaxation") formulation, whatever the Configuration passed to
+ * generate_abstract_variables() may say.
+ *
+ * What MultiFlowDCRBlock itself is responsible for is the *coupling* among
+ * the commodities, in the form of "mutual capacity" constraints
+ * \f[
+ *  \sum_{ k = 0 }^{ NComm - 1 } r^k[ i , j ] \leq CapTot[ i , j ]
+ *  \quad ( i , j ) \in A
+ * \f]
+ * stating that the sum of the rates reserved by all the commodities on a
+ * given arc cannot exceed the (shared) capacity CapTot[] made available on
+ * that arc; these are generated (see generate_abstract_constraints()) as a
+ * static std::vector< FRowConstraint > MCs with one entry per arc, whose
+ * active Variable are the r^k[ i , j ] Variable of the NComm
+ * SingleFlowDCRBlock sub-Block. CapTot[] need not coincide with the "raw"
+ * per-arc capacity UTot[] read from the instance: in load(), CapTot[] is
+ * obtained from UTot[] by an oversubscription/discount factor (see the
+ * static FACTOR constant in MultiFlowDCRBlock.cpp), reflecting the fact that
+ * not all commodities are expected to simultaneously need their maximum
+ * individual capacity.
+ *
+ * Since the whole per-commodity structure (Variable, flow-conservation and
+ * delay Constraint, Objective) is delegated to the NComm SingleFlowDCRBlock
+ * sub-Block, is_feasible() as implemented here only checks the mutual
+ * capacity coupling Constraint MCs; feasibility of the individual
+ * commodities has to be separately assessed on the corresponding
+ * sub-Block. */
 
 class MultiFlowDCRBlock : public Block
 {
@@ -93,23 +152,30 @@ class MultiFlowDCRBlock : public Block
 /*--------------------------------------------------------------------------*/
 /*--------------------- PUBLIC METHODS OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
-/*---------------------------- CONSTRUCTOR ---------------------------------*/
+/*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Constructor and Destructor
  *  @{ */
 
- /// constructor of MultiFlowDCRBlock
+ /// constructor of MultiFlowDCRBlock, taking a pointer to the father Block
  /** Constructor of MultiFlowDCRBlock. It accepts a pointer to the father
-  * Block, which can be of any type. */
+  * Block, which can be of any type, defaulting to nullptr so that this can
+  * also be used as the void constructor. Note that the actual per-commodity
+  * SingleFlowDCRBlock sub-Block are *not* created here, but rather by
+  * load() / deserialize() (which read the instance data) followed by
+  * generate_abstract_variables(). */
 
  MultiFlowDCRBlock( Block *father = nullptr ) : Block( father ) , AR( 0 ) { }
 
 /*--------------------------------------------------------------------------*/
  /// destructor of MultiFlowDCRBlock
+ /** Destructor of MultiFlowDCRBlock: deletes the abstract representation
+  * (the mutual capacity Constraint), and destroys all the commodity
+  * sub-Block, if any (see guts_of_destructor()). */
 
  virtual ~MultiFlowDCRBlock() { guts_of_destructor(); }
 
-/*@} -----------------------------------------------------------------------*/
+/** @} ---------------------------------------------------------------------*/
 /*-------------------------- OTHER INITIALIZATIONS -------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Other initializations
@@ -144,26 +210,79 @@ class MultiFlowDCRBlock : public Block
   * TODO: properly document all the formats.
   *
   * If there is any Solver attached to this MultiFlowDCRBlock then a NBModification
-  * (the "nuclear option") is issued. */
+  * (the "nuclear option") is issued.
+  *
+  * IMPLEMENTATION NOTE: the above describes the intended, general design.
+  * The *current* implementation, however, ignores \p frmt entirely and only
+  * supports one fixed multi-file, per-commodity DCR format: it reads the
+  * global data (number of commodities/nodes/arcs, MTU) from input + ".nod",
+  * the per-commodity source/sink/rate from input + ".sup" and the
+  * burst/deadline from input + ".param", and, for each commodity, the arc
+  * topology/individual-capacity data from input + ".arc" together with the
+  * delay-related data from input + ".dcr"; the latter two are used to build
+  * a temporary DIMACS-like description that is fed to a freshly created
+  * SingleFlowDCRBlock sub-Block (via SingleFlowDCRBlock::load() and
+  * SingleFlowDCRBlock::load_dcr()). The "mutual capacity" CapTot[] of each
+  * arc is *not* read from file but computed from the individual arc
+  * capacity UTot[] by discounting it by a fixed oversubscription FACTOR
+  * (see MultiFlowDCRBlock.cpp). */
 
  void load( const std::string & input , char frmt = 0 ) override;
 
 /*--------------------------------------------------------------------------*/
  /// load the MultiFlowDCRBlock out of an istream
- /** Load the MultiFlowDCRBlock out of an istream. Handles the two single-file
-  * formats, i.e., Canad and PPRN.
+ /** Load the MultiFlowDCRBlock out of an istream. This is intended to
+  * handle the two single-file formats, i.e., Canad and PPRN (as opposed to
+  * the multi-file ones only supported by load( const std::string & )).
   *
   * TODO: properly document the formats.
   *
   * If there is any Solver attached to this MultiFlowDCRBlock then a NBModification
-  * (the "nuclear option") is issued. */
+  * (the "nuclear option") is issued.
+  *
+  * IMPLEMENTATION NOTE: this method is currently a stub (its body is
+  * empty): no format is actually read and no Modification is issued. */
 
  void load( std::istream & input , char frmt = 0 ) override;
 
 /*--------------------------------------------------------------------------*/
  /// extends Block::deserialize( netCDF::NcGroup )
  /** Extends Block::deserialize( netCDF::NcGroup ) to the specific format of
-  * a MultiFlowDCRBlock.  */
+  * a MultiFlowDCRBlock. Besides what is managed by the serialize() method
+  * of the base Block class, the group is expected to contain:
+  *
+  * - the dimension "NNodes" containing the number of nodes in the graph;
+  *
+  * - the dimension "NArcs" containing the number of arcs in the graph;
+  *
+  * - the dimension "NComm" containing the number of commodities (flows);
+  *
+  * - the dimension "NCnst" containing the number of arcs having a mutual
+  *   capacity constraint (currently always == "NArcs");
+  *
+  * - the variable "SN", of type int and indexed over "NArcs", containing
+  *   the starting node of each arc;
+  *
+  * - the variable "EN", of type int and indexed over "NArcs", containing
+  *   the ending node of each arc;
+  *
+  * - the variable "Utot", of type double and indexed over "NArcs",
+  *   containing the (individual) total capacity of each arc;
+  *
+  * - the variable "U", of type double and indexed over ( "NComm" , "NArcs" ),
+  *   containing the per-commodity individual arc capacities;
+  *
+  * - the variable "B", of type double and indexed over ( "NComm" , "NNodes" ),
+  *   containing the per-commodity node deficits;
+  *
+  * - the variable "C", of type double and indexed over ( "NComm" , "NArcs" ),
+  *   containing the per-commodity arc costs.
+  *
+  * The "NNodes", "NArcs" and "NComm" dimensions and the "SN", "EN" variables
+  * are mandatory. Note that this method only reads the *coupling* data
+  * (topology, mutual capacities, and the raw per-commodity U/B/C matrices);
+  * it does *not* construct the NComm SingleFlowDCRBlock sub-Block, which is
+  * instead the job of generate_abstract_variables(). */
 
  void deserialize( const netCDF::NcGroup & group ) override;
 
@@ -208,7 +327,10 @@ class MultiFlowDCRBlock : public Block
   * It can be called *only once*. The ideal would be that it is automatically
   * called after load(), deserialize() ecc. but this would not allow to set
   * the proper parameters, therefore it has to be done independently (if
-  * ever). */
+  * ever).
+  *
+  * IMPLEMENTATION NOTE: this method is currently declared but not defined;
+  * calling it will result in a link-time error. */
 
  void PreProcess( double IncUk = 0 , double DecUk = 0 ,
 		  double IncUjk = 0 , double DecUjk = 0 ,
@@ -233,13 +355,34 @@ class MultiFlowDCRBlock : public Block
   *   linking constraints are handled in the father MultiFlowDCRBlock;
   *
   * - [other ones possibly to follow].
-  * 
+  *
   *  by default is considered the Flow relaxation
-  */
+  *
+  * IMPLEMENTATION NOTE: the current implementation always uses the "flow"
+  * formulation, i.e., it unconditionally calls
+  * generate_abstract_variables() on every commodity's SingleFlowDCRBlock
+  * sub-Block (which must already exist in v_Block, one per commodity);
+  * stvv (and f_BlockConfig->f_static_variables_Configuration) are read but
+  * *not* actually used to select the formulation, so the "knapsack"
+  * alternative described above is not yet available. */
 
  void generate_abstract_variables( Configuration * stvv = nullptr ) override;
 
 /*--------------------------------------------------------------------------*/
+ /// generate the mutual capacity Constraint of the MultiFlowDCRBlock
+ /** This method first calls generate_abstract_constraints() on every
+  * commodity's SingleFlowDCRBlock sub-Block (which constructs their own
+  * per-commodity flow-conservation, bound and delay Constraint), and then,
+  * unless this has already been done (see the HasMutual bit of AR),
+  * generates the "mutual capacity" coupling Constraint MCs: a static
+  * std::vector< FRowConstraint > with one entry per arc j, of the form
+  * \f[
+  *  -\infty \leq \sum_{ k = 0 }^{ NComm - 1 } r^k[ j ] \leq CapTot[ j ]
+  * \f]
+  * whose active Variable are the reserved-rate Variable r^k[ j ] of each
+  * commodity's SingleFlowDCRBlock sub-Block (obtained via
+  * SingleFlowDCRBlock::i2p_r()). The parameter stcc is currently ignored
+  * by this method (it is only forwarded to the sub-Block). */
 
  void generate_abstract_constraints( Configuration * stcc = nullptr )
   override;
@@ -250,7 +393,7 @@ class MultiFlowDCRBlock : public Block
  !!*/
 
 /** @} ---------------------------------------------------------------------*/
-/*--------------- METHODS FOR PRINTING & SAVING THE MultiFlowDCRBlock --------------*/
+/*---------- METHODS FOR PRINTING & SAVING THE MultiFlowDCRBlock -----------*/
 /*--------------------------------------------------------------------------*/
 /** @name Methods for printing & saving the MultiFlowDCRBlock
  *  @{ */
@@ -262,7 +405,9 @@ class MultiFlowDCRBlock : public Block
   * TODO: implement some verbosity level that produce output files in at
   *       least some of the single-file formats supported by load(); note
   *       that for multi-file formats, print( std::string & ) must be used.
-  */
+  *
+  * IMPLEMENTATION NOTE: currently the body of this method is entirely
+  * commented out, hence it prints nothing at all. */
 
  void print( std::ostream & output , char vlvl = 0 ) const override;
 
@@ -270,11 +415,40 @@ class MultiFlowDCRBlock : public Block
 /// extends Block::serialize( netCDF::NcGroup )
 /** Extends Block::serialize( netCDF::NcGroup ) to the specific format of a
  * MultiFlowDCRBlock. See MultiFlowDCRBlock::deserialize(netCDF::NcGroup) for details of the
- * format of the created netCDF group. */
+ * format of the created netCDF group; in short, besides calling
+ * Block::serialize(), this writes the "NNodes", "NArcs", "NComm" and
+ * "NCnst" dimensions, the "SN", "EN" and "Utot" variables (the graph
+ * topology and the per-arc individual capacity), and the "U", "B" and "C"
+ * matrix variables (indexed over commodity and, respectively, arc, node
+ * and arc) holding the per-commodity data. */
 
  void serialize( netCDF::NcGroup & file ) const override;
 
 /*--------------------------------------------------------------------------*/
+ /// returns true if the mutual capacity Constraint are (approximately)
+ /// satisfied
+ /** Returns true if the current value of the reserved-rate Variable of all
+  * the commodity sub-Block satisfies the mutual capacity Constraint MCs
+  * (see generate_abstract_constraints()) within tolerance. The tolerance
+  * and the type of violation (absolute vs. relative) are extracted, in
+  * order, from:
+  *
+  * - fsbc, if it is a SimpleConfiguration< double > (only the tolerance,
+  *   relative violation is assumed) or a
+  *   SimpleConfiguration< std::pair< double , int > > (tolerance and,
+  *   respectively, whether the violation is relative);
+  *
+  * - otherwise, f_BlockConfig->f_is_feasible_Configuration, tested against
+  *   the same two types;
+  *
+  * - otherwise, the default tolerance 1e-6 and relative violation are used.
+  *
+  * Note that this method only checks the mutual capacity coupling
+  * Constraint: it does *not* check the flow-conservation, bound or delay
+  * feasibility of the individual commodities, which has to be separately
+  * verified on each commodity's SingleFlowDCRBlock sub-Block. Also note
+  * that \p useabstract is currently unused, as RowConstraint::is_feasible()
+  * is always applied to the abstract Constraint MCs. */
 
  bool is_feasible( bool useabstract = false ,
                    Configuration * fsbc = nullptr ) override;
@@ -300,65 +474,95 @@ class MultiFlowDCRBlock : public Block
  Index get_NComm( void ) const { return( NComm ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// get the vector of mutual (shared) arc capacities
+ /** Returns a const reference to the vector CapTot of the *mutual* arc
+  * capacities, i.e., the RHS of the coupling Constraint MCs (see
+  * generate_abstract_constraints()). Note that this is *not* the protected
+  * MultiVector U of per-commodity individual capacities. */
 
  c_Vec_double & get_U( void ) const { return( CapTot ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// get the vector of link (arc) delays, one entry per arc
 
  c_Vec_double & get_LinkDelays( void ) const { return( LinkDelays ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// get the vector of node delays, one entry per node
 
  c_Vec_double & get_NodeDelays( void ) const { return( NodeDelays ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// get the vector of the per-commodity Maximum Transmit Unit (MTU)
 
  c_Vec_double & get_MTU( void ) { return( MTU ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// get the vector of the per-commodity traffic burst
 
  c_Vec_double & get_FlowBurst( void ) { return( FlowBursts ); }
 
 /*--------------------------------------------------------------------------*/
+ /// returns true if the "flow" (as opposed to "knapsack") relaxation is used
+ /** Returns true if the KnapsackRelaxation bit of AR is *not* set, i.e., if
+  * the commodities are (as is currently always the case, see
+  * generate_abstract_variables()) represented via SingleFlowDCRBlock
+  * sub-Block rather than via BinaryKnapsackBlock sub-Block. */
 
  bool useFlowRelaxation( void ) const {
   return( ! ( AR & KnapsackRelaxation ) );
  }
 
 /*--------------------------------------------------------------------------*/
- /// getting the current sense of the Objective, which is minimization
+ /// getting the current sense of the Objective (minimization by default)
 
  int get_objective_sense( void ) const override final {
   return( f_sense );
   }
 
 /*--------------------------------------------------------------------------*/
+ /// get the value of the reserved-rate variable r^k[ i ] of commodity k
+ /** Returns the current value of the reserved-rate Variable r^k[ i ] of
+  * commodity k on arc i, obtained from the corresponding
+  * SingleFlowDCRBlock sub-Block (see SingleFlowDCRBlock::get_r()). */
 
   double get_rs( Index k , Index i ) const {
     return( static_cast< SingleFlowDCRBlock * >( v_Block[ k ] )->get_r( i ) );
   }
 
 /*--------------------------------------------------------------------------*/
- /// get the flow of a given arc for a given commodity 
+ /// get the flow of a given arc for a given commodity
  /** Given a commodity index k and an arc index ij, this function provides
   * the value of the associated variable x^k_ij. In the case of the knapsack
   * relaxation, the variables of the block are rescaled in such a way that
   * x \in [ 0 , 1 ]. In this case the functions get_flow provide the values
-  * already rescaled wigth x^k_{ij} in [ 0 , u_ij ]. */
+  * already rescaled wigth x^k_{ij} in [ 0 , u_ij ].
+  *
+  * IMPLEMENTATION NOTE: the current implementation always reads x^k_ij out
+  * of the corresponding SingleFlowDCRBlock sub-Block (the "flow"
+  * formulation); the AR-based dispatch outlined above, that would also
+  * cover the "knapsack" formulation, is present but commented out. */
 
  double get_flow( Index k , Index i ) const {
   return( static_cast< SingleFlowDCRBlock * >( v_Block[ k ] )->get_x( i ) );
   /*
   if( ! ( AR & HasVar ) )
    return( 0 );
- 
+
   if( ! ( AR & KnapsackRelaxation ) )
    return( static_cast< SingleFlowDCRBlock * >( v_Block[ k ] )->get_x( i ) );
   */
   }
 
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/ 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the value of all flow variables associated to a given commodity
+ /** Writes into \p fk (which must already be sized get_NArcs()) the value
+  * of the flow Variable x^k_i for all the arcs i of commodity k. If the
+  * abstract Variable have not been constructed yet (AR does not have the
+  * HasVar bit set), \p fk is filled with zeroes instead. Note that, since
+  * the "knapsack" formulation is currently never used (see
+  * useFlowRelaxation()), the "if( ! ( AR & KnapsackRelaxation ) )" branch
+  * is always taken whenever the Variable exist. */
 
  void get_flow( std::vector< double > & fk , Index k ) const {
   if( ! ( AR & HasVar ) ) {
@@ -373,18 +577,30 @@ class MultiFlowDCRBlock : public Block
 
 /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get a pointer to the ColVariable corresponding to the flow k , i
+ /** Returns a pointer to the flow ColVariable x^k_i of commodity k on arc
+  * i, obtained from the corresponding SingleFlowDCRBlock sub-Block (see
+  * SingleFlowDCRBlock::i2p_x()); returns nullptr if the abstract Variable
+  * have not been constructed yet (AR does not have the HasVar bit set), or
+  * if the "knapsack" formulation is in use (which is currently never the
+  * case, see useFlowRelaxation()). */
 
  ColVariable * get_flow_variable( Index k , Index i ) const {
   if( ! ( AR & HasVar ) )
    return( nullptr );
 
   if( ! ( AR & KnapsackRelaxation ) )
-   return( static_cast< SingleFlowDCRBlock * >( v_Block[ k ] )->i2p_x( i ) );  
+   return( static_cast< SingleFlowDCRBlock * >( v_Block[ k ] )->i2p_x( i ) );
 
   return( nullptr );
   }
 
 /*--------------------------------------------------------------------------*/
+ /// loads a MultiFlowDCRBlock out of a "traditional" SMS++ netCDF file
+ /** Convenience method to load a MultiFlowDCRBlock out of a netCDF file
+  * (as opposed to deserialize(), which works out of an already-open
+  * netCDF::NcGroup): opens \p filename, reads the "SMS++_file_type"
+  * attribute (currently unused beyond being read) and the "Block_0" group,
+  * and calls deserialize() on it. */
 
  void load_nc4( std::string & filename ) {
   netCDF::NcFile f( filename, netCDF::NcFile::read );
@@ -397,7 +613,7 @@ class MultiFlowDCRBlock : public Block
   netCDF::NcGroup bg = f.getGroup( "Block_0" );
 
   deserialize( bg );
-  
+
   //CmnIntlz();
   }
 
@@ -418,11 +634,14 @@ class MultiFlowDCRBlock : public Block
 /*--------------------------------------------------------------------------*/
  /** called at the end of any constructor, does some initializations that are
   * common to them all: it is "protected" for allowing derived classes that
-  * use the "void" constructor to call it. */
+  * use the "void" constructor to call it.
+  *
+  * IMPLEMENTATION NOTE: currently unused (commented out), all the
+  * initialization is done directly in load() / deserialize(). */
 
  //void CmnIntlz( void );
 
-/* @} ----------------------------------------------------------------------*/
+/** @} ---------------------------------------------------------------------*/
 /*--------------------------- PROTECTED FIELDS  ----------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -461,30 +680,52 @@ class MultiFlowDCRBlock : public Block
  Index NComm;          ///< Number of commodities
  Index NCnst;          ///< Number of arcs with mutual capacity constraints
 
- MultiVector C;       ///< Matrix of the arc costs
- MultiVector U;       ///< Matrix of the arc upper capacities
- MultiVector B;       ///< Matrix of the node deficits
+ MultiVector C;       ///< Matrix of the arc costs, one row per commodity
+ MultiVector U;       ///< Matrix of the individual arc capacities, one
+                       ///< row per commodity (not the mutual ones, see
+                       ///< CapTot below)
+ MultiVector B;       ///< Matrix of the node deficits, one row per
+                       ///< commodity
  MultiVector I;       ///< Matrix of the variables integrality constraints
+                       ///< (currently unused)
 
- Vec_double UTot;       ///< Vector equal to the sum of mutual capacities
- Vec_double CapTot;     ///< Vector of mutual capacities
-  
- Vec_double NodeDelays;     ///< Vector of node delays
- Vec_double LinkDelays;     ///< Vector of link delays
+ Vec_double UTot;       ///< Vector of the "raw" (individual) total arc
+                         ///< capacities, as read from the instance
+ Vec_double CapTot;     ///< Vector of the actual *mutual* (shared) arc
+                         ///< capacities enforced in the coupling
+                         ///< Constraint MCs; computed from UTot by an
+                         ///< oversubscription discount factor (see
+                         ///< FACTOR in MultiFlowDCRBlock.cpp). Note that
+                         ///< only UTot (not CapTot) is written/read by
+                         ///< serialize()/deserialize(), so CapTot must be
+                         ///< (re)computed after deserialize()
 
- Vec_double FlowBursts;     ///< Vector of flow bursts
- Vec_double FlowDeadlines;     ///< Vector of flow deadlines
- Vec_double rho;     ///< Vector of rho
- Vec_double MTU;     ///< Vector of MTU
+ Vec_double NodeDelays;     ///< Vector of the (fixed) per-node processing
+                             ///< delays, one entry per node
+ Vec_double LinkDelays;     ///< Vector of the (fixed) per-link propagation
+                             ///< delays, one entry per arc
+
+ Vec_double FlowBursts;     ///< Vector of the per-commodity traffic burst
+                             ///< (network calculus arrival curve parameter)
+ Vec_double FlowDeadlines;  ///< Vector of the per-commodity worst-case
+                             ///< delay bound (deadline)
+ Vec_double rho;            ///< Vector of the per-commodity sustained
+                             ///< traffic rate
+ Vec_double MTU;            ///< Vector of the per-commodity Maximum
+                             ///< Transmit Unit
 
  Subset Startn;        ///< Topology of the graph: starting nodes
  Subset Endn;          ///< Topology of the graph: ending nodes
 
  Index StrtNme;        ///< The "name" of the first node
 
- std::vector< FRowConstraint > MCs;  ///< the static mutual capacity constrs
- 
- int f_sense = Objective::eMin;
+ std::vector< FRowConstraint > MCs;  ///< the static mutual capacity
+                                      ///< Constraint, one per arc (see
+                                      ///< generate_abstract_constraints())
+
+ int f_sense = Objective::eMin;  ///< the sense of the Objective, as
+                                  ///< returned by get_objective_sense()
+                                  ///< (minimization by default)
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- PRIVATE PART OF THE CLASS --------------------------*/
@@ -496,8 +737,15 @@ class MultiFlowDCRBlock : public Block
 /*-------------------------- PRIVATE METHODS -------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+ /// destroys the abstract representation and all the commodity sub-Block
+ /** Clears the mutual capacity Constraint MCs, deletes all the commodity
+  * SingleFlowDCRBlock sub-Block in v_Block, clears all the data structures
+  * (C, U, B, I, UTot, CapTot, Startn, Endn, the delay/traffic vectors) and
+  * resets AR to 0. Called by both the destructor and, to start from a
+  * clean slate, by load() / deserialize(). */
+
  void guts_of_destructor( void );
- 
+
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PRIVATE FIELDS ------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -510,7 +758,7 @@ class MultiFlowDCRBlock : public Block
 
 /*--------------------------------------------------------------------------*/
 
-/*@}  end( group( MultiFlowDCRBlock_CLASSES ) ) ----------------------------*/
+/** @}  end( group( MultiFlowDCRBlock_CLASSES ) ) --------------------------*/
 /*--------------------------------------------------------------------------*/
 
  }  // end( namespace SMSpp_di_unipi_it )

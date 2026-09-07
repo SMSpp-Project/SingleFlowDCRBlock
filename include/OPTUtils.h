@@ -22,7 +22,7 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
- * Copyright(C) 1994 - 2012 by Antonio Frangioni
+ * \copyright &copy; 1994 - 2012 by Antonio Frangioni
  */
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -34,12 +34,12 @@
 /*--------------------------------------------------------------------------*/
 /*----------------------------- MACROS -------------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @defgroup OPTUTILS_MACROS Compile-time switches in OPTUtils.h
-    These macros control how the classes OPTTimers and OPTrand are
-    implemented; choose the appropriate value for your environment,
-    or program a new version if no value suits you.
-    Also, namespaces can be eliminated if they create problems.
-    @{ */
+/** @name Compile-time switches in OPTUtils.h
+ *  These macros control how the classes OPTTimers and OPTrand are
+ *  implemented; choose the appropriate value for your environment,
+ *  or program a new version if no value suits you.
+ *  Also, namespaces can be eliminated if they create problems.
+ *  @{ */
 
 /*----------------------- OPT_USE_NAMESPACES -------------------------------*/
 /** Setting OPT_USE_NAMESPACES == 0 should instruct all codes that use
@@ -102,7 +102,7 @@
 
 #define OPT_RANDOM 1
 
-/*@} -----------------------------------------------------------------------*/
+/** @} ---------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -160,11 +160,12 @@ namespace OPTUtils_di_unipi_it
 /*--------------------------------------------------------------------------*/
 /*--------------------------- OPT_TIMERS -----------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @defgroup OPTUtils_CLASSES Classes in OPTUtils.h
-    @{ */
+/** @name Classes in OPTUtils.h
+ *  @{ */
 
 #if( OPT_TIMERS )
 
+/// a common interface to the platform-dependent timing routines
 /** Provides a common interface to the different timing routines that are
     available in different platforms. */
 
@@ -280,6 +281,7 @@ class OPTtimers {
 /*------------------------------ OPTrand() ---------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+/// a common interface to the platform-dependent random generators
 /** Provide a common interface to the different random generators that are
     available in different platforms. */
 
@@ -298,6 +300,7 @@ class OPTrand {
    #endif
    }
 
+  /// returns a random number uniformly distributed in [0, 1)
   /** Returns a random number uniformly distributed in [0, 1).
       \note each object of class OPTrand has its own sequence, so that
       multiple OPTrand objects being used within the same program do not
@@ -391,6 +394,7 @@ class OPTrand {
 /*--------------------------------------------------------------------------*/
 /*--------------------------- Inf() and Eps() ------------------------------*/
 /*--------------------------------------------------------------------------*/
+/// a very small class to simplify extracting the "+ infinity" for a type
 /** Very small class to simplify extracting the "+ infinity" value for a
     basic type; just use Inf<type>(). */
 /*
@@ -402,6 +406,7 @@ class OPTrand {
   };
 */
 /*--------------------------------------------------------------------------*/
+/// a very small class to simplify extracting the "machine epsilon" for a type
 /** Very small class to simplify extracting the "machine epsilon" for a
     basic type; just use Eps<type>(). */
 
@@ -412,13 +417,14 @@ class OPTrand {
   operator T() { return( std::numeric_limits<T>::epsilon() ); }
   };
 
-/* @} end( group( OPTUtils_CLASSES ) ) */
+/** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------- DfltdSfInpt() --------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @defgroup OPTUtils_FUNCTIONS Functions in OPTUtils.h
-    @{ */
+/** @name Functions in OPTUtils.h
+ *  @{ */
 
+/// reads a parameter of type T out of a istream, "safely"
 /** Template function for reading parameters from a istream. The function is
    "safe" because it works also if the istream is not given, is not be long
    enough or contains erroneous things.
@@ -429,6 +435,15 @@ class OPTrand {
    be interpreted as a `T'. If, for any reason, the read operation fails,
    then the parameter is given the default value `Dflt'. Otherwise, all the
    rest of the line up to the nearest newline ('\n') carachter is flushed.
+
+   @param iStrm   a pointer to the istream to read from (possibly nullptr)
+
+   @param Param   the variable, of type T, where the value read is stored
+
+   @param Dflt    the default value assigned to Param if the read fails
+
+   @param cmntc   the character that, if found at the beginning of a line,
+                  marks the line as a comment to be skipped (default '#')
 
    \note lines should not be longer than 255 carachters. */
 
@@ -463,7 +478,7 @@ inline void DfltdSfInpt( istream *iStrm , T &Param , const T Dflt ,
 
  }  // end( DfltdSfInpt )
 
-/* @} end( group( OPTUtils_FUNCTIONS ) ) */
+/** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 
 #if( OPT_USE_NAMESPACES )

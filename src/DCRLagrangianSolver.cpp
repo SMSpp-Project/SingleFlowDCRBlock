@@ -2,6 +2,32 @@
 /*-------------------------- File DCRLagrangianSolver.cpp ------------------*/
 /*--------------------------------------------------------------------------*/
 
+/** @file
+ * Implementation of the DCRLagrangianSolver class [see
+ * DCRLagrangianSolver.h], which computes the Lagrangian dual of the
+ * Single-Flow Single-Path SRP Delay Constrained Routing problem, for a
+ * given minimum per-hop rate r_min, by a two-cut line search over the
+ * Lagrangian multiplier driving repeated Shortest Path Tree solves.
+ *
+ * \author Antonio Frangioni \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \author Laura Galli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \author Luca Mencarelli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \author Enrico Sorbera \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ * 
+ * \copyright &copy; by Antonio Frangioni
+ */ 
+
 /*--------------------------------------------------------------------------*/
 /*--------------------------- IMPLEMENTATION -------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -25,13 +51,12 @@ using namespace std;
 /*--------------------------------------------------------------------------*/
 /*--------------------- IMPLEMENTATION OF DCRLagrangianSolver---------------*/
 /*--------------------------------------------------------------------------*/
-
-/*<Risolve tramite line search il duale lagrangiano di DCR, rispetto al vincolo sul ritardo.
- *in particolare tiene una copia della struttura del grafo, su cui permette di aprire e chiudere
- *gli archi tramite il vettore ModCaps.
- *Crea a partire da questa una versione ridotta del grafo in cui elimina gli archi
- *con capacità inferiori ad r_min (passato in input al momento del caricamento), di questi archi
- *costruisce una versione semplificata con cui si risolverà SP*/
+// Solves, by a two-cut line search, the Lagrangian dual of DCR w.r.t. the
+// delay constraint. The class keeps a copy of the network structure on
+// which arcs can be closed/reopened via the ModCaps vector; out of this it
+// builds a "reduced graph" that discards all arcs whose capacity is below
+// r_min (given as input at load time), and out of the reduced graph it
+// builds the simplified arc list that is actually fed to the SPT solver.
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------- PUBLIC METHODS -------------------------------*/
@@ -40,11 +65,15 @@ using namespace std;
 /*--------------------------------------------------------------------------*/
 /*----------------------------- CONSTRUCTOR --------------------------------*/
 /*--------------------------------------------------------------------------*/
+// constructs an "empty" solver: all fields are given their default/neutral
+// value, and all the vectors used to store the reduced graph and the
+// solution are given a placeholder size of 1; the object becomes usable
+// only after LoadProblem() has been called.
 
   DCRLagrangianSolver:: DCRLagrangianSolver(void)
-  {  
+  {
      eps = 1e-10;//Eps<double>();
-     //cout<<"precisione: "<<eps<<endl;
+     //cout<<"precision: "<<eps<<endl;
      ObjVal = - Inf<double>();
      InterVal = 0; 
      lambda = 0;
@@ -86,14 +115,16 @@ using namespace std;
 /*--------------------------------------------------------------------------*/
 /*----------------------------------LOAD DATA ------------------------------*/
 /*--------------------------------------------------------------------------*/
+// loads a full instance (network + single flow + r_min) from memory: see
+// LoadProblem() in DCRLagrangianSolver.h
 
    void DCRLagrangianSolver::LoadProblem (int nnodes, int nlinks, DCR::DCRFlow flow, DCR::DCRLink *links, DCR::DCRNode *nodes, double mtu, double r_min)
    {
 
       clean_up();
 
-      /*una volta ripuliti i dati di eventuali chiamate precedenti
-       *salviamo i nuovi dati e rimettiamo a zero le varie flag*/
+      // once any data from previous calls has been cleared, save the new
+      // data and reset all the solution/status flags - - - - - - - - - - -
       numNodes = nnodes;
       numLinks = nlinks;
       MTU = mtu;
@@ -116,25 +147,28 @@ using namespace std;
 
 /*--------------------------------------------------------------------------*/
    
-  void DCRLagrangianSolver::LoadProblem (DCR::DCRFlow flow)
-   {  
+// loads a new flow while keeping the previously loaded network data: see
+// LoadProblem( DCR::DCRFlow ) in DCRLagrangianSolver.h
 
-    ////FIXME: dovrei riaprire tutti gli archi che sono stati chiusi?
-    //attualmente lo fa, modificare il secondo for commentando l'assegnamento su ModCaps
-    //se non lo si desidera.
+  void DCRLagrangianSolver::LoadProblem (DCR::DCRFlow flow)
+   {
+
+    ////FIXME: should this reopen all the arcs that have been closed?
+    //currently it does; comment out the assignment to ModCaps in the
+    //second for loop below if this is not desired.
       int i;
 
-    ///non potendo chiamare clean_up per 
-    //perdere la struttura del grafo, ripuliamo esclusivamente le cose necessarie:
+    ///since clean_up() cannot be called here (it would destroy the
+    //network structure), only what is strictly necessary is cleared:
       for(i = 0; i < Cuts.size(); i++)
        {
          Cuts[i].RSol.clear();
        }
 
-      Cuts.clear(); 
-      
+      Cuts.clear();
 
-      ///inserimento dei nuovi dati
+
+      /// install the new data and reset the solution/status flags
       ObjVal = - Inf<double>();
       lambda = 0;
       HeurVal = Inf<double>();
@@ -152,37 +186,39 @@ using namespace std;
       for(i = 0; i < numLinks; i++)
        {
         Links[i].cost = Flow.costs[i];
-        ModCaps[i] = Links[i].capacity; //riapre tutti gli archi
+        ModCaps[i] = Links[i].capacity; //reopens all the arcs
        }
    }
 /*--------------------------------------------------------------------------*/
 /*----------------------------------MODIFIERS-------------------------------*/
 /*--------------------------------------------------------------------------*/
+// changes r_min without reloading the rest of the problem data: see
+// updrmin() in DCRLagrangianSolver.h
 
    void DCRLagrangianSolver::updrmin(double r_min)
 
    {
-     
-    // if(rmin-r_min > 0)
-    //cout<<"è calato!"<<endl;
 
-    if(rmin != r_min || solvedflag == 0) //altrimenti avevamo già risolto il problema per questo rmin
-    {    
+    // if(rmin-r_min > 0)
+    //cout<<"it has decreased!"<<endl;
+
+    if(rmin != r_min || solvedflag == 0) //otherwise the problem had already been solved for this rmin
+    {
      lambda = 0;
      inizialflag = 0;
 
      solvedflag = 0;
-     reoptflag = 1;  //proviamo reopt nel solve
+     reoptflag = 1;  //try Reopt() in Solve()
 
      ObjVal = - Inf<double>();
      HeurVal = Inf<double>();
 
    /*  for(int i = 0; i < Cuts.size(); i++)
-     cout<<"pendenza del taglio: "<<i<<" = "<<Cuts[i].c.m;
+     cout<<"slope of cut: "<<i<<" = "<<Cuts[i].c.m;
 
    cout<<endl;*/
 
-    //eliminiamo gli archi per SP e la struttura
+    //discard the arcs used for SP and the reduced-graph structure
     /* ModCaps.clear();
      SPLabels.clear();
      RedGraLinks.clear();
@@ -194,9 +230,9 @@ using namespace std;
      rmin = r_min;
     }
     //else reoptflag = 0;
-   // cout<<"lambda dopo updrmin"<<lambda<<endl;
-    //si potrebbe richiedere else solvedflag = 1, ma dovrebbe essere già rimasto tale
-    // dall'iterazione precedente.
+   // cout<<"lambda after updrmin"<<lambda<<endl;
+    //one could require else solvedflag = 1, but it should already have
+    // remained so from the previous iteration.
    }
 
 /*--------------------------------------------------------------------------*/
@@ -210,18 +246,20 @@ using namespace std;
      for(i = 0; i < na; i++)
        ModCaps[arcs[i]] = 0;
 
-  //evitiamo di modificare le capacità in Links, perché in tal caso
-  //perderemmo l'informazione su quanto quella capacità fosse.
-  //Sarebbe in tal caso un problema il riaprire gli archi chiusi.
-  //Il vettore ModCaps tiene traccia di ogni modifica alle capacità.
+  //we avoid modifying the capacities in Links, because in that case
+  //we would lose the information about what that capacity used to be,
+  //which would make it impossible to later reopen the closed arcs.
+  //The ModCaps vector keeps track of every modification to the capacities.
    }
 
 /*--------------------------------------------------------------------------*/
+// reopens a set of previously closed arcs, restoring the original capacity
+// stored in Links into the corresponding entry of ModCaps
 
    void DCRLagrangianSolver::openArcs(int * arcs, int na)
    {
      int i;
-    
+
      inizialflag = 0;
 
      for(i = 0; i < na; i++)
@@ -231,17 +269,18 @@ using namespace std;
 /*--------------------------------------------------------------------------*/
 /*--------------------------- GET METHODS-----------------------------------*/
 /*--------------------------------------------------------------------------*/
-
-/*<L'idea dietro al seguente metodo è che per verificare l'ammissibilità del lagrangiano,
- * basta la fase d'inizializzazione del problema, quindi se si volesse sapere solo questo, 
- * nel caso la risposta sia positiva, non vorremmo generare tutta l'informazione data
- * dal risolvere il problema.*/
+// The idea behind this method is that checking feasibility of the
+// Lagrangian relaxation only requires the initialization phase of the
+// problem; hence, if only this is of interest and the answer turns out to
+// be positive, we avoid generating all the information that solving the
+// full problem would produce.
    bool DCRLagrangianSolver::isFeasible(void)
    {
     Inizial();
 
-    inizialflag = 1; //segnala che il problema è già stato inizializzato, nel caso
-    //poi si voglia risolverlo con gli stessi dati, si può evitare di ripetere questa fase.
+    inizialflag = 1; //signals that the problem has already been initialized,
+    //so that, should it later be solved again with the same data, this
+    //phase can be skipped.
 
     if(lagstat == 0)
       return 0;
@@ -249,18 +288,21 @@ using namespace std;
    }
 
   /*--------------------------------------------------------------------------*/
-
-//si risolve spt per lambda = 0 e lambda = eps, dal confronto dei valori della f.o. si conclude se lambda è ottimo
+// solves SP for lambda = 0 and, if needed, for a small lambda = eps; by
+// comparing the two objective values it is decided whether lambda = 0 is
+// already the optimal multiplier (see is0opt() in DCRLagrangianSolver.h)
 
   bool DCRLagrangianSolver::is0opt(void)
    {
      vector<int> path;
      double beta_0 = Flow.burst / rmin - Flow.deadline;
-     double alpha = 0;        //inizializzate   
-     double beta = beta_0;    //al valore costante. 
+     double alpha = 0;        //initialized
+     double beta = beta_0;    //to the constant term.
      double nulobj = 0;
      double epsobj = 0;
      int i;
+
+     // solve the Shortest Path Tree subproblem at lambda = 0 - - - - - - - -
 
      lambda = 0;
 
@@ -269,27 +311,27 @@ using namespace std;
      setSPTcosts();
 
      spt.updCosts(Linksp);
-     spt.Solve(); //risolviamo SP con questo nuovo lambda.
-       
-     nhops = spt.getNHops();
-         
-     path.resize(nhops);
-     path = spt.getPath(); //path prende gli indici del cammino ottimo di sp.
+     spt.Solve(); //solve SP with this new lambda.
 
-     for(i = 0; i < nhops; i++) //calcoliamo i valori di beta ed alpha.
+     nhops = spt.getNHops();
+
+     path.resize(nhops);
+     path = spt.getPath(); //path holds the arc indices of the optimal SP tour.
+
+     for(i = 0; i < nhops; i++) //compute the values of beta and alpha.
       {
         beta += MTU / Linksp[path[i]].rstar + MTU / RedGraLinks[path[i]].speed + RedGraLinks[path[i]].delay + Nodes[RedGraLinks[path[i]].startnode].delay;
         alpha += RedGraLinks[path[i]].cost * Linksp[path[i]].rstar;
       }
 
-    if(beta <= 0) 
+    if(beta <= 0)
       {
-       //ci salviamo il valore di questa soluzione ammissbile:
+       //the path is already delay-feasible: save it as a heuristic solution
        if(HeurVal >= alpha)  HeurVal = alpha;
 
-       return 0; //allora lambda = 0 è ottimo
+       return 0; //then lambda = 0 is optimal
       }
-    else //altrimenti proviamo per lambda = eps;
+    else //otherwise try with a small lambda = eps - - - - - - - - - - - - -
     {
       nulobj = alpha;
       lambda = 1e-6;
@@ -300,14 +342,14 @@ using namespace std;
       setSPTcosts();
 
       spt.updCosts(Linksp);
-      spt.Solve(); //risolviamo SP con questo nuovo lambda.
-       
-      nhops = spt.getNHops();
-         
-      path.resize(nhops);
-      path = spt.getPath(); //path prende gli indici del cammino ottimo di sp.
+      spt.Solve(); //solve SP with this new lambda.
 
-      for(i = 0; i < nhops; i++) //calcoliamo i valori di beta ed alpha.
+      nhops = spt.getNHops();
+
+      path.resize(nhops);
+      path = spt.getPath(); //path holds the arc indices of the optimal SP tour.
+
+      for(i = 0; i < nhops; i++) //compute the values of beta and alpha.
        {
         beta += MTU / Linksp[path[i]].rstar + MTU / RedGraLinks[path[i]].speed + RedGraLinks[path[i]].delay + Nodes[RedGraLinks[path[i]].startnode].delay;
         alpha += RedGraLinks[path[i]].cost * Linksp[path[i]].rstar;
@@ -315,8 +357,10 @@ using namespace std;
 
       epsobj = alpha + lambda * beta;
 
-      //cout<< " valore in eps "<<epsobj<< " valore in 0 "<<nulobj<<endl;
+      //cout<< " value at eps "<<epsobj<< " value at 0 "<<nulobj<<endl;
 
+      // if the Lagrangian value increases with lambda, lambda = 0 is NOT
+      // optimal (the dual function is still rising); otherwise it is
       if(epsobj > nulobj) return 1;
       else return 0;
     }
@@ -327,13 +371,17 @@ using namespace std;
 
    double DCRLagrangianSolver::getLambda(void)
    {
-    //cout<<"il lambda passato dal lagrangiano è"<<lambda<<endl;
+    //cout<<"the lambda passed by the lagrangian is"<<lambda<<endl;
     return(lambda);
    }
 
 /*--------------------------------------------------------------------------*/
 
 
+   // returns the convex combination of the positive- and negative-slope
+   // rate solutions that (approximately) zeroes out the delay slack: the
+   // combination weight molt is chosen so that betaneg and betapos, the
+   // slopes of the two solutions, average out to (approximately) zero
    vector<double> DCRLagrangianSolver::getCheckSol(void)
    {
     double molt;
@@ -359,7 +407,7 @@ using namespace std;
 
     checkSol.resize(solneg.size());
     
-   // cout<<"soluzione di taglia"<< checkSol.size();
+   // cout<<"solution of size"<< checkSol.size();
 
     for( i = 0; i < checkSol.size(); i++)
        checkSol[i] = (1-molt)*solpos[i] + (molt)*solneg[i];
@@ -386,7 +434,7 @@ using namespace std;
 
 /*--------------------------------------------------------------------------*/
 
-   double DCRLagrangianSolver::getInterVal(void) //non dovrebbe essere davvero necessaria
+   double DCRLagrangianSolver::getInterVal(void) //shouldn't really be necessary
    {
    	return(InterVal);
    }
@@ -569,85 +617,93 @@ using namespace std;
    void DCRLagrangianSolver::Solve(void)
    {
     int i;
-    int opt = 1; //avverte se la funzione reopt ha sostituito l'inizializzazione
+    int opt = 1; //signals whether Reopt() has replaced the initialization
     vector<int> path;
 
 
-    double releps; //prende il max tra objval e 1, per la precisione relativa.
-    
+    double releps; //max between ObjVal and 1, for the relative precision.
+
     double alpha;
     double beta;
-    double beta_o = Flow.burst / rmin - Flow.deadline; //per evitare di ricalcolare il valore
-    
-    reoptflag = 0; //DEBUG: spegne la riottimizzazione
+    double beta_o = Flow.burst / rmin - Flow.deadline; //to avoid recomputing this value
+
+    reoptflag = 0; //DEBUG: disables reoptimization
     //inizialflag == 0;
 
+    // if a warm-start is requested, try Reopt() first; it may or may not
+    // succeed in producing a valid pCut/mCut pair without a full Inizial()
     if(reoptflag == 1)
     {
-      opt = Reopt();     
+      opt = Reopt();
     }
-    
+
     //cout<<"opt = "<<opt<<" inizialflag = "<<inizialflag<<endl;
     if(opt == 1)
     {
-
-      if(inizialflag == 0)//potrebbe essere già stato inizializzato dal metodo isFeasible
+      // Reopt() did not warm-start (or was not attempted): a full
+      // initialization is needed, unless it was already performed (e.g.
+      // by a previous call to isFeasible() on the same data)
+      if(inizialflag == 0)
         {
           Inizial();
           inizialflag = 1;
         }
     }
-    else 
+    else
       {
+        // Reopt() succeeded: pCut/mCut/lambda are already set up, we only
+        // need the reduced graph to be current for the line search below
         setReducedGraph();
         //setSPTcosts();
         //spt.LoadProblem(numNodes, cardRedGraph, Linksp, Flow.sourcenode, Flow.sinknode);
       }
-    //cout<<"inizializzato"<<endl;
+    //cout<<"initialized"<<endl;
     //cout<<"lagstat ="<<lagstat<<endl;
 
+    // two-cut line search: iterate as long as the problem is known to be
+    // feasible and not already solved - - - - - - - - - - - - - - - - - -
     if(lagstat == OK && solvedflag != 1)
     {
      do
-       {         
-        ////variabili per salvare il taglio
-        ///generate a ogni iterazione perché allungare il loro tempo di vita
-        //comporta un deterioramento dei dati precedentemente immessi nel vettore Cuts.
-        
-        DCRLagrangianSolver::Cut_Val cut; //taglio e sol da inserire nei tagli salvati
+       {
+        ////variables to save the new cut: generated at every iteration
+        ///because extending their lifetime would cause a deterioration of
+        //the data previously stored in the Cuts vector.
 
-        //vector<double> tempRsol; //soluzioni generate da salvare insieme ai tagli
+        DCRLagrangianSolver::Cut_Val cut; //cut and solution to be inserted into the saved cuts
+
+        //vector<double> tempRsol; //generated solutions to be saved together with the cuts
          //cout<<"beta_0 = "<<beta<<"  "<<betainizial<<"  "<<Flow.burst / rmin - Flow.deadline<<endl;
-        //intercetta e pendenza del nuovo taglio
-        alpha = 0;       //inizializzate   
-        beta = beta_o; //al valore costante. 
+        //intercept and slope of the new cut
+        alpha = 0;       //initialized
+        beta = beta_o; //to the constant term.
 
-         lambda = (mCut.q - pCut.q) / (pCut.m - mCut.m);  //lambda prende il punto d'intersezione tra i tagli.
-           
-         if(lambda < 0) //aggiungiamo alla LS anche il vincolo lineare \lambda = 0;
-          {lambda = 0; /*cout<<"sto imponendo lambda = 0";*/}
+         lambda = (mCut.q - pCut.q) / (pCut.m - mCut.m);  //lambda is set to the intersection point of the two cuts.
 
-         //cout<<"all'interno di lagrange come evolve lambda?"<<lambda<<endl;
-         InterVal = mCut.q + lambda * mCut.m; //vecchia retta (è indifferente quale) valutata nel nuovo punto.
+         if(lambda < 0) //also add to the line search the linear constraint lambda = 0;
+          {lambda = 0; /*cout<<"I am forcing lambda = 0";*/}
+
+         //cout<<"inside lagrange, how does lambda evolve?"<<lambda<<endl;
+         InterVal = mCut.q + lambda * mCut.m; //old line (either one, it makes no difference) evaluated at the new point.
         //cout<<"InterVal = "<<InterVal<<endl;
         //vector<double> tempRsol;
 
          //cout<<"1beta_0 ="<<beta_o<<endl;
-         setSPTcosts(); //nuovo lambda, nuovi costi.
+         setSPTcosts(); //new lambda, new costs.
          spt.updCosts(Linksp);
-         spt.Solve(); //risolviamo SP con questo nuovo lambda.
-       
+         spt.Solve(); //solve SP with this new lambda.
+
          nhops = spt.getNHops();
-         
+
          path.resize(nhops);
          cut.RSol.resize(nhops);
         //tempRsol.resize(nhops);
-         
-       
-         // cout<<"2beta_0 ="<<beta_o<<endl;
-         path = spt.getPath(); //path prende gli indici del cammino ottimo di sp.
 
-         for(i = 0; i < nhops; i++) //calcoliamo i nuovi valori di beta ed alpha.
+
+         // cout<<"2beta_0 ="<<beta_o<<endl;
+         path = spt.getPath(); //path holds the arc indices of the optimal SP tour.
+
+         for(i = 0; i < nhops; i++) //compute the new values of beta and alpha.
           {
             beta += MTU / Linksp[path[i]].rstar + MTU / RedGraLinks[path[i]].speed + RedGraLinks[path[i]].delay + Nodes[RedGraLinks[path[i]].startnode].delay;
             alpha += RedGraLinks[path[i]].cost * Linksp[path[i]].rstar;
@@ -659,14 +715,14 @@ using namespace std;
          optBeta = beta;
 
          if(beta < -1e-20 && alpha <= HeurVal)
-           {HeurVal = alpha;} //salviamo la migliore soluzione primale ammissibile
-         
+           {HeurVal = alpha;} //save the best delay-feasible primal solution found so far
+
           /*
-         /////salviamo i dati per il CHECK su CPLEX!!!!
+         /////save the data for the CHECK against CPLEX!!!!
          if(beta < 0)
-         { 
+         {
            solneg.resize(nhops);
-           
+
            checkSolNeg.resize(nhops);
 
            for(i = 0; i < nhops; i++)
@@ -689,48 +745,49 @@ using namespace std;
            betapos = beta;
 
          }
-         ///fine del salvataggio, commentare in futuro per non appesantire in memoria
+         ///end of the saving, comment out in the future to save memory
         */
          cut.c.m = beta;
          cut.c.q = alpha;
 
-         cut.RSolsize = nhops;  
-         cut.rmin = rmin;     
-        
+         cut.RSolsize = nhops;
+         cut.rmin = rmin;
+
          if(Cuts.size() < maxCutSize)
-           Cuts.push_back(cut); //salviamo il nuovo taglio
+           Cuts.push_back(cut); //save the new cut
 
-         UpdCut(alpha, beta); //aggiorniamo il valore di uno dei tagli ottimi.
+         UpdCut(alpha, beta); //update the value of one of the two optimal cuts.
 
-         ObjVal = alpha + lambda * beta; //nuova retta nel punto, quindi val della funzione obiettivo.
+         ObjVal = alpha + lambda * beta; //new line evaluated at the point, i.e. the objective function value.
 
          if(InterVal > 1) releps = InterVal;
          else releps = 1;
-         
-         //cout<<"in solve differenza assoluta"<<(InterVal - ObjVal)<<endl;
-         //cout<<"soglia relativa"<<eps*releps<<endl<<endl;
+
+         //cout<<"in solve absolute difference"<<(InterVal - ObjVal)<<endl;
+         //cout<<"relative threshold"<<eps*releps<<endl<<endl;
          num_ite++;
 
-      }while((InterVal - ObjVal) > (eps * releps)); ////differenza > epsilon * max{1,InterVal}
-    
+      }while((InterVal - ObjVal) > (eps * releps)); ////gap > epsilon * max{1,InterVal}: convergence test of the line search
+
     //cout<<" eps = "<<eps<<endl;
-    //cout<<"in solve differenza relativa"<<(InterVal - ObjVal)/InterVal<<endl;
+    //cout<<"in solve relative difference"<<(InterVal - ObjVal)/InterVal<<endl;
      //cout<<endl<<endl<<"beta = "<<beta<<endl<<endl;
      //cout<<endl<<endl<<"alpha = "<<alpha<<endl<<endl;
-    
-    //cout<<"numero iterazioni della line search"<<counter<<endl;
-    //cout<<"oltre l'iterazione?"<<endl;
 
+    //cout<<"number of line search iterations"<<counter<<endl;
+    //cout<<"past the iteration?"<<endl;
+
+    // save the node potentials (dual solution) of the last SP solve - - - -
     SPLabels.resize(numNodes);
 
     vector<double> labels;
-    
-    labels = spt.getLabel(); //salviamo i potenziali.
+
+    labels = spt.getLabel(); //save the potentials.
 
     for(i = 0; i < numNodes; i++)
         SPLabels[i] = labels[i];
 
-   //cout<<"stampi?"<<endl;
+   //cout<<"print?"<<endl;
 
     RSol.resize(nhops);
     RSolCosts.resize(nhops);
@@ -738,34 +795,37 @@ using namespace std;
     for(i = 0; i < numLinks; i++) 
       RSOLS[i] = 0.0;
     
-    for(i = 0; i < nhops; i++)  //salviamo le coppie (r_ij,f_ij) della soluzione ottima
+    for(i = 0; i < nhops; i++)  //save the (r_ij, f_ij) pairs of the optimal solution
       {
         RSol[i] = Linksp[path[i]].rstar;
         //std::cout << i << "," << RSol[i] << std::endl;
         RSolCosts[i] = Linksp[path[i]].cost;
       }
 
-    for(int i = 0; i < numLinks; i++) 
+    // also fill in RSOLS, the rate solution indexed over *all* the arcs
+    // of the (unreduced) network, leaving 0 wherever an arc is unused
+    for(int i = 0; i < numLinks; i++)
       for(int j = 0; j < nhops; j++)
         if(i == path[j])
           RSOLS[i] = RSol[j];
-        
+
 
     numHops = nhops;
     solvedflag = 1;
-    }//se non era stato risolto e non è considerato già unfeasible
+    }//if it had not already been solved and is not already deemed infeasible
    //if(solvedflag == 1)
-   //cout<<"numero di tagli salvati"<<Cuts.size()<<endl;
-     //cout<<"lambda ottimo: "<<lambda<<" risolto con stato: "<<lagstat<<endl;
+   //cout<<"number of saved cuts"<<Cuts.size()<<endl;
+     //cout<<"optimal lambda: "<<lambda<<" solved with status: "<<lagstat<<endl;
 
    path.clear();
-   //cout<<"non ho fatto l'iterazione"<<endl;
+   //cout<<"I did not perform the iteration"<<endl;
 
    }
 
 /*--------------------------------------------------------------------------*/
 /*------------------------------ DESTRUCTOR --------------------------------*/
 /*--------------------------------------------------------------------------*/
+// destructor of DCRLagrangianSolver: just calls clean_up()
 
    DCRLagrangianSolver::~DCRLagrangianSolver()
    {
@@ -775,6 +835,9 @@ using namespace std;
 /*--------------------------------------------------------------------------*/
 /*--------------------------- PRIVATE METHODS -------------------------------*/
 /*--------------------------------------------------------------------------*/
+// deep-copies the network and flow data into the internal Links/Nodes
+// arrays, and initializes ModCaps to the original arc capacities: see
+// copyDataArray() in DCRLagrangianSolver.h
 
    void DCRLagrangianSolver::copyDataArray(DCR::DCRFlow flow, DCR::DCRLink *links, DCR::DCRNode *nodes)
    {
@@ -796,8 +859,8 @@ using namespace std;
       ModCaps[i] = Links[i].capacity;
     }
    
-    //cout<<"una capacità="<<Links[0].capacity<<endl;
-    //cout<<"un costo="<<Links[0].cost<<endl;
+    //cout<<"a capacity="<<Links[0].capacity<<endl;
+    //cout<<"a cost="<<Links[0].cost<<endl;
     for(i = 0; i < numNodes; i++)
     {
       Nodes[i].delay = nodes[i].delay;
@@ -807,6 +870,8 @@ using namespace std;
 
 /*--------------------------------------------------------------------------*/
 
+// computes the trivial worst-case upper bound LimitVal: see getLimitVal()
+// in DCRLagrangianSolver.h
    void DCRLagrangianSolver::getLimitVal(void)
    {
     int i;
@@ -816,39 +881,44 @@ using namespace std;
     for(i = 0; i < cardRedGraph; i++)
       {
         if(RedGraLinks[i].cost > 0)
-          LimitVal += RedGraLinks[i].cost * RedGraLinks[i].capacity; //saturiamo tutti gli archi di costo positivo
-      }                                                              //e ne sommiamo i costi.
+          LimitVal += RedGraLinks[i].cost * RedGraLinks[i].capacity; //saturate all the positive-cost arcs
+      }                                                              //and sum up their costs.
    }
- /*upper bound al valore di ogni soluzione ammissibile*/  
+ /*upper bound on the value of any feasible solution*/
 
 /*--------------------------------------------------------------------------*/
+// returns the Lagrangian cost of reserving rate r on arc lindex of the
+// reduced graph, at the current lambda: see getCost() in
+// DCRLagrangianSolver.h
 
    double DCRLagrangianSolver::getCost(double r, int lindex)
-   {    
+   {
     double c;
     double barl = MTU / RedGraLinks[lindex].speed + RedGraLinks[lindex].delay + Nodes[RedGraLinks[lindex].startnode].delay;
     c = lambda * barl + RedGraLinks[lindex].cost * r + lambda * MTU / r;
 
     return c; 
    }
-/*<restituisce i costi per l'archi lindex di SP in funzione di r^*_ij, passato in input come r*/ 
+/*<returns the costs for the arc lindex of SP as a function of r^*_ij, passed as input as r*/
 
 /*--------------------------------------------------------------------------*/
 
+// tries to warm-start the line search from the cached cuts after r_min has
+// changed: see Reopt() in DCRLagrangianSolver.h
    int DCRLagrangianSolver::Reopt(void)
    {
 
-    /*FIXME: trova dei valori per lambda per cui l'intersezione tra i tagli
-     stia sotto il valore della funzione obiettivo.
-     Siamo sicuri che i tagli siano salvati in modo sicuro? (sembrerebbe di sì)*/
+    /*FIXME: find values of lambda for which the intersection between the
+     cuts lies below the objective function value.
+     Are we sure the cuts are saved in a safe way? (it would seem so)*/
 
-     int isnegcut = 1; //flag per capire se ci sono tagli negativi
-     int negpos; //posizione del taglio negativo in Cuts
-     int isposcut = 1; //lo stesso per tagli positivi
+     int isnegcut = 1; //flag telling whether a negative-slope cut is available
+     int negpos; //position of the negative-slope cut in Cuts
+     int isposcut = 1; //same for positive-slope cuts
      int pospos;
-     double epsrel; //fattore per la precisione relativa
+     double epsrel; //factor for the relative precision
      int i, k;
-     int delflag = 0; //flag per la cancellazione di soluzioni non ammissibili
+     int delflag = 0; //flag for discarding solutions that are no longer feasible
      double someinter;
      double value;
      double approx;
@@ -856,45 +926,45 @@ using namespace std;
      int minpos;
      int counterdeleted = 0;
      int maxiter = 0;
-     
-     //cout<<"tagli presenti"<<Cuts.size()<<endl;
-     if(Cuts.size() <= 1) return 1; //solo un taglio o meno è troppo poco per riottimizzare
 
-     for(i = 0; i < Cuts.size(); i++) //controlliamo quali soluzioni sono ancora ammissibili
+     //cout<<"cuts present"<<Cuts.size()<<endl;
+     if(Cuts.size() <= 1) return 1; //a single cut, or none, is too little to reoptimize on
+
+     for(i = 0; i < Cuts.size(); i++) //check which solutions are still feasible
      {
-      //cout<<"nhops della sol del taglio "<<i<<" = "<<Cuts[i].RSolsize<<endl;
+      //cout<<"nhops of the solution of cut "<<i<<" = "<<Cuts[i].RSolsize<<endl;
        for(k = 0; k < Cuts[i].RSolsize; k++)
         {
-          if(Cuts[i].RSol[k] < rmin) //basta accada anche per un solo r_ij
+          if(Cuts[i].RSol[k] < rmin) //it is enough that this happens for a single r_ij
           {
             //cout<<Cuts[i].RSol[k]<<"-"<<rmin<<endl;
-            delflag = 1; //in tal caso non sarà ammissibile
+            delflag = 1; //in which case the solution is no longer feasible
           }
 
         }
        if(delflag == 1)
         {
          counterdeleted++;
-         Cuts.erase(Cuts.begin()+i); //e verrà cancellata
+         Cuts.erase(Cuts.begin()+i); //so the cut is discarded
          i--;
          delflag = 0;
         }
-       else //se il taglio è valido ne controlliamo la pendenza
-        //FIXME: si potrebbe aggiungere una sensibilità
+       else //if the cut is still valid, check its slope
+        //FIXME: a sensitivity margin could be added here
        {
-        //correggiamo la pendenza del taglio con il nuovo valore di rmin
+        //correct the slope of the cut for the new value of rmin
         Cuts[i].c.m = Cuts[i].c.m - Flow.burst / Cuts[i].rmin + Flow.burst / rmin;
-        //e ci segnamo che la correzione per questo taglio è avvenuta
+        //and record that the correction for this cut has been applied
         Cuts[i].rmin = rmin;
 
-        if(Cuts[i].c.m < 0) 
+        if(Cuts[i].c.m < 0)
           {
             isnegcut = 0;
             negpos = i;
           }
-        else 
+        else
           {
-            if(Cuts[i].c.m >= 0) //dovrebbe essere superfluo
+            if(Cuts[i].c.m >= 0) //should be redundant
             {
               isposcut = 0;
               pospos = i;
@@ -903,14 +973,14 @@ using namespace std;
 
        }
      }
-     //cout<<"tagli cancellati"<<counterdeleted<<endl;
+     //cout<<"cuts deleted"<<counterdeleted<<endl;
      if(Cuts.size() <= 1) return 1;
-     //cout<<"ne sono rimasti "<<Cuts.size()<<endl;
+     //cout<<"there remain "<<Cuts.size()<<endl;
 
-    if(isnegcut == 1 || isposcut == 1) return 1; //se non sono sopravvissuti tagli positivi o negativi rinunciamo
-  
-  ////line search per la ricerca dell'intersezione ottima tra i tagli ancora ammissibili
- 
+    if(isnegcut == 1 || isposcut == 1) return 1; //if no positive- or no negative-slope cut survived, give up
+
+  ////line search for the optimal intersection among the still-feasible cuts
+
     pCut.m = Cuts[pospos].c.m;
     pCut.q = Cuts[pospos].c.q;
     mCut.m = Cuts[negpos].c.m;
@@ -919,8 +989,8 @@ using namespace std;
     do
     {
       lambda = (mCut.q - pCut.q) / (pCut.m - mCut.m);
-      
-      ////FIXME: capire perché succede!!!!!!!
+
+      ////FIXME: understand why this happens!!!!!!!
       if(lambda < 0 || abs(pCut.m - mCut.m) < 1e-20)
        {//cout<<"Bug in reopt"<<endl;
         lambda = 0;
@@ -928,15 +998,15 @@ using namespace std;
        }
       approx = mCut.q + lambda * mCut.m;
 
-      for(i = 0; i < Cuts.size(); i++) //per calcolare il valore della funzione per quel lambda
-       {                               //vediamo per quale taglio si ottiene il valore più basso.
+      for(i = 0; i < Cuts.size(); i++) //to compute the function value at that lambda,
+       {                               //find which cut gives the lowest value.
          someinter = Cuts[i].c.q + lambda * Cuts[i].c.m;
 
          if(min >= someinter)
            {
             min = someinter;
             minpos = i;
-           } 
+           }
        }
 
       value = Cuts[minpos].c.q + lambda * Cuts[minpos].c.m;
@@ -946,38 +1016,44 @@ using namespace std;
       if(approx > 1) epsrel = approx;
       else epsrel = 1;
 
-      //cout<<"ecco il loop"<<endl;
+      //cout<<"here is the loop"<<endl;
       maxiter ++;
       //cout<<"approx - value"<<approx - value<<endl;
-    }while(approx - value > eps*epsrel && maxiter <= 30);
-    //FIXME: va in loop con garr199904, lanciata da BenBound, al flusso 78
+    }while(approx - value > eps*epsrel && maxiter <= 30); // convergence test, capped at 30 iterations
+    //FIXME: loops with garr199904, launched by BenBound, at flow 78
    // cout<<"approx || value : "<<approx<<"||"<<value<<endl;
     //cout<<"niter = "<<maxiter<<endl;
-    if(maxiter >= 30) 
+    if(maxiter >= 30)
       {
-        cout<<"guarda che è andato in loop il reopt"<<endl;
-        return 1;
+        cout<<"watch out, reopt has gone into a loop"<<endl;
+        return 1; // did not converge: fall back to a full Inizial()
       }
-   // cout<<"finisce il reopt con valore = "<<value<<endl;
-    //cout<<"tagli pubblici:"<<pCut.m<<"||"<<mCut.m<<endl;
+   // cout<<"reopt ends with value = "<<value<<endl;
+    //cout<<"public cuts:"<<pCut.m<<"||"<<mCut.m<<endl;
     return 0;
    }
 
 /*--------------------------------------------------------------------------*/
 
+// initializes the line search: builds the reduced graph, solves the
+// Shortest Path Tree subproblem at lambda = 0 and, depending on the sign
+// of the resulting delay slack, either declares that lambda = 0 is
+// already optimal or searches (by doubling lambda) for a first
+// negative-slope cut; sets lagstat accordingly. See Inizial() in
+// DCRLagrangianSolver.h
    void DCRLagrangianSolver::Inizial(void)
    {
     int i, j;
     vector<int> path;
    // vector<double> tempRsol;
     double beta_0 = Flow.burst / rmin - Flow.deadline;
-    double alpha = 0;        //inizializzate   
-    double beta = beta_0;    //al valore costante. 
+    double alpha = 0;        //initialized
+    double beta = beta_0;    //to the constant term.
 
     //cout<<"lambda = "<<lambda<<endl;
     //cout<<"beta = "<<beta<<endl;
-    setReducedGraph(); //lavoriamo sul grafo ridotto.
-    
+    setReducedGraph(); //work on the reduced graph.
+
     setSPTcosts();
 
     //cout<<"cardRedGraph="<<cardRedGraph<<endl;
@@ -985,44 +1061,44 @@ using namespace std;
 
     spt.LoadProblem(numNodes, cardRedGraph, Linksp, Flow.sourcenode, Flow.sinknode);
     spt.Solve();
-    
-    spstat = spt.getStatus(); 
-    //cout<<"spstat è "<<spstat<<endl;
-    if(spstat  == 0) //il grafo ridotto non ha cicli di costo negativo, né è sconnesso.
-    { 
+
+    spstat = spt.getStatus();
+    //cout<<"spstat is "<<spstat<<endl;
+    if(spstat  == 0) //the reduced graph has no negative-cost cycle and is not disconnected.
+    {
       getLimitVal();
 
       nhops = spt.getNHops();
       path.resize(nhops);
-      path = spt.getPath(); //path prende gli indici del cammino ottimo di sp
+      path = spt.getPath(); //path holds the arc indices of the optimal SP tour
 
-     // cout<<"path nel lagrangiano e rispettivi rstar: ";
+     // cout<<"path in the lagrangian and respective rstar: ";
 
-      for(i = 0; i < nhops; i++) //calcoliamo i valori di beta ed alpha.
+      for(i = 0; i < nhops; i++) //compute the values of beta and alpha.
         {
           beta += MTU / Linksp[path[i]].rstar + MTU / RedGraLinks[path[i]].speed + RedGraLinks[path[i]].delay + Nodes[RedGraLinks[path[i]].startnode].delay;
           alpha += RedGraLinks[path[i]].cost * Linksp[path[i]].rstar;
-         // cout<<"barl in lagr per l'arco "<<i<<" è "<<MTU / RedGraLinks[path[i]].speed + RedGraLinks[path[i]].delay + Nodes[RedGraLinks[path[i]].startnode].delay<<endl;
-         // cout<<"ed il suo rstar è "<<Linksp[path[i]].rstar<<endl;
+         // cout<<"barl in lagr for arc "<<i<<" is "<<MTU / RedGraLinks[path[i]].speed + RedGraLinks[path[i]].delay + Nodes[RedGraLinks[path[i]].startnode].delay<<endl;
+         // cout<<"and its rstar is "<<Linksp[path[i]].rstar<<endl;
         }
     // cout<<endl;
      //cout<<"alpha= "<<alpha<<endl;
      //cout<<"beta = "<<beta<<endl;
 
-      UpdCut(alpha,beta); //aggiorniamo il primo taglio ottimo.
+      UpdCut(alpha,beta); //update the first optimal cut.
 
-      /////verifichiamo se 0 è già il lambda ottimo
-      if(beta <= 0) 
-        { 
+      /////check whether 0 is already the optimal lambda
+      if(beta <= 0)
+        {
           DCRLagrangianSolver::Cut_Val cut;
-         //cout<<"pendenza negativa"<<endl;
+         //cout<<"negative slope"<<endl;
           lagstat = OK;
           InterVal = alpha;
           ObjVal = alpha;
           lambda = 0;
           optBeta = beta;
 
-          HeurVal = alpha; // ci salviamo il valore della f.o. in concomitanza di beta<0
+          HeurVal = alpha; // save the objective function value at this beta<=0 solution
 
           cut.RSol.resize(nhops);
           path.resize(nhops);
@@ -1035,7 +1111,7 @@ using namespace std;
           RSolCosts.resize(nhops);
 
           /*
-          ////SALVIAMO I DATI PER IL CHECK SU CPLEX
+          ////SAVE THE DATA FOR THE CHECK AGAINST CPLEX
           solneg.resize(nhops);
           checkSolNeg.resize(nhops);
 
@@ -1047,10 +1123,10 @@ using namespace std;
 
           betaneg = beta;
           nonposflag = 1;
-          //fine salvataggio
+          //end of saving
           */
 
-          for(i = 0; i < nhops; i++)  //salviamo le coppie (r_ij,f_ij) della soluzione ottima
+          for(i = 0; i < nhops; i++)  //save the (r_ij, f_ij) pairs of the optimal solution
           {
            RSol[i] = Linksp[path[i]].rstar;
            cut.RSol[i] = Linksp[path[i]].rstar;
@@ -1058,41 +1134,45 @@ using namespace std;
            OptPath[i] = path[i];
           }
 
-          for(i = 0; i < numLinks; i++) 
+          for(i = 0; i < numLinks; i++)
             RSOLS[i] = 0.0;
-               
-          for(int i = 0; i < numLinks; i++) 
+
+          for(int i = 0; i < numLinks; i++)
             for(int j = 0; j < nhops; j++)
               if(i == path[j])
                 RSOLS[i] = RSol[j];
-          
+
           cut.RSolsize = nhops;
           cut.c.m = beta;
           cut.c.q = alpha;
 
           cut.rmin = rmin;
-          
+
           if(Cuts.size() < maxCutSize)
-          Cuts.push_back(cut); //salviamo il taglio con pendenza negativa.
+          Cuts.push_back(cut); //save the negative-slope cut.
 
           SPLabels.resize(numNodes);
           vector<double> labels;
-    
-          labels = spt.getLabel(); //salviamo i potenziali.
+
+          labels = spt.getLabel(); //save the potentials.
 
           for(i = 0; i < numNodes; i++)
             SPLabels[i] = labels[i];
 
           solvedflag = 1;
         }
-      else  //////ricerca del taglio con pendenza negativa
+      else  //////search for a negative-slope cut, since beta > 0 at lambda = 0
         {
-          //cout<<"ricerca del taglio con pendenza negativa"<<endl;
+          //cout<<"searching for the cut with negative slope"<<endl;
          lambda = 1;
-        
+
+         // repeatedly double lambda and re-solve SP, until either a
+         // delay-feasible (beta <= 0) path is found, the running
+         // Lagrangian value exceeds the trivial upper bound LimitVal
+         // (declaring infeasibility), or SP itself fails
          while(beta > 0 && ObjVal <= LimitVal && spstat == 0)
            {
-            alpha = 0;           //inizializzate a ogni iterazione 
+            alpha = 0;           //initialized at every iteration
             beta = beta_0;
 
             setSPTcosts();
@@ -1102,22 +1182,22 @@ using namespace std;
             nhops = spt.getNHops();
 
             path.resize(nhops);
-            path = spt.getPath(); //path prende gli indici del cammino ottimo di sp
+            path = spt.getPath(); //path holds the arc indices of the optimal SP tour
             //cout<<path[0]<<path[1]<<endl;
-            for(i = 0; i < nhops; i++) //calcolo valori di beta ed alpha.
-              {  
+            for(i = 0; i < nhops; i++) //compute the values of beta and alpha.
+              {
                  beta += MTU / Linksp[path[i]].rstar + MTU / RedGraLinks[path[i]].speed + RedGraLinks[path[i]].delay + Nodes[RedGraLinks[path[i]].startnode].delay;
                  alpha += RedGraLinks[path[i]].cost * Linksp[path[i]].rstar;
-              } 
+              }
 
             //cout<<"beta = "<<beta<<endl;
             //cout<<"ObjVal ="<<ObjVal<<endl;
 
-            ObjVal = alpha + lambda * beta; 
-            lambda = 2 * lambda; //si possono scegliere anche successioni diverse
-          } // while ricerca del beta negativo
-          
-          DCRLagrangianSolver::Cut_Val cut;        
+            ObjVal = alpha + lambda * beta;
+            lambda = 2 * lambda; //other growth sequences could be chosen as well
+          } // while searching for a negative beta
+
+          DCRLagrangianSolver::Cut_Val cut;
           //tempRsol.resize(nhops);
           cut.RSol.resize(nhops);
 
@@ -1126,9 +1206,9 @@ using namespace std;
               //tempRsol[i] = Linksp[path[i]].rstar;
               cut.RSol[i] = Linksp[path[i]].rstar;
              }
-          
+
           /*/
-          ////SALVIAMO I DATI PER IL CHECK SU CPLEX
+          ////SAVE THE DATA FOR THE CHECK AGAINST CPLEX
           solneg.resize(nhops);
           checkSolNeg.resize(nhops);
 
@@ -1140,11 +1220,11 @@ using namespace std;
 
           betaneg = beta;
           nonposflag = 1;
-          //fine salvataggio
+          //end of the saving
           */
 
           cut.c.m = beta;
-          cut.c.q = alpha;         
+          cut.c.q = alpha;
 
           /*for(i = 0; i < nhops; i++)
            cut.RSol[i] = tempRsol[i];*/
@@ -1153,18 +1233,19 @@ using namespace std;
           cut.rmin = rmin;
 
           if(Cuts.size() < maxCutSize)
-          Cuts.push_back(cut); //salviamo il taglio con pendenza negativa.
+          Cuts.push_back(cut); //save the negative-slope cut.
 
-          UpdCut(alpha, beta); //aggiorniamo il secondo taglio ottimo.
+          UpdCut(alpha, beta); //update the second optimal cut.
           //cout<<"LimitVal="<<LimitVal<<endl;
           //cout<<"ObjVal="<<ObjVal<<endl;
 
-          if(ObjVal > LimitVal)   {lagstat = Infeasible; } // allora il lagrangiano è vuoto. ?? ma se siamo partiti con un
-          						  //taglio, almeno un punto ci sarà, potrebbe significare fun crescente
+          if(ObjVal > LimitVal)   {lagstat = Infeasible; } // then the Lagrangian relaxation is empty. ?? but if we
+          						  //started with a cut, there should be at least one point;
+          						  //this may signal an increasing function
           else lagstat = OK;
         }
           //cout<<"beta = "<<beta<<endl;
-    } // se SP ha funzionato
+    } // if SP succeeded
     else lagstat  = Infeasible;
     path.clear();
 
@@ -1173,19 +1254,21 @@ using namespace std;
 
 /*--------------------------------------------------------------------------*/
  
- ////FIXME:sarebbe meglio farlo con un solo scorrimento, ma viene fatto solo una volta
+ ////FIXME: it would be better to do this with a single scan, but it is only done once
+// (re)builds the reduced graph, keeping only the arcs whose (working)
+// capacity is >= rmin: see setReducedGraph() in DCRLagrangianSolver.h
    void DCRLagrangianSolver::setReducedGraph()
    {
      int i, j = 0, h = 0;
-     cardRedGraph = 0; //per le chiamate successive
-    
+     cardRedGraph = 0; //for the subsequent calls
+
      for(i = 0; i < numLinks; i++)
      {
-       if(rmin <= ModCaps[i]) //questi sono quelli su cui lavoreremo (r_min<=c_ij)
+       if(rmin <= ModCaps[i]) //these are the ones we will work on (r_min <= c_ij)
          cardRedGraph ++;
      }
-    
- //FIXME: mi serve davvero RedGraLinks, adesso che salvo le sue posizioni?
+
+ //FIXME: do I really need RedGraLinks, now that I save its positions?
      Linksp.resize(cardRedGraph);
      RedGraLinks.resize(cardRedGraph);
      RedGraPos.resize(cardRedGraph);
@@ -1193,7 +1276,7 @@ using namespace std;
 
      for(i = 0; i < numLinks; i++)
      {
-       if(rmin <= ModCaps[i]) //altrimenti  SP non deve considerarli (i.e. x_ij=0).
+       if(rmin <= ModCaps[i]) //otherwise SP must not consider them (i.e. x_ij = 0).
        {
          RedGraLinks[j].startnode = Links[i].startnode;
          RedGraLinks[j].endnode = Links[i].endnode;
@@ -1215,49 +1298,59 @@ using namespace std;
    }
 
 /*--------------------------------------------------------------------------*/
+// for the current lambda, computes the locally optimal rate r* and the
+// corresponding Lagrangian cost of every arc of the reduced graph: see
+// setSPTcosts() in DCRLagrangianSolver.h
 
    void DCRLagrangianSolver::setSPTcosts()
    {
      int i;
      double sqr;
-     
+
      for(i = 0; i < cardRedGraph; i++)
      {
-      ///scelta dei costi in base ai vari casi, si veda paragrafo 2.
+      ///choice of the costs according to the various cases, see paragraph 2.
       //cout<<"set STPcost"<<endl;
-      if(RedGraLinks[i].cost < 0) 
+      if(RedGraLinks[i].cost < 0)
         {
+          // negative-cost arc: the Lagrangian cost is decreasing in r,
+          // so the minimum over [rmin, capacity] is at r* = capacity
           Linksp[i].rstar = RedGraLinks[i].capacity;
           Linksp[i].cost = getCost(RedGraLinks[i].capacity, i);
         }
       else
-       { 
+       {
+         // non-negative-cost arc: the unconstrained minimizer of
+         // cost*r + lambda*MTU/r is sqrt(lambda*MTU/cost); clip it to
+         // the feasible range [rmin, capacity]
          sqr = sqrt(lambda * MTU / RedGraLinks[i].cost);
- 
-         if(sqr < rmin)  
-           { 
+
+         if(sqr < rmin)
+           {
               Linksp[i].rstar = rmin;
-              Linksp[i].cost = getCost(rmin, i); 
+              Linksp[i].cost = getCost(rmin, i);
            }
          else
           {
-            if(RedGraLinks[i].capacity < sqr)  
-             { 
+            if(RedGraLinks[i].capacity < sqr)
+             {
                 Linksp[i].rstar = RedGraLinks[i].capacity;
                 Linksp[i].cost = getCost(RedGraLinks[i].capacity, i);
              }
-            else 
-             { //cout<<"scelgo"<<sqr<<endl;
+            else
+             { //cout<<"I choose"<<sqr<<endl;
                 Linksp[i].rstar = sqr;
                 Linksp[i].cost = getCost(sqr, i);
-             }//caso rmin < sqr < c_ij
+             }//case rmin < sqr < c_ij
           }
-       } //fine suddivisione casi per costi.
+       } //end of the case split on the sign of the cost.
      }//for all reduced graph arcs
     }
 
 /*--------------------------------------------------------------------------*/
- 
+// releases all dynamically allocated memory and resets the solution data:
+// see clean_up() in DCRLagrangianSolver.h
+
    void DCRLagrangianSolver::clean_up()
    {
      int i;
@@ -1292,6 +1385,9 @@ using namespace std;
 /*--------------------------------------------------------------------------*/
 
 
+// updates pCut or mCut, depending on the sign of the slope, with the new
+// (alpha, beta) cut: see UpdCut() in DCRLagrangianSolver.h
+
    void DCRLagrangianSolver::UpdCut(double alpha, double beta)
    {
     if(beta>=0)
@@ -1306,7 +1402,8 @@ using namespace std;
         mCut.q = alpha;
       }
    }
-/*<modifica uno dei due tagli ottimi che definiscono la soluzione al momento a seconda della pendenza*/
+/*<updates one of the two optimal cuts defining the current solution,
+ * depending on its slope*/
 
 
 /*--------------------------------------------------------------------------*/

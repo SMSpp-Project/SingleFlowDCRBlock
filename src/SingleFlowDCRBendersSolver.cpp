@@ -4,12 +4,24 @@
 /** @file
  * Implementation of the SingleFlowDCRBendersSolver class.
  *
- * \author Antonio Frangioni \n
+* \author Antonio Frangioni \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
+ * \author Laura Galli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \author Luca Mencarelli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \author Enrico Sorbera \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ * 
  * \copyright &copy; by Antonio Frangioni
- */
+ */ 
 /*--------------------------------------------------------------------------*/
 /*---------------------------- IMPLEMENTATION ------------------------------*/
 /*--------------------------------------------------------------------------*/

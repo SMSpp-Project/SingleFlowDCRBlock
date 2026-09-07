@@ -1,6 +1,27 @@
 /*--------------------------------------------------------------------------*/
-/*---------------------------- File DCR_SPT.cpp ----------------------------*/
+/*---------------------------- File DCR_SPT.cpp -----------------------------*/
 /*--------------------------------------------------------------------------*/
+/** @file
+ * Implementation of the DCR_SPT class.
+ *
+* \author Antonio Frangioni \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \author Laura Galli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \author Luca Mencarelli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \author Enrico Sorbera \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ * 
+ * \copyright &copy; by Antonio Frangioni
+ */ 
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------- IMPLEMENTATION -------------------------------*/
@@ -30,6 +51,10 @@
 
 //#define DEBUG
 
+// gives default values to all data members: no instance is loaded yet
+// (Nodes/Links/Flows are null), the default heuristic is ERA-I (heur == 1)
+// and no solution has been found yet (objval == +Inf)
+
 DCR_SPT::DCR_SPT() : DCR()
 {
 	
@@ -53,11 +78,16 @@ DCR_SPT::DCR_SPT() : DCR()
 /*----------------------------------SOLVE-----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+/// runs the heuristic selected by DCRsetHeur() (ERA-I by default)
+/** Dispatches to DCRheurERAI() or DCRheurERAH() according to the current
+ * value of heur, then reports OK if a feasible (mixed-)integer solution was
+ * found (UBsol == true) or Infeasible otherwise. */
+
 DCR::DCRStatus DCR_SPT::DCRsolve( void )
 {
 
-	//select a heuristic method	
-	if(heur == 1)	
+	//select a heuristic method
+	if(heur == 1)
 	{
 		DCRheurERAI();
 		//debug
@@ -80,6 +110,8 @@ DCR::DCRStatus DCR_SPT::DCRsolve( void )
 /*----------------------------------GET RESULTS-----------------------------*/
 /*--------------------------------------------------------------------------*/
 
+// returns the cost of the best feasible path found by DCRsolve()
+
 double DCR_SPT::DCRgetObj( void )
 {
 	return objval;
@@ -87,6 +119,9 @@ double DCR_SPT::DCRgetObj( void )
 
 
 /*--------------------------------------------------------------------------*/
+
+// always returns 1 (a single path) if a solution was found, since this
+// class only solves *single-path* SFSP instances
 
 int DCR_SPT::DCRgetUBSolNPaths( int k )
 {
@@ -98,6 +133,9 @@ int DCR_SPT::DCRgetUBSolNPaths( int k )
 }
 
 /*--------------------------------------------------------------------------*/
+
+// copies the best path found (arcs Xsol[] and corresponding rates Rsol[])
+// into the caller-provided arrays X and R, and returns the number of hops
 
 int DCR_SPT::DCRgetUBSolPath( int k, int p, int *X, double *R)
 {
@@ -141,7 +179,12 @@ void DCR_SPT::DCRgetPSolPath(int k, int p, double *X, double *R)
 /*----------------------------------LOAD DATA ------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-void DCR_SPT::DCRloadProblem(int nnodes, int nlinks, int nflows, 
+// loads a new SFSP DCR instance: only the SRP delay formula and single-flow
+// (nflows == 1) instances are supported (an exception is thrown otherwise);
+// deep-copies the topology/link/node/flow data and allocates Xsol/Rsol with
+// enough room for a Hamiltonian path (at most nnodes - 1 hops)
+
+void DCR_SPT::DCRloadProblem(int nnodes, int nlinks, int nflows,
 	DCRFlow *flows, DCRLink *links, DCRNode *nodes, double mtu, DCRDelay deltype)
 {
 	int status;
@@ -177,6 +220,7 @@ void DCR_SPT::DCRloadProblem(int nnodes, int nlinks, int nflows,
 /*----------------------------------SETTERS---------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+// selects which heuristic DCRsolve() will run: '1' for ERA-I, '2' for ERA-H
 
 void DCR_SPT::DCRsetHeur(char h)
 {
@@ -188,6 +232,9 @@ void DCR_SPT::DCRsetHeur(char h)
 /*--------------------------------------------------------------------------*/
 /*----------------------------------MODIFIERS-------------------------------*/
 /*--------------------------------------------------------------------------*/
+
+// closes the arcs listed in whch[] (na of them) for every flow, by setting
+// their cost to +Infinity, effectively excluding them from any future path
 
 void DCR_SPT::DCRcloseArcs( int * whch, int na )
 {
@@ -205,20 +252,24 @@ void DCR_SPT::DCRcloseArcs( int * whch, int na )
 
 /*--------------------------------------------------------------------------*/
 
+// closes the arcs listed in whch[] (na of them) for flow k only
+
 void DCR_SPT::DCRcloseArcs( int k , int * whch, int na )
 {
 	int j, ai;
-	
+
 	for(j = 0; j < na; j++)
 	{
 		ai = whch[j];
 		Flows[k].costs[ai] = Inf<double>();
-	}		
+	}
 }
 
 /*--------------------------------------------------------------------------*/
 /*------------------------------ DESTRUCTOR --------------------------------*/
 /*--------------------------------------------------------------------------*/
+
+// releases all dynamically allocated memory
 
 DCR_SPT::~DCR_SPT()
 {
@@ -232,6 +283,32 @@ DCR_SPT::~DCR_SPT()
 
 /* This private method implements ERA-I heuristic algorithm
  *  for SFSP DCR problems, see Orda paper.*/
+/** ERA-I ("Extended Routing Algorithm - Individual rates") heuristic.
+ *
+ * The candidate values for the reserved rate r_min are the distinct
+ * capacities of the flow's links (Flows[0].caps[]); for each candidate
+ * rmin (in increasing order, skipped if below the flow's minimum rate),
+ * the "reduced graph" containing only the arcs with capacity >= rmin is
+ * built implicitly (by simply ignoring the other arcs while relaxing),
+ * and a Shortest Path Tree from the source s is computed on it via a
+ * FIFO-queue label-correcting algorithm (a Bellman-Ford variant: a node is
+ * (re-)enqueued whenever its distance label is improved, and is not
+ * re-inserted while already in the queue) using, as the length of each
+ * arc, its contribution MTU/rmin + MTU/speed + node_delay + link_delay to
+ * the end-to-end transmission delay for that specific candidate rmin (note
+ * arc costs are always nonnegative here, so a simpler Dijkstra could also
+ * be used, but the FIFO/Bellman-Ford scheme handles the general case
+ * uniformly, consistently with SPT::Solve()).
+ *
+ * For each candidate rmin, once the tree is computed, the resulting s-t
+ * path is checked for feasibility of the deadline constraint (transmission
+ * delay along the path, plus the burst term MTU*burst/rmin, must not
+ * exceed Flow.deadline); if feasible, its routing cost is computed by
+ * pricing every arc of the path at its *own* individual capacity (i.e.,
+ * Flows[0].costs[a] * Flows[0].caps[a] for every arc a on the path -- this
+ * is the "Individual rates" of ERA-I), and, if cheaper than the best
+ * solution found so far over all candidate values of rmin, it replaces it
+ * (Xsol/Rsol/nhops/objval are updated accordingly). */
 void DCR_SPT::DCRheurERAI()
 {
 	//Dijkstra
@@ -369,6 +446,33 @@ void DCR_SPT::DCRheurERAI()
 
 /* This private method implements ERA-H  heuristic algorithm
  * for SFSP DCR problems, see Orda paper.*/
+/** ERA-H ("Extended Routing Algorithm - Homogeneous/Hop-optimized rates")
+ * heuristic.
+ *
+ * Like DCRheurERAI(), for each candidate rmin (again the distinct link
+ * capacities of the flow, in increasing order) a FIFO-queue label-
+ * correcting Shortest Path computation is run from the source s over the
+ * (implicit) reduced graph of arcs with capacity >= rmin, using the same
+ * per-arc transmission-delay length MTU/rmin + MTU/speed + node_delay +
+ * link_delay. The key difference with ERA-I is *when* and *how* a
+ * candidate path is evaluated: here the check is performed every time the
+ * sink t is extracted from the FIFO queue (i.e., as soon as its distance
+ * label distance[t] is finalized for the current partial tree, which may
+ * happen several times as the label-correcting algorithm improves it),
+ * rather than only once at the end.
+ *
+ * Whenever the current s-t path (backtracked via previous[]) satisfies the
+ * deadline constraint using rmin, ERA-H does not price the path's arcs at
+ * their individual capacities as ERA-I does; instead it computes, in
+ * closed form, the *smallest common rate* r0 that all arcs on the path
+ * could share while still meeting the deadline, given the path's fixed
+ * (non-transmission) delay dl and number of hops nh:
+ * r0 = max( Flow.rate , ( burst + nh * MTU ) / ( deadline - dl ) ). Pricing
+ * every arc of the path at this common rate r0 (Flows[0].costs[a] * r0)
+ * typically yields a cheaper, still-feasible solution than using each
+ * arc's own capacity; as usual, the best (cheapest) such path found over
+ * all candidate values of rmin replaces the incumbent (Xsol/Rsol/nhops/
+ * objval, and the local r0/cost). */
 void DCR_SPT::DCRheurERAH()
 {
 	int s, t, i, j, h, next, lindex, nh;

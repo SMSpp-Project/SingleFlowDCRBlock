@@ -18,8 +18,12 @@
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
+ * \author Enrico Sorbera \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ * 
  * \copyright &copy; by Antonio Frangioni
- */
+ */ 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -88,10 +92,102 @@ namespace SMSpp_di_unipi_it
 /*--------------------------------------------------------------------------*/
 /*--------------------------- GENERAL NOTES --------------------------------*/
 /*--------------------------------------------------------------------------*/
-/// implementation of the Block concept for the (linear) Min-Cost Flow problem
-/** The SingleFlowDCRBlock class implements the Block concept [see Block.h] 
- * for the Min-Cost Flow DCR problem.
- **/
+/// implementation of the Block concept for the single-flow DCR problem
+/** The SingleFlowDCRBlock class implements the Block concept [see Block.h]
+ * for the Delay-Constrained Routing (DCR) problem relative to a *single*
+ * flow, as opposed to MultiFlowDCRBlock [see MultiFlowDCRBlock.h] that deals
+ * with several flows sharing the same network at once.
+ *
+ * A DCR problem [see DCR.h] consists of a Multi-Commodity Flow part plus a
+ * max-delay constraint part expressed via network calculus. In the single-
+ * flow case the "flow part" degenerates into finding a single s-t path (or,
+ * more precisely, a 0/1 selection of arcs realizing that path) on a
+ * (directed) graph G = ( N , A ) with n = |N| nodes and m = |A| arcs, while
+ * the "delay part" requires the end-to-end delay incurred by the flow along
+ * the selected arcs, as computed by a specific network-calculus formula
+ * (currently the Strictly-Rate-Proportional one, see DCR::DCRDelay), not to
+ * exceed a given deadline.
+ *
+ * For each arc (i, j) of A the following variables are defined:
+ *
+ * - a binary "routing" variable X[ i , j ] (field x), equal to 1 if and only
+ *   if the arc is used by the flow;
+ *
+ * - a continuous "reserved rate" variable R[ i , j ] >= 0 (field r), the
+ *   fraction of the arc bandwidth reserved to the flow, which can only be
+ *   positive if the arc is selected;
+ *
+ * - a continuous "burst delay" variable \f$\Theta\f$[ i , j ] >= 0 (field
+ *   theta), which is a convexification of the extra queueing delay incurred
+ *   on the arc because of rate-limiting: for a Strictly-Rate-Proportional
+ *   shaper this delay term is MTU / R[ i , j ], and forcing X[ i , j ] to
+ *   multiply it out of the (nonconvex, hyperbolic) fraction leads to the
+ *   convex constraint
+ *   \f[
+ *    \Theta[ i , j ] \, R[ i , j ] \geq MTU \, X[ i , j ]^2
+ *   \f]
+ *   (see cone_cnst), a rotated second-order cone in the three variables.
+ *
+ * In addition, two "aggregate" (not arc-specific) variables model the delay
+ * contribution of the flow's own burstiness at the source:
+ *
+ * - the reserved rate r_min >= 0 (field r_min), the minimum reserved rate
+ *   guaranteed to the flow along the whole selected path;
+ *
+ * - the burst delay theta_min >= 0 (field theta_min), convexifying the term
+ *   FlowBursts / r_min via the analogous rotated cone constraint
+ *   \f[
+ *    \Theta_{min} \, R_{min} \geq FlowBursts
+ *   \f]
+ *   (see cone_min_cnst).
+ *
+ * The problem is then, denoting with U[ i , j ] the capacity of arc (i, j),
+ * with C[ i , j ] its (per-unit-of-reserved-rate) cost, with LinkDelays and
+ * NodeDelays the (fixed) propagation/processing delays of arcs and nodes,
+ * and with FlowDeadlines the maximum admissible end-to-end delay:
+ * \f[
+ *  \min \sum_{ (i, j) \in A } C[ i , j ] R[ i , j ]
+ * \f]
+ * subject to the flow conservation constraints on the (single) commodity
+ * (field E, encoding a 0/1 s-t path via the incidence matrix of G), the
+ * delay constraint
+ * \f[
+ *  \sum_{ (i, j) \in A } \Theta[ i , j ] + X[ i , j ] \left(
+ *   \frac{MTU}{U[ i , j ]} + LinkDelays[ i , j ] + NodeDelays[ i ] \right)
+ *   + \Theta_{min} \; \leq \; FlowDeadlines
+ * \f]
+ * (field DCR_cnst), the two rotated-cone constraints above, and the "linking"
+ * constraints (fields Indicator_cnst_r1, Indicator_cnst_r2 and
+ * Indicator_cnst_rmin) that tie the reserved rate to the routing variables:
+ * \f[
+ *  0 \leq R[ i , j ] \leq U[ i , j ] X[ i , j ] \quad (i, j) \in A
+ * \f]
+ * \f[
+ *  R[ i , j ] \geq \rho \, X[ i , j ] \quad (i, j) \in A
+ * \f]
+ * \f[
+ *  R_{min} \leq R[ i , j ] \quad \mbox{for all (i, j) with } X[ i , j ] = 1
+ * \f]
+ * (the latter being implemented with a "big-M" reformulation using the
+ * largest arc capacity U_max).
+ *
+ * Since the rotated-cone constraints above make this problem a Mixed-Integer
+ * Second-Order Cone Program (the "SOCP" formulation), SingleFlowDCRBlock also
+ * supports an alternative "P/C" (Perspective Cuts) formulation in which the
+ * two cones are *not* explicitly constructed; rather, they are outer-
+ * approximated by dynamically generated linear cuts (fields PC_cuts and
+ * PC_cuts_min, populated by generate_dynamic_constraints()) separating the
+ * current (x, r, theta) point whenever it violates the corresponding cone
+ * by more than a given tolerance. Which of the two formulations is actually
+ * constructed is controlled by a Configuration passed to
+ * generate_abstract_constraints() [see there].
+ *
+ * As in MCFBlock, the abstract representation can be changed (costs,
+ * capacities, deficits, opening/closing arcs) via the corresponding methods,
+ * which keep the "physical" and "abstract" representations of the
+ * SingleFlowDCRBlock in sync and issue the appropriate Modification; more
+ * complex changes to the structure of the graph are, at the time being, not
+ * supported and result in exceptions being thrown. */
 
 class SingleFlowDCRBlock : public Block
 {
@@ -106,7 +202,16 @@ public:
 /*--------------------------------------------------------------------------*/
 /** @name Public types
  *
- * SingleFlowDCRBlock defines three main public types:
+ * Unlike MCFBlock, SingleFlowDCRBlock does not need distinct types for flow
+ * variables, arc costs and objective function values, since (unlike MCF) the
+ * DCR problem has no "integrality" property to exploit: because of the
+ * binary routing variables and the rotated-cone (or, in the P/C formulation,
+ * cutting-plane) constraints linking them to the continuous reserved-rate
+ * and burst-delay variables, the problem is never purely integral even if
+ * all the input data are. Hence a single "generic" double type, and the
+ * corresponding vector/iterator types, are used throughout for all the
+ * numerical data (costs, capacities, deficits, delays, ...) of the
+ * SingleFlowDCRBlock.
  @{ */
 
 /*--------------------------------------------------------------------------*/
@@ -176,10 +281,36 @@ public:
   *        least m or be empty, in the latter case all arc costs are taken
   *        to be 0
   *
-  * - pB   is the vector of the node deficits; source nodes have negative
-  *        deficits and sink nodes have positive deficits; it must either
-  *        have size at least n or be empty, in the latter case all deficits
-  *        are taken to be 0 (a circulation problem)
+  * - pNodeDelays  is the vector of the (fixed) processing delays of the
+  *        nodes, which must either have size at least n or be empty, in the
+  *        latter case all node delays are taken to be 0
+  *
+  * - pLinkDelays  is the vector of the (fixed) propagation delays of the
+  *        arcs, which must either have size at least m or be empty, in the
+  *        latter case all link delays are taken to be 0
+  *
+  * - FlowBursts  is the burst of the (single) flow to be routed, i.e., the
+  *        amount of data that can be injected into the network instantly
+  *        (used in the burst-delay term theta_min, see the general notes)
+  *
+  * - FlowDeadlines  is the maximum end-to-end delay that the flow can incur
+  *        along the selected path (the RHS of the DCR delay constraint,
+  *        see DCR_cnst)
+  *
+  * - MTU  is the Maximum Transmit Unit of the network, i.e., the size of the
+  *        largest packet that can be sent over any arc (used in both the
+  *        transmission-delay term MTU / U[ i , j ] and the per-arc burst-
+  *        delay term theta[ i , j ], see the general notes)
+  *
+  * - rho  is the minimum rate that has to be reserved on any arc selected
+  *        by the flow (the RHS of the r[ i , j ] >= rho * x[ i , j ]
+  *        constraint, see Indicator_cnst_r2)
+  *
+  * Note that, unlike MCFBlock, SingleFlowDCRBlock does not have an explicit
+  * vector of node deficits: the source and the sink of the (single) flow to
+  * be routed are instead identified by the sign of the entries of the B[]
+  * vector filled in by load( std::istream & ) / deserialize(), or set
+  * directly with chg_dfct() / chg_st().
   *
   * Like load( std::istream & ), if there is any Solver attached to this
   * SingleFlowDCRBlock then a NBModification (the "nuclear option") is issued. */
@@ -278,31 +409,154 @@ public:
 
  void load( std::istream &input , char frmt = 0 ) override;
 
+/*--------------------------------------------------------------------------*/
+ /// loads the DCR-specific data (delays, burst, deadline, MTU, rho)
+ /** Reads from the given std::istream the data of the SingleFlowDCRBlock
+  * that are specific to the DCR problem, i.e., are not part of the "plain"
+  * MCF instance read by load( std::istream & ): in order, the NNodes node
+  * delays, the NArcs link delays, the flow burst, the flow deadline, the
+  * MTU and rho. This is meant to be called right after load( std::istream &
+  * ) has read the "MCF part" of the instance (in DIMACS format) from the
+  * same stream, to complete it with the DCR-specific parameters (typically
+  * stored in a separate ".dcr" file); NNodes and NArcs must therefore match
+  * those of the MCF part already read. Note that this method does *not*
+  * issue any Modification. */
+
  void load_dcr( std::istream &input , Index NNodes, Index NArcs );
 
 /*--------------------------------------------------------------------------*/
  /// generate the abstract variables of the DCR
  /** Method that generates the abstract Variable of the DCR. These are:
-  */
+  *
+  * - a std::vector< ColVariable > of size get_NArcs(), the binary routing
+  *   variables X[ i , j ] (field x), one per arc, each equal to 1 if and
+  *   only if the corresponding arc is used by the flow;
+  *
+  * - a std::vector< ColVariable > of size get_NArcs(), the continuous
+  *   nonnegative reserved-rate variables R[ i , j ] (field r), one per arc;
+  *
+  * - a std::vector< ColVariable > of size get_NArcs(), the continuous
+  *   nonnegative burst-delay variables \f$\Theta\f$[ i , j ] (field theta),
+  *   one per arc;
+  *
+  * - the single continuous nonnegative ColVariable r_min, the minimum
+  *   reserved rate guaranteed to the flow along the selected path;
+  *
+  * - the single continuous nonnegative ColVariable theta_min, the burst-
+  *   delay term associated with r_min.
+  *
+  * See the general notes of the class for the exact meaning of these
+  * variables. */
 
  void generate_abstract_variables( Configuration *stvv = nullptr ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// generate the static constraint of the DCR
- /** Method that generates the abstract constraint of the DCR. These are:
-  */
- 
+ /** Method that generates the abstract Constraint of the DCR. These are:
+  *
+  * - if get_NNodes() > 0, a std::vector< FRowConstraint > with exactly
+  *   get_NNodes() entries, the entry i being the flow conservation equation
+  *   of node i (field E), exactly as in MCFBlock;
+  *
+  * - the single FRowConstraint DCR_cnst encoding the end-to-end delay bound
+  *   of the flow, i.e.,
+  *   \f[
+  *    \sum_{ (i, j) \in A } \Theta[ i , j ] + X[ i , j ] \left(
+  *     \frac{MTU}{U[ i , j ]} + LinkDelays[ i , j ] + NodeDelays[ i ]
+  *     \right) + \Theta_{min} \; \leq \; FlowDeadlines ;
+  *   \f]
+  *
+  * - depending on the Configuration stcc (see below), either the rotated
+  *   second-order cone constraints cone_min_cnst and cone_cnst realizing
+  *   the "SOCP" formulation of the burst-delay terms, i.e.,
+  *   \f$\Theta_{min} R_{min} \geq FlowBursts\f$ and
+  *   \f$\Theta[ i , j ] R[ i , j ] \geq MTU X[ i , j ]^2\f$
+  *   (these are always *constructed*, but are only *added* to the abstract
+  *   representation if the SOCP formulation is selected; the P/C
+  *   formulation constructs an outer linearization of the same constraints
+  *   instead, see generate_dynamic_constraints());
+  *
+  * - the three std::vector< FRowConstraint > Indicator_cnst_rmin,
+  *   Indicator_cnst_r1 and Indicator_cnst_r2, of size get_NArcs() each,
+  *   linking the reserved-rate variables to the routing ones:
+  *   \f[
+  *    R_{min} + U_{max} X[ i , j ] - R[ i , j ] \leq U_{max}
+  *   \f]
+  *   \f[
+  *    R[ i , j ] \leq U[ i , j ] X[ i , j ]
+  *   \f]
+  *   \f[
+  *    \rho \, X[ i , j ] \leq R[ i , j ]
+  *   \f]
+  *   where \f$U_{max}\f$ is the largest arc capacity; the first constraint
+  *   is a "big-M" reformulation ensuring that, whenever some selected arc
+  *   has X[ i , j ] == 1, its reserved rate R[ i , j ] is at least r_min.
+  *
+  * The Configuration stcc selects which of the two alternative formulations
+  * of the burst-delay terms (SOCP vs P/C) is actually constructed: if
+  *
+  * - either stcc is not nullptr and it is a SimpleConfiguration< int >;
+  *
+  * - or f_BlockConfig is not nullptr and
+  *   f_BlockConfig->f_static_variables_Configuration is not nullptr and it
+  *   is a SimpleConfiguration< int >;
+  *
+  * then its f_value selects the formulation (1 == "P/C", 2 == "SOCP");
+  * otherwise, the SOCP formulation is used by default. */
+
  void generate_abstract_constraints( Configuration *stcc = nullptr ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// generate the objective of the DCR
- /** Method that generates the objective of the DCR. Although this would seem
-  * to be an exceedingly simple object, there is still a nontrivial decision
-  * to be made about it, i.e., whether it is represented as a "sparse"
-  * LinearFunction or a "dense" one. This is governed by objc: if
-  */
+ /** Method that generates the (linear) Objective of the DCR, i.e.,
+  * \f[
+  *  \min \sum_{ (i, j) \in A } C[ i , j ] R[ i , j ] ,
+  * \f]
+  * the cost-weighted sum of the reserved-rate variables (the routing and
+  * burst-delay variables do not appear in the objective). Unlike MCFBlock,
+  * the choice between a "sparse" and a "dense" LinearFunction is currently
+  * not exposed via a Configuration: the objective is always built as a
+  * "dense" one, over all the get_NArcs() reserved-rate variables. */
 
  void generate_objective( Configuration *objc = nullptr ) override;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// generate the dynamic (perspective) cuts for the "P/C" formulation
+ /** This method implements the "P/C" (Perspective Cuts) alternative to the
+  * rotated-cone constraints cone_cnst and cone_min_cnst [see
+  * generate_abstract_constraints()]: rather than explicitly representing
+  * the (convex, but nonlinear) constraints
+  * \f[
+  *  \Theta[ i , j ] \, R[ i , j ] \geq MTU \, X[ i , j ]^2
+  *  \qquad \mbox{and} \qquad
+  *  \Theta_{min} \, R_{min} \geq FlowBursts ,
+  * \f]
+  * this method inspects the *current* value of the (x, r, theta) and
+  * (r_min, theta_min) variables and, whenever a cone is violated by more
+  * than a tolerance tol, adds to PC_cuts (respectively, PC_cuts_min) the
+  * linear cut obtained by linearizing the corresponding hyperbolic term
+  * MTU X^2 / R (respectively, FlowBursts / R_min) around the current point,
+  * i.e., its first-order Taylor approximation. Since the term is convex in
+  * (X, R) for X binary, any such linear cut is valid (does not cut off any
+  * feasible integer solution) and can be added on the fly, e.g., while
+  * solving the LP relaxation of the P/C formulation with a cutting-plane
+  * scheme. Routing variables whose value is below the tolerance eps are
+  * skipped, as no cut is meaningful for them (the ratio X^2 / R being
+  * ill-defined for R == 0).
+  *
+  * The tolerance tol and the "is-the-variable-really-nonzero" tolerance eps
+  * can be provided via the Configuration stcc (or, failing that, via
+  * f_BlockConfig->f_dynamic_constraints_Configuration): either a
+  * SimpleConfiguration< double > (only changing tol) or a
+  * SimpleConfiguration< std::pair< double , double > > (changing both tol
+  * and eps, in this order); if none is provided, the default values
+  * tol == 1e-5 and eps == 1e-4 are used.
+  *
+  * Whether the generated cuts are actually added to the abstract
+  * representation (as opposed to being merely available in PC_cuts and
+  * PC_cuts_min for later use) depends on the same formulation-selecting
+  * Configuration used by generate_abstract_constraints(): the cuts are
+  * added if and only if the "P/C" formulation is selected. */
 
  void generate_dynamic_constraints( Configuration *stcc = nullptr ) override;
 
@@ -339,32 +593,32 @@ public:
  [[nodiscard]] Index get_MaxNArcs( void ) const { return( SN.size() ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// get the MTU
+ /// get the Maximum Transmit Unit of the network
 
  [[nodiscard]] double get_MTU( void ) const { return( MTU ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// get the NodeDelays
+ /// get the vector of the (fixed) node processing delays
 
  [[nodiscard]] Vec_double get_NodeDelays( void ) const { return( NodeDelays ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// get the NodeDelays
+ /// get the vector of the (fixed) arc/link propagation delays
 
  [[nodiscard]] Vec_double get_LinkDelays( void ) const { return( LinkDelays ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// get the FlowBurst
+ /// get the burst of the flow
 
  [[nodiscard]] double get_FlowBurst( void ) const { return( FlowBursts ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// get the FlowDeadline
+ /// get the (end-to-end) deadline of the flow
 
  [[nodiscard]] double get_FlowDeadline( void ) const { return( FlowDeadlines ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// get the rho
+ /// get rho, the minimum rate to be reserved on any arc used by the flow
 
  [[nodiscard]] double get_rho( void ) const { return( rho ); }
 
@@ -411,6 +665,11 @@ public:
  }
 
 /*--------------------------------------------------------------------------*/
+ /// given a pointer to a reserved-rate Variable, returns the index of the arc
+ /** Given a pointer to a reserved-rate Variable (formally a Variable *, but
+  * immediately static_cast-ed to a ColVariable * right inside), returns the
+  * index of the corresponding arc. Throws exception if the pointer is not to
+  * a [Col]Variable of the SingleFlowDCRBlock. */
 
  [[nodiscard]] Index p2i_r( const Variable * var ) const {
   auto i = p2i_r_s( var );
@@ -421,12 +680,30 @@ public:
   return( 0 );
   }
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// given an arc, returns the pointer to the corresponding reserved-rate Variable
+ /** Given the index of an arc, returns the pointer to the corresponding
+  * reserved-rate variable R[ i , j ] (a ColVariable *). This ASSUMES THE
+  * Variable ARE CONSTRUCTED IN THE FIRST PLACE, SEGFAULTS ARE BOUND TO
+  * HAPPEN OTHERWISE. */
+
  [[nodiscard]] ColVariable * i2p_r( Index i ) const {
   if( i < get_NArcs() )
    return( const_cast< ColVariable * >( & r[ i ] ) );
 
   throw( std::invalid_argument( "invalid arc pointer" ) );
-  return( 0 ); 
+  return( 0 );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// returns the pointer to the r_min ColVariable
+ /** Returns the pointer to r_min, the ColVariable representing the minimum
+  * reserved rate guaranteed to the flow along the selected path [see the
+  * general notes of the class]. This ASSUMES THE Variable ARE CONSTRUCTED
+  * IN THE FIRST PLACE, SEGFAULTS ARE BOUND TO HAPPEN OTHERWISE. */
+
+ [[nodiscard]] ColVariable * p_rmin() const {
+    return( const_cast< ColVariable * >( & r_min ) );
   }
 
 /*--------------------------------------------------------------------------*/
@@ -601,30 +878,70 @@ public:
 
 /*--------------------------------------------------------------------------*/
  /// returns true if the current solution is approximately feasible
- /** Returns true if the solution encoded in the current value of the flow
-  * (x) Variable of the SingleFlowDCRBlock is approximately feasible. This clearly
-  * requires the Variable of the SingleFlowDCRBlock to have been defined, i.e., that
-  * generate_abstract_variables() has been called prior to this method.
+ /** Returns true if the current solution, i.e., the current values of all
+  * the (x, r, theta, r_min, theta_min) Variable, (approximately) satisfies
+  * the flow conservation constraints (E), the DCR delay constraint
+  * (DCR_cnst) and the three "linking" constraints between routing and
+  * reserved-rate variables (Indicator_cnst_rmin, Indicator_cnst_r1 and
+  * Indicator_cnst_r2). Note that the rotated-cone constraints cone_cnst and
+  * cone_min_cnst are currently *not* checked here (they are only relevant
+  * for the "SOCP" formulation, see generate_abstract_constraints()). This
+  * clearly requires the Constraint of the SingleFlowDCRBlock to have been
+  * defined, i.e., that generate_abstract_constraints() has been called
+  * prior to this method.
   *
-  * The parameter for deciding what "approximately feasible" exactly means is
-  * a single double value, representing the *relative* tolerance for
-  * satisfaction of both flow conservation constraint and flow upper/lower
-  * bounds. This value is to be found as:
+  * The parameters for deciding what "approximately feasible" exactly means
+  * are a tolerance tol and a Boolean rel_viol saying whether violations are
+  * to be intended in a relative or absolute sense; these are to be found
+  * as:
   *
   * - if fsbc is not nullptr and it is a SimpleConfiguration< double >, then
-  *   it is fsbc->f_value;
+  *   tol = fsbc->f_value and rel_viol == true;
   *
-  * - otherwise, if f_BlockConfig is not nullptr,
-  *   f_BlockConfig->f_is_feasible_Configuration is not nullptr and it
-  *   is a SimpleConfiguration< double >, then it is
-  *   f_BlockConfig->f_is_feasible_Configuration->f_value;
+  * - if fsbc is not nullptr and it is a
+  *   SimpleConfiguration< std::pair< double , int > >, then
+  *   tol = fsbc->f_value.first and rel_viol = fsbc->f_value.second;
   *
-  * - otherwise, it is 0. */
- 
+  * - otherwise, if f_BlockConfig is not nullptr, the same is tried on
+  *   f_BlockConfig->f_is_feasible_Configuration;
+  *
+  * - otherwise, tol == 1e-4 and rel_viol == true.
+  *
+  * Note that the parameter useabstract is currently not used: feasibility
+  * is always checked using the abstract representation. */
+
  bool is_feasible( bool useabstract = false , Configuration *fsbc = nullptr )
   override;
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// returns true if the current solution satisfies the DCR constraints
+ /** Identical to is_feasible(), except that it does not require the flow
+  * conservation constraints E to also be checked as part of "the flow"; as
+  * currently implemented it in fact checks exactly the same set of
+  * Constraint as is_feasible() (E, DCR_cnst, and the three Indicator_cnst_*
+  * ones), with the same tolerance-selection logic for the parameter fsbc.
+  * */
+
  bool is_feasible_flow( bool useabstract = false , Configuration *fsbc = nullptr );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// returns true if the DCR *instance* (not the current solution) is feasible
+ /** Unlike is_feasible() and is_feasible_flow(), which check whether the
+  * *current solution* satisfies the constraints, this method checks whether
+  * the DCR *instance* itself admits any feasible solution at all, i.e.,
+  * whether there exists some path from the (unique) source to the (unique)
+  * sink of the flow (identified via the sign of the node deficits B[], see
+  * load()) whose end-to-end delay does not exceed FlowDeadlines.
+  *
+  * This is done by translating the SingleFlowDCRBlock data into a DCR::
+  * DCRFlow / DCRLink / DCRNode description [see DCR.h] and handing it to a
+  * DCR_SPT solver (which implements two Single-Flow Single-Path DCR
+  * heuristics, "ERA-I" and "ERA-H", see DCR_SPT.h), using the Strictly-
+  * Rate-Proportional delay formula (DCR::SRP) and the "ERA-I" heuristic
+  * (DCRsetHeur( '1' )). The method returns false if and only if the
+  * heuristic reports DCR::Infeasible, and true otherwise (including the
+  * case in which the heuristic merely fails to find a feasible solution
+  * that may still exist, since DCR_SPT is not an exact solver). */
 
  bool is_feasible_instance();
 
@@ -783,9 +1100,16 @@ public:
  *  @{ */
 
  /// returns a DCRSolution representing the current solution of this SingleFlowDCRBlock
- /** Returns a DCRSolution representing the current solution status of this
-  * SingleFlowDCRBlock. 
-  */ 
+ /** Returns a new DCRSolution representing the current solution status of
+  * this SingleFlowDCRBlock. The parameter solc decides which part of the
+  * solution is retained: if it is not nullptr and it is a
+  * SimpleConfiguration< int >, then its f_value == 1 means "only the
+  * routing variables x[]" (v_r left empty), == 2 means "only the reserved-
+  * rate variables r[]" (v_x left empty), and anything else (including
+  * solc == nullptr) means "both". If emptys == true (the default) the
+  * returned DCRSolution only has the right "shape" (size of v_x and/or
+  * v_r), without actually copying the current values; otherwise, read() is
+  * also called to fill it in with the current solution. */
 
  Solution * get_Solution( Configuration *solc = nullptr ,
 			  bool emptys = true ) override;
@@ -832,6 +1156,13 @@ public:
   }
 
 /*--------------------------------------------------------------------------*/
+ /// gets the current value of r_min, the minimum reserved rate
+
+ double get_rmin( ) const {
+  return( r_min.get_value() );
+  }
+
+/*--------------------------------------------------------------------------*/
  /// gets a contiguous interval of the reserve solution
  /** Method to get the flow solution; upon return, the current value of the
   * flow solution for the i-th arc in \p rng is written in *( FSol + i ).
@@ -863,15 +1194,25 @@ public:
   }
 
 /*--------------------------------------------------------------------------*/
+ /// sets a contiguous interval of the reserve solution
+ /** Method to set the reserve solution; the values found in the
+  * c_Vec_double starting from fstrt are copied into the value of the
+  * reserved-rate variable r[ i ] for i in rng, in the same order. */
 
   void set_r( c_Vec_double_it fstrt ,
     Range rng = Range( 0 , Inf< Index >() ) );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// sets a generic subset of the reserve solution
+ /** Method to set the reserve solution; the values found in the
+  * c_Vec_double starting from fstrt are copied into the value of the
+  * reserved-rate variable r[ i ] for all i in sbst (that must be ordered in
+  * increasing sense), in the same order. */
 
  void set_r( c_Vec_double_it fstrt , c_Subset sbst );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// sets the reserve solution of the given arc
 
  void set_r( Index arc , double FSol ) {
   if( arc >= get_NArcs() )
@@ -909,6 +1250,7 @@ public:
   }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// sets the value of r_min, the minimum reserved rate
 
  void set_rmin( double FSol ) {
 
@@ -916,6 +1258,7 @@ public:
 }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// sets the value of theta_min, the burst-delay term associated to r_min
 
  void set_theta_min( double FSol ) {
 
@@ -923,11 +1266,12 @@ public:
 }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// sets the value of theta[ arc ], the burst-delay term of the given arc
 
  void set_theta( Index arc , double FSol ) {
   if( arc >= get_NArcs() )
    throw( std::invalid_argument( "invalid arc name" ) );
-  
+
   theta[ arc ].set_value( FSol );
   }
 
@@ -1360,9 +1704,56 @@ public:
 		            ModParam issueAMod = eNoBlck );
 
 /*--------------------------------------------------------------------------*/
+ /// changes the source and the sink of the flow
+ /** Sets node ns as the (unique) source and node nt as the (unique) sink of
+  * the flow to be routed: all node deficits are first reset to 0 and then
+  * the deficit of ns is set to -1 and that of nt to +1 [see chg_dfct()],
+  * hence issuing (up to) get_NNodes() + 2 separate Modification of type
+  * SingleFlowDCRBlockRngdMod, one per changed node deficit; issueMod and
+  * issueAMod have the same meaning as in chg_dfct(). */
 
- void chg_st( Index ns , Index nt , ModParam issueMod = eNoBlck , 
+ void chg_st( Index ns , Index nt , ModParam issueMod = eNoBlck ,
                     ModParam issueAMod = eNoBlck );
+
+
+/*--------------------------------------------------------------------------*/
+ /// adds a pair of static Constraint fixing r_min to the given value
+ /** Adds to the SingleFlowDCRBlock two new static FRowConstraint,
+  * "rmin_fixed1" (r_min >= value) and "rmin_fixed2" (r_min <= value), that
+  * together fix the ColVariable r_min to the given value. Unlike
+  * set_rmin(), which merely changes the *value* currently held by the
+  * r_min ColVariable (without altering the feasible region), this method
+  * permanently restricts the feasible region of the abstract representation
+  * by adding two extra rows; it is meant to be used, e.g., to explore what
+  * happens to the problem if r_min is pinned to a specific value. Note
+  * that, unlike the other "changing the data" methods of this section, this
+  * method neither checks for a Solver being attached nor issues any
+  * Modification: the two Constraint are simply appended to the abstract
+  * representation via add_static_constraint(). */
+
+  void fix_rmin( double value ){
+
+  auto rmin_fixed1 = new FRowConstraint();
+  auto rmin_fixed2 = new FRowConstraint();
+
+  LinearFunction::v_coeff_pair r1;
+  r1.push_back( std::make_pair( &r_min , 1.0 ) );
+  rmin_fixed1->set_lhs( value );
+  rmin_fixed1->set_rhs( Inf<double>() );
+  LinearFunction* Funct1 = new LinearFunction( std::move( r1 ));
+  rmin_fixed1->set_function( Funct1 );
+
+  LinearFunction::v_coeff_pair r2;
+  r2.push_back( std::make_pair( &r_min , 1.0 ) );
+  rmin_fixed2->set_lhs( -Inf<double>() );
+  rmin_fixed2->set_rhs( value );
+  LinearFunction* Funct2 = new LinearFunction( std::move( r2 ));
+  rmin_fixed2->set_function( Funct2 );
+
+  add_static_constraint( *rmin_fixed1 , "rmin_fixed1" );
+  add_static_constraint( *rmin_fixed2 , "rmin_fixed2" );
+
+}
 
 /** @} ---------------------------------------------------------------------*/
 /*-------------------- PROTECTED PART OF THE CLASS -------------------------*/
@@ -1387,14 +1778,14 @@ public:
 
  Vec_double C;                  ///< vector of arc costs
  Vec_double U;                  ///< vector of arc upper capacities
- Vec_double B;                  ///< vector of node deficits
+ Vec_double B;                  ///< vector of node deficits (source/sink)
 
- Vec_double NodeDelays;
- Vec_double LinkDelays;
- double FlowBursts;
- double FlowDeadlines; 
- double MTU; 
- double rho; 
+ Vec_double NodeDelays;    ///< vector of the (fixed) node processing delays
+ Vec_double LinkDelays;    ///< vector of the (fixed) arc propagation delays
+ double FlowBursts;        ///< the burst of the flow
+ double FlowDeadlines;     ///< the end-to-end deadline of the flow
+ double MTU;                ///< the Maximum Transmit Unit of the network
+ double rho;   ///< minimum rate to be reserved on any arc used by the flow
 
  unsigned char AR;               ///< bit-wise coded: what abstract is there
 
@@ -1409,27 +1800,45 @@ public:
 
  double f_cond_lower;            ///< conditional lower bound, can be -INF
  double f_cond_upper;            ///< conditional upper bound, can be +INF
- 
- std::vector< ColVariable > x;     ///< the static flow variables
- std::vector< ColVariable > r;     ///< the static reserve variables
- std::vector< ColVariable > theta; ///< the static theta variables
 
- ColVariable r_min; ///< the static reserve_min variables
- ColVariable theta_min; ///< the static theta_min variables
- 
+ std::vector< ColVariable > x;     ///< the binary routing variables X[i,j]
+ std::vector< ColVariable > r;     ///< the reserved-rate variables R[i,j]
+ std::vector< ColVariable > theta; ///< the per-arc burst-delay variables
+
+ ColVariable r_min;      ///< the minimum reserved rate along the path
+ ColVariable theta_min;  ///< the burst-delay term associated with r_min
+
  std::vector< FRowConstraint> E;   ///< the static flow conservation constrs.
- std::vector< LB0Constraint > UB;  ///< the static bound constraints on flow
- 
- FRowConstraint DCR_cnst; /// the DCR constraint
- std::vector< FRowConstraint > Indicator_cnst_rmin; /// the static indicator constraints on reserve min
- std::vector< FRowConstraint > Indicator_cnst_r1; /// the first static indicator constraints on reserve
- std::vector< FRowConstraint > Indicator_cnst_r2; /// the second static indicator constraints on reserve
+ std::vector< LB0Constraint > UB;
+ /**< the static bound constraints on the flow; NOTE: unlike in MCFBlock,
+  * generate_abstract_constraints() does currently *not* construct/add UB
+  * (the arc-capacity link between X[i,j] and R[i,j] being instead enforced
+  * via Indicator_cnst_r1), even though it does set the AR & HasBnd bit; the
+  * chg_ucap[s]() methods will still try to update UB[] whenever that bit is
+  * set, which requires UB to have been sized elsewhere first. */
 
- FRowConstraint cone_min_cnst; /// the cone constraint
- std::vector< FRowConstraint > cone_cnst; /// the cone constraint
- 
- std::list< FRowConstraint > PC_cuts;  /// the perspective dynamic cuts constraints
- std::list< FRowConstraint > PC_cuts_min;  /// the perspective dynamic cuts constraints
+ FRowConstraint DCR_cnst;  ///< the end-to-end DCR delay constraint
+
+ std::vector< FRowConstraint > Indicator_cnst_rmin;
+ ///< "big-M" constraints linking r_min to R[i,j] on arcs used by the flow
+
+ std::vector< FRowConstraint > Indicator_cnst_r1;
+ ///< constraints R[i,j] <= U[i,j] X[i,j] (reserved rate needs an open arc)
+
+ std::vector< FRowConstraint > Indicator_cnst_r2;
+ ///< constraints R[i,j] >= rho X[i,j] (minimum rate on arcs used by the flow)
+
+ FRowConstraint cone_min_cnst;
+ ///< rotated cone theta_min * r_min >= FlowBursts ("SOCP" formulation)
+
+ std::vector< FRowConstraint > cone_cnst;
+ ///< rotated cones theta[i,j] * r[i,j] >= MTU * X[i,j]^2 ("SOCP" formulation)
+
+ std::list< FRowConstraint > PC_cuts;
+ ///< dynamically separated perspective cuts outer-approximating cone_cnst
+
+ std::list< FRowConstraint > PC_cuts_min;
+ ///< dynamically separated perspective cuts outer-approx. cone_min_cnst
 
  FRealObjective c;               ///< the (linear) objective function
 
@@ -1798,9 +2207,14 @@ class SingleFlowDCRBlockSbstMod : public SingleFlowDCRBlockMod
 /*--------------------------- GENERAL NOTES --------------------------------*/
 /*--------------------------------------------------------------------------*/
 /// a solution of a SingleFlowDCRBlock
-/** The DCRSolution class, derived from Solution, represents a solution of a
- * SingleFlowDCRBlock
- */
+/** The DCRSolution class, derived from Solution, represents a (primal)
+ * solution of a SingleFlowDCRBlock: the value of the binary routing
+ * variables X[i,j] (field v_x) and of the continuous reserved-rate
+ * variables R[i,j] (field v_r), one entry per arc. Either vector can be
+ * left empty to represent "only part of the solution is saved", exactly as
+ * in MCFSolution [see MCFBlock.h]; the aggregate (r_min, theta_min)
+ * variables and the burst-delay variables theta[i,j] are currently *not*
+ * part of a DCRSolution. */
 
 class DCRSolution : public Solution {
 
@@ -1819,6 +2233,13 @@ class DCRSolution : public Solution {
  explicit DCRSolution( void ) { }  /// constructor, it has nothing to do
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// de-serialize a DCRSolution out of a netCDF::NcGroup
+ /** Extends Solution::deserialize( netCDF::NcGroup ) to the specific format
+  * of a DCRSolution. The group may contain the dimension "NumArcs" and, if
+  * so, the variables "ArcSolution" (the routing variables, into v_x) and/or
+  * "FlowSolution" (the reserved-rate variables, into v_r), both indexed
+  * over "NumArcs"; either (or both) can be missing, in which case the
+  * corresponding vector is left empty. */
 
  void deserialize( const netCDF::NcGroup & group ) override final;
 
@@ -1827,8 +2248,21 @@ class DCRSolution : public Solution {
  ~DCRSolution() = default;  ///< destructor: it is virtual, and empty
 
 /*------------- METHODS DESCRIBING THE BEHAVIOR OF A DCRSolution -----------*/
+ /// reads the solution from the given SingleFlowDCRBlock
+ /** Reads into v_x and v_r (whichever of the two is not empty) the current
+  * value of, respectively, the routing variables x[] and the reserved-rate
+  * variables r[] of the SingleFlowDCRBlock pointed by block, which must
+  * actually be a SingleFlowDCRBlock (an exception is thrown otherwise). */
 
  void read( const Block * block ) override final;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// writes the solution into the given SingleFlowDCRBlock
+ /** Writes the value of (whichever of) v_x and v_r (is not empty) into,
+  * respectively, the routing variables x[] and the reserved-rate variables
+  * r[] of the SingleFlowDCRBlock pointed by block, which must actually be a
+  * SingleFlowDCRBlock (an exception is thrown otherwise); an exception is
+  * also thrown if the size of v_x or v_r does not match get_NArcs(). */
 
  void write( Block * block ) override final;
 
@@ -1838,10 +2272,31 @@ class DCRSolution : public Solution {
  void serialize( netCDF::NcGroup & group ) const override final;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// returns a new DCRSolution with v_r scaled by the given factor
+ /** Returns a new (empty, i.e., with the same "shape" but no meaningful
+  * value in v_x) DCRSolution obtained by copying v_x unchanged and scaling
+  * every entry of v_r by factor; note that the routing variables, being
+  * binary, are *not* scaled. */
 
  DCRSolution * scale( double factor ) const override final;
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// adds (a multiple of) another DCRSolution to this one
+ /** Combines this DCRSolution with the one pointed by solution (which must
+  * actually be a DCRSolution, and have vectors of the same size, otherwise
+  * exception is thrown): each entry of v_x is replaced with the maximum of
+  * the two corresponding entries (a reasonable way of "summing" 0/1
+  * routing decisions), while each entry of v_r is incremented by the
+  * corresponding entry of solution scaled by multiplier. */
+
  void sum( const Solution * solution , double multiplier ) override final;
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// clones this DCRSolution
+ /** Returns a new DCRSolution with the same "shape" (which of v_x and v_r
+  * are non-empty, and their size) as this one; if empty == true the content
+  * of v_x and v_r is not copied (only their size is replicated), otherwise
+  * an exact copy of this DCRSolution is returned. */
 
  DCRSolution * clone( bool empty = false ) const override final;
 
@@ -1862,8 +2317,8 @@ class DCRSolution : public Solution {
 
 /*---------------------------- PRIVATE FIELDS ------------------------------*/
 
- SingleFlowDCRBlock::Vec_double v_x;   ///< the arc integer variables
- SingleFlowDCRBlock::Vec_double v_r;  ///< the arc flows
+ SingleFlowDCRBlock::Vec_double v_x;  ///< the arc routing (binary) variables
+ SingleFlowDCRBlock::Vec_double v_r;  ///< the arc reserved-rate variables
 
 /*--------------------------------------------------------------------------*/
 

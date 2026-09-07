@@ -1,6 +1,27 @@
 /*--------------------------------------------------------------------------*/
-/*-------------------------- File BenBound.cpp -----------------------------*/
+/*-------------------------- File BenBound.cpp ------------------------------*/
 /*--------------------------------------------------------------------------*/
+/** @file
+ * Implementation of the BenBound class.
+ *
+ * \author Antonio Frangioni \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \author Laura Galli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \author Luca Mencarelli \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \author Enrico Sorbera \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ * 
+ * \copyright &copy; by Antonio Frangioni
+ */ 
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------- IMPLEMENTATION -------------------------------*/
@@ -38,6 +59,10 @@ using namespace std;
 /*----------------------------- CONSTRUCTOR --------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+  // gives default ("empty") values to all data members; in particular no
+  // instance is loaded yet (Links/Nodes/caps are null) and BenStat == Error,
+  // so LoadProblem() must be called before Solve() can do anything useful
+
   BenBound::BenBound()
   {
   	eps = 1e-6;
@@ -50,9 +75,10 @@ using namespace std;
   	caps = 0;
   	solvedflag = 0;
 
-    //FIXME:creare un metodo pubblico per l'upd (before it was set to 0.995)
+    //FIXME: create a public method for the upd (before it was set to 0.995)
     myparam = 0.995; //for garr and sndlib 0.995
     //myparam = 1-1e-6;
+    //myparam = 0.9995; 
     
     SPLabels.resize(1);
   	Q.resize(1);
@@ -61,6 +87,11 @@ using namespace std;
 /*--------------------------------------------------------------------------*/
 /*----------------------------------LOAD DATA ------------------------------*/
 /*--------------------------------------------------------------------------*/
+
+  // loads a brand new instance: discards any previous one, deep-copies the
+  // topology/link/node/flow data and (re)initializes all bounds and
+  // counters to their "nothing solved yet" values; also (re)loads the same
+  // data into the Lagrangian subproblem solver lagSol
 
   //void BenBound::LoadProblem (int nnodes, int nlinks, DCR::DCRFlow flow, DCR::DCRLink *links, DCR::DCRNode *nodes, double mtu)
   void BenBound::LoadProblem (int nnodes, int nlinks, DCR::DCRFlow flow, vector<DCR::DCRLink> links, vector<DCR::DCRNode> nodes, double mtu)
@@ -92,6 +123,10 @@ using namespace std;
 
 /*--------------------------------------------------------------------------*/
 
+  // reloads only the flow (and the arc costs it implies) keeping the same
+  // topology, clearing the cutting-plane data structures (Q) and resetting
+  // the bounds/counters, then reloads lagSol with the new flow
+
   void BenBound::LoadProblem (DCR::DCRFlow flow)
    {
       int i;
@@ -119,22 +154,23 @@ using namespace std;
 
    } 
 
-//metodo per il caricamento, a parità di topologia, del solo nuovo flusso da servire.
+//method for loading, with the same topology, only the new flow to be served.
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------- GET METHODS-----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+   /// returns the value of d( . ) at the last evaluated r_min
    double BenBound::getObjVal()
    {
      //return(SOL_VALUE);
      return(ObjVal);
    }
 
-   
+
 /*--------------------------------------------------------------------------*/
 
-
+   /// returns r_min at which the (best) optimum was found
    double BenBound::getr_min()
    {
      return(rmin);
@@ -143,6 +179,7 @@ using namespace std;
 
 /*--------------------------------------------------------------------------*/
 
+   /// best available upper bound: the smaller of BestUB and HeurVal
 
    double BenBound::getUB()
    {
@@ -152,6 +189,10 @@ using namespace std;
    }
 
 /*--------------------------------------------------------------------------*/
+
+   // best available lower bound: the master-problem value BestLB, clipped
+   // from above by getUB() (it can never exceed a known upper bound) and
+   // from below by 0 (the DCR objective cannot be negative)
 
    double BenBound::getLB()
    {
@@ -168,12 +209,16 @@ using namespace std;
 /*--------------------------------------------------------------------------*/
 
 
+   /// returns the overall status of the bounding procedure
+
    BenBound::BndrStat BenBound::getStat()
    {
      return(BenStat);
    }
 
 /*--------------------------------------------------------------------------*/
+
+  /// returns the value of the best primal-feasible solution found so far
 
   double BenBound::getHeurVal()
    {
@@ -182,12 +227,16 @@ using namespace std;
 
 /*--------------------------------------------------------------------------*/
 
+  /// returns the reserved rate for link i in the best solution found
+
   double BenBound::getSolution( int i )
-   { 
+   {
     return(SOLUTION[ i ]);
    }
 
 /*--------------------------------------------------------------------------*/
+
+  /// returns the current cutting-plane (master problem) approximate optimum
 
   double BenBound::getApproxVal()
    {
@@ -196,12 +245,16 @@ using namespace std;
 
 /*--------------------------------------------------------------------------*/
 
+  /// returns the number of Benders (outer) iterations performed by Solve()
+
   int BenBound::getNumIterationBender()
    {
     return(counter_ite_Ben);
    }
 
 /*--------------------------------------------------------------------------*/
+
+  /// returns the total number of Lagrangian (inner) iterations performed
 
   int BenBound::getNumIterationLagr()
    {
@@ -210,12 +263,19 @@ using namespace std;
 
 /*--------------------------------------------------------------------------*/
 
+  /// returns true if at least one (locally convex) subinterval was found
+
   bool BenBound::IsConvexInteration()
    {
     return(is_convex_iteration);
    }
 
 /*--------------------------------------------------------------------------*/
+
+   // debug/plotting helper: (re)initializes the search via Inizial() and
+   // returns numPoints == 1000 abscissae equally spaced over the first
+   // subinterval Q[ 1 ], from its optimal point Q[ 1 ].inter to its right
+   // endpoint Q[ 1 ].rmin; the result is cached in xPlot for getyPlotData()
 
    vector<double> BenBound::getxPlotData()
    {
@@ -228,21 +288,26 @@ using namespace std;
 
      for(i = 1; i < numPoints + 1; i++)
      {
-       xPlot[i-1] = (i*(Q[1].rmin - Q[1].inter)/numPoints)+Q[1].inter; //salviamo la divisione in 100 punti dell'intervallo
+       xPlot[i-1] = (i*(Q[1].rmin - Q[1].inter)/numPoints)+Q[1].inter; //store the subdivision of the interval into 100 points
      }
-     
+
     return(xPlot);
    }
 
 
 /*--------------------------------------------------------------------------*/
 
+   // debug/plotting helper: (re)solves the Lagrangian subproblem at each of
+   // the abscissae in xPlot (see getxPlotData(), which must be called
+   // first) and returns the corresponding values of the dual function
+   // d( r_min ) = lambda * burst / r_min - lambda * deadline + SPLabels[ t ]
+
    vector<double> BenBound::getyPlotData()
    {
      int i;
      double lambda;
      vector<double> yPlot;
-     vector<int> RedGraph; //grafo ridotto che ci faremo passare dal Lagrangian solver
+     vector<int> RedGraph; //reduced graph that we will have the Lagrangian solver pass to us
      int cardRedGraph;
 
      yPlot.resize(numPoints);
@@ -259,7 +324,7 @@ using namespace std;
       RedGraph.resize(cardRedGraph);
       RedGraph = lagSol.getRedGraphPos();
 
-      yPlot[i] = lambda * Flow.burst / xPlot[i] - lambda * Flow.deadline + SPLabels[Flow.sinknode]; //valore della fo in xplot[i]
+      yPlot[i] = lambda * Flow.burst / xPlot[i] - lambda * Flow.deadline + SPLabels[Flow.sinknode]; //value of the objective function at xplot[i]
      }
     
     return yPlot;
@@ -268,8 +333,10 @@ using namespace std;
 
 /*--------------------------------------------------------------------------*/
 
+  /// returns the elapsed time, in seconds, or 0 if no timer was set
+
   double BenBound::getTime( void ) const
-   {   
+   {
      return( timer ? timer->Read() : 0 );
    }
 
@@ -335,14 +402,61 @@ using namespace std;
 /*----------------------------------SOLVE-----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+   /// runs the Benders/Kelley cutting-plane bounding procedure
+   /** This is the core of the class: it repeatedly
+    *
+    * -# picks the current candidate optimum Q[ p ].inter (initialized by
+    *    Inizial(), then chosen at each iteration by LineSearch());
+    *
+    * -# (re)solves the Lagrangian subproblem there (lagSol.Solve()), unless
+    *    it had already been solved for that very point (Q[ p ].solflag);
+    *    if the subproblem happens to be infeasible at that point (only
+    *    possible while the left endpoint of the very first subinterval has
+    *    not yet been made feasible, Q[ p ].infeasflag), the point is first
+    *    moved towards feasibility by a geometric search controlled by
+    *    mystep;
+    *
+    * -# out of the optimal Lagrangian multiplier lambda and dual solution
+    *    (SPLabels, the shortest-path potentials), builds two new supporting
+    *    lines ("cuts") of the dual function d( r_min ) at Q[ p ].inter: the
+    *    left cut lc (obtained by summing, arc by arc, the contribution of
+    *    each arc whose capacity exceeds the subinterval's left endpoint,
+    *    following the closed-form Lagrangian analysis of the DCR problem)
+    *    and the right cut rc (the actual tangent/derivative of the g( . )
+    *    burst term at Q[ p ].inter, always available in closed form). If
+    *    lc and rc coincide, the dual function is locally *convex* around
+    *    Q[ p ].inter and no new breakpoint needs to be introduced (only the
+    *    cuts of all existing subintervals are updated); otherwise it is
+    *    (possibly) *nonconvex* and a new subinterval is spliced into Q at
+    *    position p, splitting the old one, with lc added to the cuts of
+    *    all subintervals to its left and rc to all subintervals to its
+    *    right;
+    *
+    * -# updates the running primal bound BestUB with the newly evaluated
+    *    d( Q[ p ].inter ) (== Q[ p ].Val);
+    *
+    * -# calls LineSearch() to find, over the (possibly updated) partition
+    *    Q, the position p of the subinterval whose piecewise-linear cuts'
+    *    envelope has the smallest minimum: this both gives the new value of
+    *    BestLB (the master-problem/dual bound) and selects the next trial
+    *    point Q[ p ].inter for the following iteration.
+    *
+    * The loop stops (solvedflag = 1) as soon as BestUB and BestLB coincide
+    * up to the relative tolerance eps, or after at most 5000 iterations; in
+    * the latter case ObjVal is set to the current cutting-plane
+    * approximation "approx" so that a valid (if not provably optimal)
+    * bound is always returned. Finally, the primal solution corresponding
+    * to the last solved Lagrangian subproblem is retrieved from lagSol via
+    * getRSOLS(). */
+
    void BenBound::Solve()
    {
     int i,j;
     int Qsize;
     double approx;
-    int p = 1; //posizione di inserimento nella nuova suddivisione in Q
-    int nonConvexflag; //flag per distinguere il caso di tagli convessi
-    int triedflag = 0; //flag per capire se abbiamo già provato il salto sull'ottimo
+    int p = 1; //insertion position in the new subdivision of Q
+    int nonConvexflag; //flag to distinguish the case of convex cuts
+    int triedflag = 0; //flag to tell whether we have already tried the jump to the optimum
     double lambda;
     int noLSneeded = 0;
 
@@ -361,17 +475,17 @@ using namespace std;
     double zetaunico;
     double d;
     double tildez;
-    double discrim; //se <=0 quell'arco dà contributo nullo
-    double ms; //appoggio per i conti, valore parziale della pendenza
+    double discrim; //if <=0 that arc gives a zero contribution
+    double ms; //helper for the computation, partial value of the slope
 
     Inizial();
 
     //std::cout << "Inizial()" << std::endl;
 
    // cout<<"inizializzato"<<endl;
-    Qsize = Q.size(); // = 2, valori limite.
+    Qsize = Q.size(); // = 2, limit values.
 
-    /*cout<<"limiti: "<<Q[0].rmin<<"-"<<Q[1].rmin<<endl;*/
+    //cout<<"limiti: "<<Q[0].rmin<<"-"<<Q[1].rmin<<endl;
 
     //before next line was commented 
     //solvedflag = 0;
@@ -388,28 +502,70 @@ using namespace std;
     //           cout<<" : "<<lagSol.isFeasible()<<endl;
     //           }
 
-             //cout<<"num of iteration"<< counter_ite_Ben<<endl;
-     //cout<<"lagstat = "<<lgstat<<" lambda = " <<lambda<<" Q[p]inter = "<< Q[p].inter<< "valore = "<<Q[p].Val<<endl;
-     //cout<<"Objval = "<<ObjVal<<" Heurval = "<<HeurVal<<endl;
-     //cout<<"LB = "<<BestLB<<" UB = "<< BestUB<<endl;
+    //         cout<<"num of iteration"<< counter_ite_Ben<<endl;
+    // cout<<"lagstat = "<<lgstat<<" lambda = " <<lambda<<" Q[p]inter = "<< Q[p].inter<< " value = "<<Q[p].Val<<endl;
+    // cout<<"Objval = "<<ObjVal<<" Heurval = "<<HeurVal<<endl;
+    // cout<<"LB = "<<BestLB<<" UB = "<< BestUB<<endl;
+
+            double BLB = BestLB;
+            double BUB = BestUB;
+
+            bool is_feas;
+            double Qnew;
+
+            lagSol.updrmin(Q[p].inter); //let the new candidate show us its potential :)
+            lagSol.Solve();
+            counter_ite_Lag += lagSol.getNumIte();
+            lgstat = lagSol.getStatus();
+
+            if(Q[p].solflag == 1 && counter_ite_Ben > 2){
+              Q[p].inter *= myparam;
+
+              lagSol.updrmin(Q[p].inter); //let the new candidate show us its potential :)
+              is_feas = lagSol.isFeasible();
+
+              if(lgstat==0)
+                Q[p].solflag = 0;      
+            }
+
+            if(lgstat == 1){
+
+              for(int i=0; i < 1000; i++){
+
+                Qnew = (i*(Q[1].rmin - Q[0].rmin)/1000)+Q[0].rmin; 
+
+                lagSol.updrmin(Qnew); 
+                lagSol.Solve();
+                counter_ite_Lag += lagSol.getNumIte();
+                lgstat = lagSol.getStatus();
+
+                std::cout << i << std::endl;
+
+                if(lgstat==0){
+                  break;
+                }
+              }
+              Q[p].inter = Qnew;
+            }
+
 
             if(Q[p].solflag == 0)
              { 
-               if(Q[p].infeasflag == 1) //aggiustiamo le cose per il lagrangiano trovando un nuovo punto di ammissibilità
-                { 
-                   //cout<<"entro in infeasflag ==1"<<endl;
-                   double temppoint; //restringiamo l'intervallo con l'ultimo valore non ammissibile come limite inferiore
+               if(Q[p].infeasflag == 1) //fix things up for the Lagrangian by finding a new feasibility point
+                {
+                   //cout<<"entering infeasflag ==1"<<endl;
+                   double temppoint; //shrink the interval, using the last infeasible value as the lower bound
                    double oldinterx;
                    int feas = 1;
-                   
+
                    oldinterx = Q[1].inter;
 
-                   //cerchiamo l'altro punto di ammissibilità
+                   //look for the other feasibility point
                    int count_iter_feas = 0;
 
                    while(feas != 0 && count_iter_feas <= 20)
                     {
-                      temppoint = mystep * Q[0].rmin + (1 - mystep) * Q[1].inter; //vediamo chi vari in base alla feasibility
+                      temppoint = mystep * Q[0].rmin + (1 - mystep) * Q[1].inter; //let's see which one changes based on feasibility
 
                       lagSol.updrmin(temppoint); 
                       feas = lagSol.isFeasible();
@@ -420,11 +576,11 @@ using namespace std;
                       
                     }
                  
-                    Q[1].interVal = Q[1].Cuts[Q[1].bestCutpos].q + Q[1].inter * Q[1].Cuts[Q[1].bestCutpos].m;//FIXME: in realtà non è sicuro che sia bestCutpos la pos ottima
+                    Q[1].interVal = Q[1].Cuts[Q[1].bestCutpos].q + Q[1].inter * Q[1].Cuts[Q[1].bestCutpos].m;//FIXME: actually it is not certain that bestCutpos is the optimal position
                     Q[1].solflag = 0;
                     Q[1].infeasflag = 0;
 
-                    //se non mi muovo più mi accontento.
+                    //if I no longer move, I settle for this.
 
                     if(Q[1].inter < 1) releps = 1;
                     else releps = Q[1].inter;
@@ -433,9 +589,9 @@ using namespace std;
                     //if(abs(Q[1].inter - oldinterx) < eps * releps/100)
                     //   noLSneeded = 1;
 
-                }//se infeasflag = 1
+                }//if infeasflag = 1
 
-              lagSol.updrmin(Q[p].inter); //il candidato ci mostri le sue potenzialità :)
+              lagSol.updrmin(Q[p].inter); //let the candidate show us its potential :)
               lagSol.Solve();
               counter_ite_Lag += lagSol.getNumIte();
 
@@ -444,24 +600,35 @@ using namespace std;
 
               HeurApprox = lagSol.getHeurVal();
 
-              if(HeurApprox < HeurVal) //se abbiamo trovato una soluzione ammissibile migliore, la salviamo
+              if(HeurApprox < HeurVal) //if we found a better feasible solution, we save it
                 HeurVal = HeurApprox;
 
               SPLabels = lagSol.getSPLabels();
 
-              if(lgstat == 0) //dovrebbe essere garantito da limitrmin e dal check poco sopra la riottimizzazione
+              if(lgstat == 0) //this should be guaranteed by limitrmin and by the check just above the re-optimization
               {
-                
+
                 lc.m = 0;
                 lc.q = 0;
 
-               ///////CALCOLO NUOVI TAGLI
+               ///////COMPUTATION OF NEW CUTS
+               // compute the two new cuts (supporting lines) of d( . ) at
+               // Q[p].inter, out of the just-computed optimal multiplier
+               // lambda and shortest-path potentials SPLabels: the closed-
+               // form Lagrangian relaxation of the DCR problem decomposes
+               // additively over the arcs, so both the slope (lc.m) and
+               // the intercept (lc.q) of the left cut are accumulated arc
+               // by arc below (only arcs whose capacity exceeds the left
+               // endpoint Q[0].rmin can contribute; each arc's closed-form
+               // contribution depends on where Q[p].inter falls relative
+               // to the arc's own capacity and to the breakpoints
+               // zetam/zetap/zetaunico of its (piecewise) cost function)
 
-               ///Taglio sinistro
-               
-               //calcolo del valore tenendo conto del contributo di ciascun arco
-               //anche le intercette vengono sommate di arco in arco, visto che alcune causano discontinuità.
-                  
+               ///Left cut
+
+               //computation of the value taking into account the contribution of each arc
+               //the intercepts are also summed arc by arc, since some of them cause discontinuities.
+
                 sqr = sqrt(lambda * MTU / Links[1].cost);
 
                 for(i = 0; i < numLinks; i++)
@@ -470,56 +637,51 @@ using namespace std;
                   {  
                     sqr = sqrt(lambda * MTU / Links[i].cost); //sqrt(lambda * L / f_ij)
 
-                    //definiamo le duali di SP che sono a +\infty
+                    //set to 0 the SP duals that are at +\infty
                     if(SPLabels[Links[i].endnode] > 1e200) SPLabels[Links[i].endnode] = 0;
                     if(SPLabels[Links[i].startnode] > 1e200) SPLabels[Links[i].startnode] = 0;
 
                     d = -SPLabels[Links[i].endnode] + SPLabels[Links[i].startnode]; //d_i-d_j
 
-                    if(d < -1e-10)//altrimenti contributo sicuramente nullo                
+                    if(d < -1e-10)//otherwise the contribution is certainly zero
                     {
-                      if(lambda == 0) //primo caso semplificato
+                      if(lambda == 0) //first, simplified case
                       {
                         zetaunico = (-d) / Links[i].cost;  //(d_j - d_i)/f_ij
+                        if( zetaunico - Q[0].rmin > zetaunico*eps && zetaunico - Links[i].capacity < eps*Links[i].capacity && zetaunico - Q[p].inter < eps*zetaunico) {
+                          ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin - Q[p].inter);
+                          lc.m += ms;
+                          lc.q += - ms * Q[p].inter;
+                        }
 
-                        if(zetaunico > Q[0].rmin) //se questo non vale avremo contributo nullo
-                        {
-                          if(zetaunico <= Links[i].capacity)
-                          {
-                            if(Q[p].inter -zetaunico <= eps*Q[p].inter)  ms = Links[i].cost;  //caso già convesso
-                            else  ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin - Q[p].inter);  //facciamo partire la retta approssimante da un punto noto garantito sopra a 0, ovvero Q[0].rmin
-                            
-                            lc.m += ms;
-                            lc.q += - ms * Q[p].inter;
-                          }
-                          else
-                          {
-                            if(Q[1].rmin <= Links[i].capacity)  //caso rmin<c_ij<zeta (non dovrebbe succedere)
-                              {ms = Links[i].cost;} //caso già convesso
-                            else //caso con rmin > c_ij, e zeta > c_ij, qui c'è discontinuità! Aggiriamola //FIXME: non dovrebbe essere la retta tra (c,\phi(c)) ed (r_min,\phi(r_min))?
-                              {ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin - Q[p].inter);}
-                            lc.m += ms;
-                            lc.q += - ms * Q[p].inter;
-                            
-                          } //zetaunico > c_ij
-                        } //zetaunico > Q[0].rmin
+                      if( Links[i].capacity - Q[0].rmin > Links[i].capacity*eps && zetaunico - Links[i].capacity > eps*zetaunico && Q[p].inter - Links[i].capacity > Q[p].inter*eps) {
+                        if( zetaunico - Q[p].inter > zetaunico*eps) {
+                          ms = (Links[i].cost * Links[i].capacity + d) / (Links[i].capacity - Q[p].inter);
+                          lc.m += ms;
+                          lc.q += - ms * Q[p].inter;
+                        } 
+                        if( zetaunico - Q[p].inter < Q[p].inter*eps) {
+                          ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin - Q[p].inter);
+                          lc.m += ms;
+                          lc.q += - ms * Q[p].inter;
+                        }
+                      }
                      } //lambda = 0
-                    else //caso generale
-                     { 
+                    else //general case
+                     {
                       barl = MTU / Links[i].speed + Links[i].delay + Nodes[Links[i].startnode].delay;
                       discrim = pow(lambda * barl + d, 2) - 4*Links[i].cost * lambda * MTU;
-                      
-                     if(discrim > 0) //allora sono definiti zeta_\pm
+
+                     if(discrim > 0) //then zeta_\pm are well defined
                         {
-                         zetap = (-lambda * barl - d + sqrt(discrim))/(2 * Links[i].cost); //radice pi�ï�� grande
-                         zetam = (-lambda * barl - d - sqrt(discrim))/(2 * Links[i].cost); //radice pi�ï�� piccola
+                         zetap = (-lambda * barl - d + sqrt(discrim))/(2 * Links[i].cost); //larger root
+                         zetam = (-lambda * barl - d - sqrt(discrim))/(2 * Links[i].cost); //smaller root
 
                          if( zetam - Links[i].capacity < eps*Links[i].capacity && Links[i].capacity - sqr < eps*Links[i].capacity && Q[p].inter - Links[i].capacity > eps*Links[i].capacity ) { //&& Q[p].inter - Links[i].capacity > eps*Links[i].capacity
                             ms = (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d) / ( Links[i].capacity - Q[p].inter );
                             lc.m += ms;
                             //c.q += (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d) - ms * Links[i].capacity;
                             lc.q += - ms * Q[p].inter;
-                            //std::cout << ms << std::endl;
                          } 
 
                          if( sqr - Links[i].capacity < eps*sqr && Links[i].capacity - zetap < eps*zetap && Q[p].inter >= Links[i].capacity ) { //&& Q[p].inter >= Links[i].capacity
@@ -530,7 +692,7 @@ using namespace std;
                                   tildez = sqrt((lambda * MTU)/(Links[i].cost - ms));
                                   lc.q += Links[i].cost * tildez + lambda * MTU / tildez + lambda * barl + d  - tildez * ms;
                                   lc.m += ms; 
-                                  std::cout << ms << std::endl;
+                                  //std::cout << ms << std::endl;
                                 } else {
                                   lc.q += (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d) - ms * Links[i].capacity;
                                   lc.m += ms; 
@@ -574,44 +736,59 @@ using namespace std;
                               }
                             }
                           }
-                        }//se sono definiti i punti in cui si annulla il contributo dell'arco
-                         //altrimenti il contributo sar�  nullo.
-                      }//caso lambda > 0
-                   }//se d < 0
-                  }//solo gli archi con capacit�  pi�ï�� grandi della minima ammissibile!
-                  }//per tutti gli archi.
+                        }//if the points where the arc's contribution vanishes are well defined
+                         //otherwise the contribution will be zero.
+                      }//case lambda > 0
+                   }//if d < 0
+                  }//only the arcs with capacity greater than the minimum feasible one!
+                  }//for all the arcs.
 
-                //infine dobbiamo sommare i contributi della funzione g(z).
+                //finally we have to sum the contributions of the function g(z).
+                // g( r_min ) = lambda * burst / r_min - lambda * deadline +
+                // SPLabels[ sink ] is the (always concave) burst term of
+                // d( . ); its slope ms is added to the left cut lc, while
+                // the right cut rc below is exactly its tangent at
+                // Q[p].inter (a valid supporting line for the whole d( . )
+                // on the right of Q[p].inter)
 
                 ms = - lambda * Flow.burst / pow(Q[p].inter,2);
                 lc.m += ms;
                 lc.q += lambda * Flow.burst / Q[p].inter - lambda * Flow.deadline + SPLabels[Flow.sinknode] - Q[p].inter * ms; //g(r_min) - r_min * ms
-                  
-                //taglio destro
+
+                //right cut
 
                 rc.m = - lambda * Flow.burst / pow(Q[p].inter,2);
                 rc.q = lambda * Flow.burst / Q[p].inter - lambda * Flow.deadline + SPLabels[Flow.sinknode] - Q[p].inter * rc.m;
 
-                // cout<< " i tagli prodotti: lc.m = "<<lc.m<<" lc.q = "<<lc.q<<endl;
-                // cout<<" rc.m = "<<rc.m<<" rc.q = "<<rc.q<<endl;
+                 //cout<< " the cuts produced: lc.m = "<<lc.m<<" lc.q = "<<lc.q<<endl;
+                 //cout<<" rc.m = "<<rc.m<<" rc.q = "<<rc.q<<endl;
 
-                Q[p].Val = rc.q + Q[p].inter * rc.m; //prendiamo il valore nel punto. 
+                Q[p].Val = rc.q + Q[p].inter * rc.m; //take the value at the point.
                 Q[p].solflag = 1;
 
-                ObjVal = Q[p].Val; 
+                ObjVal = Q[p].Val;
 
                 if(Q[p].Val < BestUB)
                   BestUB = Q[p].Val;
 
-                /*<la convessità vi è quando lc.m <= rc.m, ora rc.m è negativo e lc.m è ottenuto da lui sommando cose positive.
-                   Quindi in effetti l'unico caso in cui vi può essere convessità è quando sono uguali.*/
-                
-                if(lc.m == rc.m && lc.q == rc.q) nonConvexflag = 1; //FIXME:uguaglianza a meno di approssimazioni
+                /*<convexity holds when lc.m <= rc.m; now rc.m is negative and lc.m is obtained by summing positive terms.
+                   So in fact the only case in which convexity can hold is when they are equal.*/
+                // NB: despite its name, nonConvexflag == 1 here signals the
+                // (locally) *convex* case (lc and rc coincide): see the
+                // "CONVEX CASE" branch below, which is taken precisely
+                // when nonConvexflag != 0
+
+                if(lc.m == rc.m && lc.q == rc.q) nonConvexflag = 1; //FIXME: equality up to rounding errors
                 else nonConvexflag = 0;
 
-                /////////CASO NON CONVESSO
+                /////////NON-CONVEX CASE
+                // a genuinely new breakpoint is needed: split Q[p] into two
+                // subintervals at Q[p].inter (the new one, I, inherits the
+                // "left" part), and propagate lc/rc as new candidate cuts
+                // to, respectively, every subinterval to the left/right of
+                // the split point
 
-                if(nonConvexflag == 0)//aggiungiamo il nuovo punto in Q e i tagli da questo prodotti
+                if(nonConvexflag == 0)//add the new point to Q and the cuts it produces
                  {
 
                    BenBound::SubInterval I;
@@ -620,16 +797,16 @@ using namespace std;
 
                    for(i = 0; i < Q[p].Cuts.size(); i++)
                      {
-                      I.Cuts[i].m = Q[p].Cuts[i].m; //inizializziamo con i tagli del sottointervallo in cui era contenuto
+                      I.Cuts[i].m = Q[p].Cuts[i].m; //initialize with the cuts of the subinterval it was contained in
                       I.Cuts[i].q = Q[p].Cuts[i].q;
                      }
          
                    I.rmin = Q[p].inter; 
                    I.Val = Q[p].Val;
-                   I.inter = Q[p].inter; //ad ora la soluzione è proprio questa!
+                   I.inter = Q[p].inter; //for now, the solution is exactly this!
                    I.interVal = Q[p].interVal;
-                   I.pCut.m = Q[p].pCut.m; //ci copiamo anche i tagli che la definiscono
-                   I.pCut.q = Q[p].pCut.q; //da cui far partire la LS.
+                   I.pCut.m = Q[p].pCut.m; //we also copy the cuts that define it
+                   I.pCut.q = Q[p].pCut.q; //from which the LS will start.
                    I.mCut.m = Q[p].mCut.m;
                    I.mCut.q = Q[p].mCut.q;
                    I.solflag = 1;
@@ -643,19 +820,19 @@ using namespace std;
 
                       I.mCut.q = lc.q;
                       I.mCut.m = lc.m;
-                    } //se eravamo nel caso definito da un solo taglio, adesso abbiamo anche l'altro
+                    } //if we were in the case defined by a single cut, now we also have the other one
                  
                    Q.insert(Q.begin()+p, I);
                    Qsize++;
 
-                  //aggiungiamo lc a tutti i punti a sx:
- 
-                  for(i = 1; i <= p; i++) //non in pos 0, visto che non rappresenta davvero un subinterval
+                  //add lc to all points on the left:
+
+                  for(i = 1; i <= p; i++) //not at pos 0, since it does not really represent a subinterval
                     {
                       Q[i].Cuts.push_back(lc);
                     }
 
-                  //aggiungiamo rc a tutti i punti a dx:
+                  //add rc to all points on the right:
        
                   for(i = p+1; i < Qsize; i++)
                    {
@@ -663,35 +840,36 @@ using namespace std;
                    }
 
                   } //if non convex.
-        
-                  //////CASO CONVESSO non si aggiunge un nuovo punto in Q, solo i tagli prodotti in ogni posizione preesistente
+
+                  //////CONVEX CASE: no new point is added to Q, only the cuts produced at each pre-existing position
                 else
-                  { 
-                    /*cout<<"caso convesso"<<endl;*/
+                  {
+                    /*cout<<"convex case"<<endl;*/
                     is_convex_iteration = true;
                      
                     if(Q[p].Cuts.size() == 1) 
                     {
                       Q[p].mCut.q = rc.q; 
                       Q[p].mCut.m = rc.m;
-                    } //se eravamo nel caso definito da un solo taglio, adesso abbiamo anche l'altro
+                    } //if we were in the case defined by a single cut, now we also have the other one
 
                     for(i = 1; i < Qsize; i++)
                      {
-                        Q[i].Cuts.push_back(lc); //anche in posizione p, non avendolo aggiunto prima
+                        Q[i].Cuts.push_back(lc); //also at position p, since it had not been added before
                      }
                   } // if convex
-              }//se il lagrangiano trova una soluzione        
-              else //altrimenti vorrà dire che stiamo sbagliando qualcosa
-               { 
-                 /*cout<<"Errore in BenBound::Solve"<<endl;*/
+              }//if the Lagrangian finds a solution
+              else //otherwise it means we are getting something wrong
+               {
+                 cout<<"Errore in BenBound::Solve"<<endl;
                  exit(1);
                }
-            }//se non avevamo già risolto per quel valore
+            }//if we had not already solved for that value
 
            //next line originally not in the code
            //if(Q[p].solflag == 1){noLSneeded = 1;}
-
+	         std::cout << "OV = " << ObjVal << std::endl;
+	    
            if(noLSneeded == 0) //if(noLSneeded == 0)
            {
             p = LineSearch();
@@ -703,31 +881,38 @@ using namespace std;
 
            ObjVal = Q[p].Val; 
 
-           approx = Q[p].interVal; //miglioriamo le nostre stime con i valori dati dalla LS
+           approx = Q[p].interVal; //improve our estimates with the values given by the LS
 
            //std::cout << "OV = " << ObjVal << std::endl;
 
-           if(approx > 1) releps = approx; //precisione relativa
+           if(approx > 1) releps = approx; //relative precision
            else releps = 1;
 
-           counter_ite_Ben++; //numero di punti visitati
-           
-           //if(Q.size()==2||Q.size()==3) cout<<"numero di punti = "<<Q.size()<<" with rmin = "<<rmin<<endl;
+     // stopping criteria: either this iteration made no progress at all on
+     // both bounds (BUB/BLB are the bounds at loop entry), or the relative
+     // gap between the best upper and lower bound has closed to within eps
+     if(BestUB == BUB && BestLB == BLB) {solvedflag = 1;}
+
+	   if((BestUB-BestLB)/BestUB < eps) {solvedflag = 1;}
+
+           counter_ite_Ben++; //number of points visited
+
+           //if(Q.size()==2||Q.size()==3) cout<<"number of points = "<<Q.size()<<" with rmin = "<<rmin<<endl;
            
           //}while(solvedflag == 0 && abs(ObjVal - approx) > eps * releps); (before on the code)
-          }while(solvedflag == 0 && (abs(ObjVal - approx) > eps * releps/100) && counter_ite_Ben<200);
+          }while(solvedflag == 0 && (abs(ObjVal - approx) > eps * releps/100) && counter_ite_Ben<5000);
           //std::cout << "HV = " << HeurVal << std::endl;
           //}while(counter_ite_Ben<100 && abs(BestUB-BestLB)>eps*BestUB);
 
           if(solvedflag == 0)
-            ObjVal = approx; //in ogni caso dobbiamo restituire un LB!
+            ObjVal = approx; //in any case we must return an LB!
 
          rmin = Q[p].inter;
           //cout << "Q[p].Val = " << Q[p].Val << endl;
           //cout << "rmin = " << rmin << endl;
 
-       }//se non ci sono errori 
-     }//se non era già risolto il problema
+       }//if there are no errors
+     }//if the problem was not already solved
 
      //SOL_VALUE = ObjVal;//lagSol.getObjVal();
      //std::cout << "BUB=" << BestUB << " BLB=" << BestLB << std::endl;
@@ -740,6 +925,8 @@ using namespace std;
 /*------------------------------ DESTRUCTOR --------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+   // releases all dynamically allocated memory
+
    BenBound::~BenBound()
    {
     clean_up();
@@ -749,6 +936,8 @@ using namespace std;
 /*--------------------------- PRIVATE METHODS -------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+   // deep-copies the link/node/flow data passed to LoadProblem() into the
+   // Links/Nodes/Flow data members (numLinks/numNodes must already be set)
 
    //void BenBound::copyDataArray(DCR::DCRFlow flow, DCR::DCRLink *links, DCR::DCRNode *nodes)
    void BenBound::copyDataArray(DCR::DCRFlow flow, vector<DCR::DCRLink> links, vector<DCR::DCRNode> nodes)
@@ -779,6 +968,32 @@ using namespace std;
 
 /*--------------------------------------------------------------------------*/
 
+   /// exact line search over all subintervals of Q
+   /** For each subinterval Q[ i ] (i >= 1) that has not been fathomed
+    * (branchedflag == 0), finds the point interx in [ Q[ i - 1 ].rmin ,
+    * Q[ i ].rmin ] where the upper envelope of the two "running" cuts
+    * pCut/mCut (updated via UpdCut() as the search progresses) meets the
+    * highest of all the cuts currently stored in Q[ i ].Cuts; this is the
+    * exact minimizer, restricted to the subinterval, of the piecewise-
+    * linear model of the (locally convex, once restricted to a single
+    * subinterval) dual function. If the intersection falls outside the
+    * subinterval, the corresponding endpoint is used instead. Special-cased
+    * is the leftmost subinterval (i == 1) when all its cuts still have
+    * positive slope: in that case no interior minimizer exists yet
+    * (infeasflag is set) and the subinterval's candidate value is simply
+    * its left endpoint.
+    *
+    * Once every subinterval has been processed, the one with the smallest
+    * interVal is the best current candidate for the global optimum: its
+    * value updates BestLB (a valid lower bound, since interVal is the value
+    * of a piecewise-linear *under*-estimator... actually an upper envelope
+    * of supporting lines, hence itself a lower bound on d( . )) and
+    * ApproxVal, and its position in Q is returned so that Solve() knows at
+    * which r_min to (re)solve the Lagrangian subproblem next. While
+    * scanning, subintervals whose interVal already exceeds the best known
+    * upper bound BestUB are fathomed (branchedflag = 1) since they cannot
+    * possibly contain a better solution. */
+
    int BenBound::LineSearch()
    {
      int i, j ;
@@ -787,7 +1002,7 @@ using namespace std;
      double interxVal;
      double someinter;
      int maxpos;
-     double max; //in realtà poi sarà il minimo della funzione massimo
+     double max; //in reality this will then be the minimum of the maximum function
      double min;
      int minpos;
      double releps;
@@ -798,28 +1013,28 @@ using namespace std;
      int isize;
      int branchcounter = 0;
 
-     for(i = 1; i < Q.size(); i++) //su ogni sottointervallo a parte quello in posizione 0, facciamo una LS
-       { 
+     for(i = 1; i < Q.size(); i++) //for every subinterval except the one at position 0, we perform an LS
+       {
          //poscounter = 0;
          isize = Q[i].Cuts.size();
-         max = -Inf<double>(); //per sicurezza lo rinizializziamo.
+         max = -Inf<double>(); //reinitialize it to be safe.
          counter = 0;
 
              if(Q[i].branchedflag == 0)
               {
-               //facciamo un po' di controlli per capire se siamo nel caso con tutte rette positive:
-               if(Q[i].pCut.m > 0 && Q[i].mCut.m > 0 && Q[i].Cuts[isize-1].m > 0) //allora sono tutti positivi
+               //let's run a few checks to see whether we are in the case with all lines positive:
+               if(Q[i].pCut.m > 0 && Q[i].mCut.m > 0 && Q[i].Cuts[isize-1].m > 0) //then they are all positive
                {
                  maxpos = whchbest(i);
                  interx = Q[i-1].rmin;
                  interxVal = Q[i].Cuts[maxpos].q + interx * Q[i].Cuts[maxpos].m;
-                 if(abs(Q[i-1].inter - Q[i-1].rmin) > 0) //se non era il suo valore ottimo si inizializza
+                 if(abs(Q[i-1].inter - Q[i-1].rmin) > 0) //if it was not its optimal value, it gets reinitialized
                       {
                         Q[i].solflag = 0;
                         Q[i].Val = Inf<double>();
                       }
-                      
-                 if(i == 1) //altrimenti ci serve di conservare il suo valore
+
+                 if(i == 1) //otherwise we need to keep its value
                    { 
 
                      Q[i].bestCutpos = maxpos;
@@ -834,18 +1049,18 @@ using namespace std;
                } 
                else
                {
-                if(Q[i].pCut.m > 0 && Q[i].mCut.m > 0 && Q[i].Cuts[isize-1].m <= 0) 
-                  UpdCut(Q[i].Cuts[isize-1].q, Q[i].Cuts[isize-1].m,i); //se l'ultimo è negativo aggiorniamo
-                
-                do //finalmente la LS! //poi in ogni caso partiamo con la LS
+                if(Q[i].pCut.m > 0 && Q[i].mCut.m > 0 && Q[i].Cuts[isize-1].m <= 0)
+                  UpdCut(Q[i].Cuts[isize-1].q, Q[i].Cuts[isize-1].m,i); //if the last one is negative we update
+
+                do //here comes the LS at last! //then in any case we start the LS
                  {
                   //poscounter = 0;
-                  interx = (Q[i].pCut.q - Q[i].mCut.q) / (Q[i].mCut.m - Q[i].pCut.m); //calcoliamo la nuova intersezione
-      
-                  interxApprox = Q[i].mCut.q + interx * Q[i].mCut.m; //e l'altezza sui vecchi tagli
+                  interx = (Q[i].pCut.q - Q[i].mCut.q) / (Q[i].mCut.m - Q[i].pCut.m); //compute the new intersection
+
+                  interxApprox = Q[i].mCut.q + interx * Q[i].mCut.m; //and the height on the old cuts
                   //double test = Q[i].pCut.q + interx * Q[i].pCut.m;
-    
-                  for(j = 0; j < isize; j++) //cerchiamo il taglio che garantisce l'altezza massima in quel punto
+
+                  for(j = 0; j < isize; j++) //look for the cut that gives the maximum height at that point
                    {
                     someinter =  Q[i].Cuts[j].q + interx * Q[i].Cuts[j].m;
 
@@ -853,28 +1068,28 @@ using namespace std;
                       {
                         max = someinter;
                         maxpos = j;
-                      }            
+                      }
                    }
-   
-                  interxVal = Q[i].Cuts[maxpos].q + interx * Q[i].Cuts[maxpos].m; //trovando il vero valore dell'approssimazione
-                  
-                  UpdCut(Q[i].Cuts[maxpos].q, Q[i].Cuts[maxpos].m, i); //aggiorniamo quindi uno dei tagli che definisce la soluzione
+
+                  interxVal = Q[i].Cuts[maxpos].q + interx * Q[i].Cuts[maxpos].m; //finding the true value of the approximation
+
+                  UpdCut(Q[i].Cuts[maxpos].q, Q[i].Cuts[maxpos].m, i); //so we update one of the cuts that defines the solution
 
                   counter++;
 
                   if(abs(interxVal) > 1) releps = abs(interxVal);
                   else releps = 1;
-                     
-                 //}while(abs(interxVal - interxApprox) > 1e-3);
-                 }while(abs(interxVal - interxApprox) > eps*releps/100 && counter<=100); //tanto sono LS esatte, volendo si può aggiungere un releps
-              
-             //a questo punto dobbiamo controllare di essere rimasti all'interno del sottointervallo,
-             //altrimenti prenderemo come valore l'estremo più vicino.
 
-                if(interx <= Q[i].rmin && interx > Q[i-1].rmin) //se siamo dentro l'ottimo è quello trovato
+                 //}while(abs(interxVal - interxApprox) > 1e-3);
+                 }while(abs(interxVal - interxApprox) > eps*releps/100 && counter<=100); //since these are exact LS anyway, a releps could optionally be added
+
+             //at this point we must check whether we stayed inside the subinterval,
+             //otherwise we will take the closest endpoint as the value.
+
+                if(interx <= Q[i].rmin && interx > Q[i-1].rmin) //if we are inside, the optimum is the one found
                  {
-                   if(abs(Q[i].inter - interx) >  eps * interx/100) //nuovo valore, rinizializziamo tutto.
-                    {                   
+                   if(abs(Q[i].inter - interx) >  eps * interx/100) //new value, reinitialize everything.
+                    {
                       Q[i].solflag = 0;
                       Q[i].Val = Inf<double>();
                     }
@@ -885,16 +1100,16 @@ using namespace std;
                  }
                 else
                  {
-                   if(interx <= Q[i-1].rmin) //se sto nell'intervallo precedente
-                   { 
-                      if(abs(Q[i-1].inter - Q[i-1].rmin) > eps * Q[i-1].rmin/100) //se non era il suo valore ottimo si inizializza
+                   if(interx <= Q[i-1].rmin) //if I am in the previous interval
+                   {
+                      if(abs(Q[i-1].inter - Q[i-1].rmin) > eps * Q[i-1].rmin/100) //if it was not its optimal value, it gets reinitialized
                       {
                         Q[i].solflag = 0;
                         Q[i].Val = Inf<double>();
                       }
-                      
-                      if(i == 1) //altrimenti ci serve di conservare il suo valore
-                        { 
+
+                      if(i == 1) //otherwise we need to keep its value
+                        {
                           Q[i].bestCutpos = maxpos;
                           Q[i].infeasflag = 1;
                           Q[i].interVal = Q[i].pCut.q + Q[i-1].rmin * Q[i].pCut.m;
@@ -903,12 +1118,12 @@ using namespace std;
                         {
                           Q[i].inter = Q[i-1].rmin;
                           Q[i].interVal = Q[i].pCut.q + Q[i-1].rmin * Q[i].pCut.m;
-                        }   
+                        }
                    }
-          
-                   else //se sto nell'intervallo successivo
+
+                   else //if I am in the following interval
                    {
-                     if(abs(Q[i].inter - Q[i].rmin) > eps * Q[i].rmin/100) //se non era il suo valore ottimo si inizializza
+                     if(abs(Q[i].inter - Q[i].rmin) > eps * Q[i].rmin/100) //if it was not its optimal value, it gets reinitialized
                       {
                         Q[i].solflag = 0;
                         Q[i].Val = Inf<double>();
@@ -917,18 +1132,18 @@ using namespace std;
                       Q[i].inter = Q[i].rmin;
                       Q[i].interVal = Q[i].mCut.q + Q[i].inter * Q[i].mCut.m;
                    }
-     
-                  }
-                }//se non erano tutti positivi
-             }//se non era già escluso che l'ottimo fosse in questo intervallo
-       }//per tutti i sottointervalli
 
-    //svolte tutte le LS, dobbiamo capire chi sia il minimo tra i minimi e restituire la sua posizione
-    // lui sarà il valore più promettente, per cui calcoleremo la soluzione del DL.
-    // Potrebbe essere fatto all'interno, per ora messo qui per evitare errori.
-    // Mentre scorriamo possiamo anche fare del branching: se per un certo sottointervallo
-    // il valore trovato dalla LS è >= di ObjVal, quindi di quello ritenuto ad ora l'ottmo,
-    // potremo eliminare quel sottointervallo
+                  }
+                }//if they were not all positive
+             }//if it had not already been excluded that the optimum was in this interval
+       }//for all the subintervals
+
+    //once all the LS have been carried out, we must determine which is the minimum among the minima and return its position
+    // it will be the most promising value, for which we will compute the DL solution.
+    // This could be done inside the loop; for now it is placed here to avoid errors.
+    // While scanning we can also do some branching: if for a given subinterval
+    // the value found by the LS is >= ObjVal, i.e. the one currently considered optimal,
+    // we can eliminate that subinterval
 
        min = Inf<double>();
 
@@ -960,13 +1175,23 @@ using namespace std;
    }
 
 
-/*--------------------------------------------------------------------------*/  
+/*--------------------------------------------------------------------------*/
+
+   /// updates the pair of cuts (pCut, mCut) defining the optimum of Q[ i ]
+   /** Replaces either Q[ i ].pCut (if the new line has nonnegative slope
+    * beta) or Q[ i ].mCut (if beta is negative) with the line of slope beta
+    * and intercept alpha, unless that line already coincides with one of
+    * the two currently stored cuts (in which case nothing is done). This is
+    * the elementary step of the exact line search performed by
+    * LineSearch(): pCut and mCut are, respectively, the best "ascending"
+    * and "descending" supporting lines found so far, whose intersection is
+    * refined at each call until it stabilizes. */
 
    void BenBound::UpdCut(double alpha, double beta, int i)
    {
       if(Q[i].pCut.m != beta || Q[i].pCut.q != alpha) 
       {
-         if(Q[i].mCut.m != beta || Q[i].mCut.q != alpha) //se era già uguale a uno dei due, è inutile aggiornarlo
+         if(Q[i].mCut.m != beta || Q[i].mCut.q != alpha) //if it already matched one of the two, updating it is pointless
          {
           if(beta >= 0)
            {
@@ -981,9 +1206,17 @@ using namespace std;
          }
       }
    }
-/*<modifica uno dei due tagli ottimi che definiscono la soluzione al momento a seconda della pendenza*/
+/*<modifies one of the two optimal cuts that currently define the solution, depending on the slope*/
 
-/*--------------------------------------------------------------------------*/   
+/*--------------------------------------------------------------------------*/
+
+   /// returns the position, in Q[ i ].Cuts, of the highest cut at rmin
+   /** Evaluates every cut currently stored in Q[ i ].Cuts at the abscissa
+    * Q[ i - 1 ].rmin (the left endpoint of subinterval i) and returns the
+    * position of the one attaining the largest value there, i.e., the cut
+    * that is "active" (part of the upper envelope) immediately to the
+    * right of the previous subinterval; used by LineSearch() in the
+    * special case where all of Q[ i ]'s cuts have positive slope. */
 
    int BenBound::whchbest(int i)
    {
@@ -1004,14 +1237,46 @@ using namespace std;
          }
        }
 
-      //cout<<"questo è il return della LineSearch "<<maxpos<<endl;
+      //cout<<"this is the return value of LineSearch "<<maxpos<<endl;
 
      return maxpos;
    }
 
-/*--------------------------------------------------------------------------*/   
+/*--------------------------------------------------------------------------*/
 
-   
+  /// initializes the search: sets up Q[] and the first cut(s)
+  /** Prepares the bounding procedure for a fresh Solve() call:
+   *
+   * - computes, via Limitrmin(), the interval [ limits[ 0 ] , limits[ 1 ] ]
+   *   of values of r_min for which the Lagrangian subproblem is feasible;
+   *   if the two bounds coincide, the whole problem collapses to a single
+   *   point and is solved immediately (solvedflag = 1);
+   *
+   * - otherwise sets up the (initially trivial) partition Q = { Q[0], Q[1] }
+   *   with Q[0].rmin/Q[1].rmin the left/right endpoints of the feasible
+   *   range, and searches (by a geometric shrink controlled by myparam) for
+   *   a point close to the left endpoint that is still feasible, used to
+   *   initialize Q[1].inter;
+   *
+   * - tries to shrink the right endpoint Q[1].rmin towards the "critical"
+   *   capacity crit_capc (the smallest link capacity beyond which lambda,
+   *   the optimal Lagrangian multiplier, becomes 0, computed by
+   *   Limitrmin()) via a binary search on the "is lambda == 0 optimal?"
+   *   predicate (lagSol.is0opt()), since to its right the dual function is
+   *   guaranteed nonincreasing and hence cannot improve on the value found
+   *   at the shrunk endpoint;
+   *
+   * - (re)solves the Lagrangian subproblem at the (possibly shrunk) right
+   *   endpoint Q[1].rmin and builds the corresponding left cut exactly as
+   *   done in the main loop of Solve() (same arc-by-arc closed-form
+   *   computation), storing it as both the first entry of Q[1].Cuts and as
+   *   the initial pCut;
+   *
+   * - if that cut already has nonpositive slope, the right endpoint is
+   *   itself the optimum and the procedure terminates immediately;
+   *   otherwise Q[1].mCut is reset and the first call to LineSearch() (from
+   *   Solve()) will locate the next candidate point. */
+
   void BenBound::Inizial()
   {
   	int i;
@@ -1027,8 +1292,8 @@ using namespace std;
     double zetaunico;
     double d;
     double tildez;
-    double discrim; //se <= 0 quell'arco dà contributo nullo
-    double ms; //appoggio per i conti, valore parziale della pendenza
+    double discrim; //if <= 0 that arc gives a zero contribution
+    double ms; //helper for the computation, partial value of the slope
     double counter = 0;
     double pointeps = 1e-9;
 
@@ -1040,11 +1305,11 @@ using namespace std;
  
     limits = new double[2];
 
-    limits = Limitrmin();//valori limite per cui è garantita l'ammissibilità di r_min
-    //cout<<"valori limite per rmin: "<<limits[0]<<"-"<<limits[1]<<endl;
-    
+    limits = Limitrmin();//limit values for which feasibility of r_min is guaranteed
+    // cout<<"limit values for rmin: "<<limits[0]<<"-"<<limits[1]<<endl;
+
     mystep = 0.9; // before it was 0.9
-    /*cout<<"sono qui"<<endl;*/
+    /*cout<<"I am here"<<endl;*/
 
     if(BenStat == 0)
      {
@@ -1064,9 +1329,9 @@ using namespace std;
 
         solvedflag = 1;
 
-        //cout<<"risolto per limitrmin uguali"<<endl;
-      }  
-      else //caso generale in cui esista un intervallo non banale di ammissibilità
+        //cout<<"solved because limitrmin values are equal"<<endl;
+      }
+      else //general case where a non-trivial interval of feasibility exists
       {
 
         Q.resize(2);
@@ -1080,49 +1345,49 @@ using namespace std;
         Q[0].rmin = limits[0];
         Q[1].rmin = limits[1];
 
-       //cerchiamo per prima cosa un estremo sinistro vicino a quello trovato, ma garantito ammissibile, 
-        //lo salviamo per ora in Q[1].inter.
+       //first we look for a left endpoint close to the one found, but guaranteed to be feasible,
+        //we save it for now in Q[1].inter.
 
-         double temppoint; //restringiamo l'intervallo con l'ultimo valore non ammissibile come limite inferiore
-         
+         double temppoint; //shrink the interval, using the last infeasible value as the lower bound
+
          Q[1].inter = Q[0].rmin;
 
-         //cerchiamo l'altro punto di ammissibilità
+         //look for the other feasibility point
 
          while(feas != 0)
          {
            temppoint = Q[1].inter;
-           Q[1].inter = myparam * Q[1].inter + (1 - myparam) * Q[1].rmin; //l'estremo sinistro varia, il destro resta fisso a Q[1].rmin
+           Q[1].inter = myparam * Q[1].inter + (1 - myparam) * Q[1].rmin; //the left endpoint varies, the right one stays fixed at Q[1].rmin
 
-           lagSol.updrmin(Q[1].inter); 
+           lagSol.updrmin(Q[1].inter);
            feas = lagSol.isFeasible();
            counter ++;
-           //cout<<"cerco più volte?"<<endl;
+           //cout<<"searching multiple times?"<<endl;
          }
 
         Q[0].rmin = temppoint;
 
         //cout<<"temppoint = "<<Q[0].rmin<<endl;
 
-       //////FASE PRELIMINARE DI RESTRIZIONE DELL'INTERVALLO.
+       //////PRELIMINARY PHASE OF INTERVAL RESTRICTION.
 
-        if(crit_capc < limits[1]) //caso in cui la criticità è nell'intervallo, partiamo da lì!
+        if(crit_capc < limits[1]) //case where the critical point falls inside the interval, let's start from there!
          {
-          
-          //cout<<"sono qui in crit_capc"<<endl;
+
+          //cout<<"I am here in crit_capc"<<endl;
          	lagSol.updrmin(crit_capc);
 
          	in0opt = lagSol.is0opt();
 
-         	if(in0opt == 0) //in questo caso possiamo già tagliare tutto quello che è alla sua destra
-         	 {  
-            /*cout<<"sono dentro in0opt crit_cap"<<endl;*/
+         	if(in0opt == 0) //in this case we can already cut away everything to its right
+         	 {
+            /*cout<<"I am inside in0opt crit_cap"<<endl;*/
          	 	double tempd = crit_capc;
             /*cout<<"starting from"<<crit_capc<<endl;*/
          	 	double temps = Q[1].inter;
          	 	double cent = (tempd + temps) / 2;
-               
-               while(tempd - temps > pointeps * temps)//cerchiamo con una LS il primo punto per cui lambda = 0
+
+               while(tempd - temps > pointeps * temps)//use an LS to find the first point for which lambda = 0
                {
                   lagSol.updrmin(cent);
 
@@ -1139,32 +1404,32 @@ using namespace std;
              //cout<<"Q0rmin-Q1rmin = "<<Q[0].rmin<<Q[1].rmin<<endl;
 
          	 }
-         	else //anche se lambda != 0 vogliamo partire appena prima della criticità con l'iterazione.
+         	else //even if lambda != 0, we want to start the iteration just before the critical point.
          	 {
          	   mystep = 0.75; //mystep = 0.75;
-             Q[1].inter = crit_capc - 2; //fermiamoci leggermente prima per evitare errori di calcolo
+             Q[1].inter = crit_capc - 2; //stop slightly before it to avoid computation errors
 
              //cout<<"Q[1].inter  = "<<Q[1].inter<<endl;
          	 }
         } //critcap < Q[1].rmin
-       else //altrimenti proviamo comunque a restringere l'intervallo!
-        { 
-          //cout<<"sono di qua"<<endl;
+       else //otherwise let's still try to shrink the interval!
+        {
+          //cout<<"I am over here"<<endl;
           lagSol.updrmin(Q[1].rmin);
 
           in0opt = lagSol.is0opt();
 
-         	if(in0opt == 0) //in questo caso possiamo già tagliare tutto quello che è alla sua destra
-         	 {  
-            /*cout<<"sono dentro in0opt"<<endl;*/
+         	if(in0opt == 0) //in this case we can already cut away everything to its right
+         	 {
+            /*cout<<"I am inside in0opt"<<endl;*/
 
-              //cout<<"entro nel taglio?"<<endl;
+              //cout<<"entering the cut?"<<endl;
               /*cout<<"starting from"<<Q[1].rmin<<endl;*/
               double tempd = Q[1].rmin;
               double temps = Q[1].inter;
               double cent = (tempd + temps) / 2;
-               
-               while(tempd - temps > pointeps * temps)//cerchiamo con una LS il primo punto per cui lambda = 0
+
+               while(tempd - temps > pointeps * temps)//use an LS to find the first point for which lambda = 0
                {
                  lagSol.updrmin(cent);
 
@@ -1179,23 +1444,23 @@ using namespace std;
  
                Q[1].rmin = tempd;
 
-            } //se non ci riesce fa nulla
+            } //if it fails to do so, nothing happens
 
          }//critcap = Q[1].rmin
-       
-       /////CALCOLO DEL TAGLIO SINISTRO NELL'ESTREMO DESTRO DELL'INTERVALLO
 
-    /*<in ogni caso dopo aver ristretto l'intervallo, iniziamo a popolarlo con un taglio estremale*/
+       /////COMPUTATION OF THE LEFT CUT AT THE RIGHT ENDPOINT OF THE INTERVAL
 
-        lagSol.updrmin(Q[1].rmin); //taglio sinistro per Q[1]
+    /*<in any case, after having shrunk the interval, we start populating it with an extremal cut*/
+
+        lagSol.updrmin(Q[1].rmin); //left cut for Q[1]
         lagSol.Solve();
 
         counter_ite_Lag = lagSol.getNumIte();
         lgstat = lagSol.getStatus();
         lambda = lagSol.getLambda();
 
-        //cout<<"la soluzione del lagra era a lambda = "<<lambda<<endl;
-        if(lgstat == 0) //in realtà dovrebbe essere garantito da Limitrmin.
+        //cout<<"the Lagrangian solution was at lambda = "<<lambda<<endl;
+        if(lgstat == 0) //this should actually be guaranteed by Limitrmin.
         {
 
           SPLabels = lagSol.getSPLabels();
@@ -1210,9 +1475,9 @@ using namespace std;
           
          //         cout<<"objval = "<<<<" Heurval ="<<lagSol.getHeurVal()<<endl;
 
-        //taglio sinistro
-        ///calcolo del valore tenendo conto del contributo di ciascun arco
-        //anche le intercette vengono sommate di arco in arco, visto che alcune causano discontinuità.
+        //left cut
+        ///computation of the value taking into account the contribution of each arc
+        //the intercepts are also summed arc by arc, since some of them cause discontinuities.
 
                 for(i = 0; i < numLinks; i++)
                  {
@@ -1227,44 +1492,44 @@ using namespace std;
                   //cout<<"d = "<<d<<endl;
                   if (d < 0)
                   {
-                     if(lambda == 0) //primo caso semplificato
+                     if(lambda == 0) //first, simplified case
                       {
-  
                       zetaunico = (-d) / Links[i].cost;  //(d_j - d_i)/f_ij
-
-                      if(zetaunico > Q[0].rmin)
-                      {
-                       if(zetaunico <= Links[i].capacity)
-                        { 
-                         if(Q[1].rmin <= zetaunico)  ms = Links[i].cost; //caso già convesso
-                         else  ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin - Q[1].rmin); //facciamo partire la retta approssimante da un punto noto garantito sopra a 0, ovvero Q[0].rmin
-
-                         c.m += ms;
-                         c.q += - ms * Q[1].rmin;
-                        }
-                       else
-                       {
-                        if(Q[1].rmin <= Links[i].capacity)  //caso rmin<c_ij<zeta (non dovrebbe succedere)
-                          {ms = Links[i].cost; } //caso già convesso
-                        else //caso con rmin > c_ij, e zeta > c_ij, qui c'è discontinuità! Aggiriamola
-                           {ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin - Q[1].rmin);}
+                      //std::cout << "zetaunico - Q[0].rmin = " << zetaunico - Q[0].rmin << std::endl; 
+                      //std::cout << "zetaunico - Links[i].capacity = " << zetaunico - Links[i].capacity << std::endl;
+                      //std::cout << "Links[i].capacity - Q[0].rmin = " << Links[i].capacity - Q[0].rmin << std::endl;
+                      //std::cout << "zetaunico - Links[i].capacity = " << zetaunico - Links[i].capacity << std::endl;
+                      //std::cout << "zetaunico - Q[1].rmin = " << zetaunico - Q[1].rmin << std::endl;
+                      //std::cout << "Q[1].rmin - Links[i].capacity = " << Q[1].rmin - Links[i].capacity << std::endl;
+         
+                      if( zetaunico - Q[0].rmin > zetaunico*eps && zetaunico - Links[i].capacity < eps*Links[i].capacity && zetaunico - Q[1].rmin < eps*zetaunico) {
+                        ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin - Q[1].rmin);
                         c.m += ms;
                         c.q += - ms * Q[1].rmin;
-                          
-                       } //zetaunico > c_ij
-                       } //zetaunico > Q[0].rmin
-                       //cout<<"for i ="<<i<<" c.q = "<<c.q<<"Q[0].rmin - Q[1].rmin = "<<Q[0].rmin - Q[1].rmin<<endl;
-                       //if(i>50) exit(1);
+                      }
+
+                      if( Links[i].capacity - Q[0].rmin > Links[i].capacity*eps && zetaunico - Links[i].capacity > eps*zetaunico && Q[1].rmin - Links[i].capacity > Q[1].rmin*eps) {
+                        if( zetaunico - Q[1].rmin > zetaunico*eps) {
+                          ms = (Links[i].cost * Links[i].capacity + d) / (Links[i].capacity - Q[1].rmin);
+                          c.m += ms;
+                          c.q += - ms * Q[1].rmin;
+                        } 
+                        if( zetaunico - Q[1].rmin < Q[1].rmin*eps) {
+                          ms = (Links[i].cost * Q[0].rmin + d)/(Q[0].rmin - Q[1].rmin);
+                          c.m += ms;
+                          c.q += - ms * Q[1].rmin;
+                        }
+                      }
                       }//lambda = 0
-                     else //caso generale
-                     { 
+                     else //general case
+                     {
                       barl = MTU / Links[i].speed + Links[i].delay + Nodes[Links[i].startnode].delay;
                       discrim = pow(lambda * barl + d, 2) - 4*Links[i].cost * lambda * MTU;
-              
-                     if(discrim > 0) //allora sono definiti zeta_\pm
+
+                     if(discrim > 0) //then zeta_\pm are well defined
                         {
-                         zetap = (-lambda * barl - d + sqrt(discrim))/(2 * Links[i].cost); //radice pi�ï�� grande
-                         zetam = (-lambda * barl - d - sqrt(discrim))/(2 * Links[i].cost); //radice pi�ï�� piccola
+                         zetap = (-lambda * barl - d + sqrt(discrim))/(2 * Links[i].cost); //larger root
+                         zetam = (-lambda * barl - d - sqrt(discrim))/(2 * Links[i].cost); //smaller root
 
                          if( zetam - Links[i].capacity < eps*Links[i].capacity && Links[i].capacity - sqr < eps*Links[i].capacity && Q[1].rmin - Links[i].capacity > eps*Links[i].capacity ) { //&& Q[p].inter - Links[i].capacity > eps*Links[i].capacity
                             ms = (Links[i].cost * Links[i].capacity + lambda * MTU / Links[i].capacity + lambda * barl + d) / ( Links[i].capacity - Q[1].rmin );
@@ -1320,38 +1585,38 @@ using namespace std;
                               }
                             }
                           }
-                        }//se sono definiti i punti in cui si annulla il contributo dell'arco
-                         //altrimenti il contributo sar�  nullo.
-                      }//caso lambda > 0
-                   }//se d < 0
-                  }//solo gli archi con capacit�  pi�ï�� grandi della minima ammissibile!
-                  }//per tutti gli archi.
+                        }//if the points where the arc's contribution vanishes are well defined
+                         //otherwise the contribution will be zero.
+                      }//case lambda > 0
+                   }//if d < 0
+                  }//only the arcs with capacity greater than the minimum feasible one!
+                  }//for all the arcs.
 
-               //infine dobbiamo sommare i contributi della funzione g(z).
+               //finally we have to sum the contributions of the function g(z).
                 
                 ms = - lambda * Flow.burst / pow(Q[1].rmin,2);
                 c.m += ms;
                 c.q += lambda * Flow.burst / Q[1].rmin - lambda * Flow.deadline + SPLabels[Flow.sinknode] - Q[1].rmin * ms; //g(r_min) - r_min * ms
                 // cout<<"Q[1].rmin = "<<Q[1].rmin<<" SpLabels[sinknode] = "<<SPLabels[Flow.sinknode]<<endl;
                 // cout<<"ms ="<<ms<<" c.m ="<<c.m<<" c.q ="<<c.q<<endl;
-                
-        //fine calcolo taglio sinistro, salviamolo.
+
+        //end of left cut computation, let's store it.
 
          Q[1].Cuts.push_back(c);
 
-         Q[1].pCut.q = c.q; ///uno dei tagli che definisce l'attuale punto da cui parte
-         Q[1].pCut.m = c.m; // la LS
+         Q[1].pCut.q = c.q; ///one of the cuts that defines the current point from which
+         Q[1].pCut.m = c.m; // the LS starts
        }
-       else{ /*cout<<"Errore in inizial di BenBound"<<endl;*/ exit(1);}
+       else{ /*cout<<"Error in inizial of BenBound"<<endl;*/ exit(1);}
 
-       if(Q[1].pCut.m <= 0)//se la pendenza all'estremo è già negativa sono già sull'ottimo!
+       if(Q[1].pCut.m <= 0)//if the slope at the endpoint is already negative we are already at the optimum!
         {
-          //cout<<"sono nel caso pcut.m<0?"<<endl;
+          //cout<<"am I in the case pcut.m<0?"<<endl;
           Q[1].solflag = 1;
-          
+
           solvedflag = 0;
 
-          //cout<<"risolto per pendenza all'estremo negativa"<<endl;
+          //cout<<"solved because the slope at the endpoint is negative"<<endl;
 
           ObjVal = lambda * Flow.burst / Q[1].rmin - lambda * Flow.deadline + SPLabels[Flow.sinknode];
 
@@ -1362,13 +1627,13 @@ using namespace std;
           HeurVal = lagSol.getHeurVal();
 
         }
-          //altrimenti inizializiamo Q[1].interval con un il suo valore e passiamo il tutto al solve
-       
-        Q[1].mCut.q = 0; 
-        Q[1].mCut.m = 0; //diamo un'inizializzazione riconoscibile
+          //otherwise we initialize Q[1].interval with its value and pass everything to solve
 
-       }//se esisteva un intervallo non banale di ammissibilità
-     }//se Benstat = 0
+        Q[1].mCut.q = 0;
+        Q[1].mCut.m = 0; //give it a recognizable initialization
+
+       }//if a non-trivial interval of feasibility existed
+     }//if Benstat = 0
      //cout<<"solved flag = "<<solvedflag<<endl;
      //exit(1);
   }
@@ -1378,13 +1643,39 @@ using namespace std;
 /*--------------------------------------------------------------------------*/
 
 
+   /// computes the feasible range of r_min, and the "critical" capacity
+   /** Finds [ bounds[ 0 ] , bounds[ 1 ] ], a valid interval of values of
+    * r_min for which the Lagrangian subproblem (solved by lagSol) is
+    * feasible. Note that feasibility is *not* monotone in r_min: too small
+    * a r_min makes the transmission-delay term MTU / r_min too large to
+    * meet the deadline, while too large a r_min excludes links whose
+    * capacity is below r_min from the (reduced) graph used by the shortest
+    * path subproblem, up to possibly disconnecting it; hence feasibility
+    * only holds on a "window" of r_min values, bracketed by the (sorted)
+    * link capacities.
+    *
+    * The array of link capacities caps[] is first sorted (capSort()); a
+    * linear scan from the smallest capacity upwards then finds crit_capc,
+    * the smallest capacity value at which the subproblem is feasible
+    * (skipping over ties): bounds[0] is set to
+    * max( Flow.rate , Flow.burst / Flow.deadline ), a valid lower bound on
+    * any feasible r_min. Starting from that point, a binary search over the
+    * remaining (sorted) capacities then finds bounds[1], the largest
+    * capacity value up to which feasibility persists (if feasibility
+    * already holds at the very largest capacity, bounds[1] is simply set
+    * to it without a binary search).
+    *
+    * Sets BenStat to OK if a feasible range was found, or to Infeasible
+    * (returning nullptr) if the Lagrangian subproblem is infeasible even
+    * at the largest capacity. */
+
    double* BenBound::Limitrmin()
    {
-    int i, j = 0; 
+    int i, j = 0;
     int dx, sx, cent;
     int feas; //feasibility check
     //double rp, rm;
-    
+
     sx = 0;
     dx = numLinks-1;
     cent = (dx + sx)/2;
@@ -1415,9 +1706,9 @@ using namespace std;
     // j = 0;
     //END_DEBUG_DATA
 
-    ///Non è vero che se per la minima capacità non c'è soluzione,
-    //allora necessariamente il problema è vuoto (Waxman100_4).
-    //quindi prendiamo come estremo sinistro il valore max{Flow.rate, Flow.burst/Flow.deadline}
+    ///It is not true that if there is no solution for the minimum capacity,
+    //then the problem is necessarily empty (Waxman100_4).
+    //so we take as the left endpoint the value max{Flow.rate, Flow.burst/Flow.deadline}
 
     lagSol.LoadProblem(numNodes, numLinks, Flow, Links, Nodes, MTU, caps[0]);
     feas = lagSol.isFeasible();
@@ -1432,7 +1723,7 @@ using namespace std;
       { 
         j++;
 
-        if(caps[j] != caps[j-1]) //stesso rmin implica stesso risultato
+        if(caps[j] != caps[j-1]) //same rmin implies same result
         {
           lagSol.updrmin(caps[j]);
           feas = lagSol.isFeasible();
@@ -1446,24 +1737,24 @@ using namespace std;
         BenStat = OK;
         double* bounds = new double[2];
         
-        if(Flow.rate < Flow.burst / Flow.deadline) bounds[0] = Flow.burst / Flow.deadline; //in ogni caso questo è il lower bound per r_min;
+        if(Flow.rate < Flow.burst / Flow.deadline) bounds[0] = Flow.burst / Flow.deadline; //in any case this is the lower bound for r_min;
         else bounds[0] = Flow.rate;
 
         lagSol.updrmin(caps[dx]);
-        feas = lagSol.isFeasible();   
+        feas = lagSol.isFeasible();
 
-        if (feas == 0) //se per l'ultima capacità va bene abbiamo il range;
+        if (feas == 0) //if it is fine for the last capacity we have the range;
          {
            bounds[1] = caps[dx];
 
            return bounds;
          }
-        else //altrimenti ricerca binaria sul vettore delle capacità per trovare quella minima
+        else //otherwise binary search over the capacity vector to find the minimum one
          {
-          sx = j; //a partire dal lower bound;
+          sx = j; //starting from the lower bound;
 
-          //FIXME: si potrebbe migliorare, osservando che le capacità spesso si ripetono
-          //e facendo un check su sx+1, visto che spesso esiste solo un valore ammissibile.
+          //FIXME: this could be improved, observing that capacities often repeat
+          //and by doing a check on sx+1, since often only one feasible value exists.
           while( dx - sx > 1 )
            { 
              cent = (sx + dx)/2;
@@ -1495,18 +1786,18 @@ using namespace std;
           {
             cout<<"sx limitrmin"<<endl;
             exit(1);
-          } }*///resta il dubbio che in questi casi ci potrebbe essere del margine
+          } }*///the doubt remains that in these cases there could be some margin left
 
-          /**FIXME: se SPT si sconnette per r_min uguale a una certa capacità,
-          è chiaro che non si possa più salire, ma se il lagrangiano diventa semplicemente
-          infeasible è altrettanto chiaro che, nel grande gap tra l'ultima capacità ammissibile
-          e la prima inammissibile, non ci siano valori salvabili?*/
+          /**FIXME: if the SPT becomes disconnected when r_min equals a certain capacity,
+          it is clear that we cannot go any higher, but if the Lagrangian simply becomes
+          infeasible, is it equally clear that, in the large gap between the last feasible capacity
+          and the first infeasible one, there are no salvageable values?*/
 
           return bounds;
-          
-         } 
 
-      } //se il problema è ammissibile
+         }
+
+      } //if the problem is feasible
     
     else
      {
@@ -1518,7 +1809,14 @@ using namespace std;
 
 /*--------------------------------------------------------------------------*/
 
-   void BenBound::capSort(int sx, int dx) //Quicksort ricorsivo randomizzato.
+   /// recursively sorts caps[ sx .. dx ] in nondecreasing order
+   /** Randomized recursive quicksort (a random pivot in [ sx , dx ] is
+    * chosen at each call to avoid worst-case behaviour on already-sorted
+    * input) of the array of link capacities caps[], used by Limitrmin() to
+    * enable a binary search over the feasibility of the Lagrangian
+    * subproblem as a function of r_min. */
+
+   void BenBound::capSort(int sx, int dx) //Randomized recursive quicksort.
    {
      int pivot, rango;
      srand((unsigned)time(NULL));
@@ -1536,8 +1834,15 @@ using namespace std;
 
 /*--------------------------------------------------------------------------*/
 
-   int BenBound::Distrib(int sx, int pv, int dx)  //metodo privato per quicksort 
-   {                                        
+   /// Lomuto/Hoare-style partition of caps[ sx .. dx ] around caps[ pv ]
+   /** Partition step of capSort()'s quicksort: moves the pivot element
+    * caps[ pv ] to the end of the range, then partitions caps[ sx .. dx ]
+    * so that all elements <= the pivot come before it and all elements
+    * >= the pivot come after it, finally placing the pivot in its sorted
+    * position and returning that position. */
+
+   int BenBound::Distrib(int sx, int pv, int dx)  //private method for quicksort
+   {
     int i,j;
 
     if(pv != dx)   Swap(pv,dx);
@@ -1564,8 +1869,10 @@ using namespace std;
 
 /*--------------------------------------------------------------------------*/
 
-  void BenBound::Swap(int a,int b)   //metodo privato per quicksort
-  {                           
+  /// swaps caps[ a ] and caps[ b ]
+
+  void BenBound::Swap(int a,int b)   //private method for quicksort
+  {
    double temp;
  
    temp = caps[a]; 
@@ -1574,6 +1881,8 @@ using namespace std;
   }
 
 /*--------------------------------------------------------------------------*/
+
+  /// releases all dynamically allocated memory and clears container members
 
   void BenBound::clean_up()
   {
