@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------*/
-/*---------------------------- File SPT.h -----------------------------------*/
+/*---------------------------- File SPT.h ----------------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @file
  * Header file for the class SPT, which computes a Shortest Path Tree from a
@@ -71,8 +71,6 @@ using namespace std;
 
 class SPT
 {
-
-
 /*--------------------------------------------------------------------------*/
 /*----------------------- PUBLIC PART OF THE CLASS -------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -103,37 +101,32 @@ class SPT
   operator T() { return( std::numeric_limits<T>::epsilon() ); }
   };
 
-	
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PUBLIC TYPES --------------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Public types
  *  @{ */
 
-   /// status of the Shortest Path computation
-   enum Status
-   {
-	  OK, 	///<  solver found a feasible solution
-	  Infeasible,   ///<  problem infeasible
-	  Unbounded,    ///<  problem unbounded
-	  Error         ///<  the graph is disconnected between s and some node
-	                /// needed to reconstruct the s-t path
-   };
+ /// status of the Shortest Path computation
+ enum Status {
+  OK, 	///<  solver found a feasible solution
+  Infeasible,   ///<  problem infeasible
+  Unbounded,    ///<  problem unbounded
+  Error         ///<  the graph is disconnected between s and some node
+                /// needed to reconstruct the s-t path
+  };
 
 /*--------------------------------------------------------------*/
 
-   /// a simplified arc for SPT: only cost, start and end node
-   struct SPTLink
-   {
-     int startnode;  ///< index of the tail node of the arc
-     int endnode;    ///< index of the head node of the arc
-     double cost;    ///< (possibly negative) cost/length of the arc
+ /// a simplified arc for SPT: only cost, start and end node
+ struct SPTLink {
+  int startnode;  ///< index of the tail node of the arc
+  int endnode;    ///< index of the head node of the arc
+  double cost;    ///< (possibly negative) cost/length of the arc
 
-     double rstar; //not very useful in SP, but avoids a double check
-                   //on input and output for the Lagrangian solution.
-   };
-
-/*simplified arcs for SP, only the arc cost is required, besides head and tail*/
+  double rstar;   // not very useful in SP, but avoids a double check
+                  // on input and output for the Lagrangian solution.
+  };
 
 /** @} ---------------------------------------------------------------------*/
 /*---------------------------- CONSTRUCTOR ---------------------------------*/
@@ -141,9 +134,9 @@ class SPT
 /** @name Constructor
  *  @{ */
 
-	/// constructor of SPT: initializes all data members to "empty"
+ /// constructor of SPT: initializes all data members to "empty"
 
-	SPT( void );
+ SPT( void );
 
 /** @} ---------------------------------------------------------------------*/
 /*---------------------------------- METHODS -------------------------------*/
@@ -151,24 +144,26 @@ class SPT
 /** @name Loading the data of the problem
  *  @{ */
 
-	/// loads a new graph, source and sink node
-	/** Loads a directed graph with nnodes nodes and nlinks arcs (links,
-	 * given as a vector of SPTLink), and sets sourcenode/sinknode as the
-	 * source/sink for the Shortest Path computation performed by Solve().
-	 * Any previously loaded instance is discarded. */
+ /// loads a new graph, source and sink node
+ /** Loads a directed graph with nnodes nodes and nlinks arcs (links,
+  * given as a vector of SPTLink), and sets sourcenode/sinknode as the
+  * source/sink for the Shortest Path computation performed by Solve().
+  * Any previously loaded instance is discarded. */
 
-	virtual void LoadProblem(int nnodes, int nlinks, vector<SPTLink> links, int sourcenode, int sinknode);
+ virtual void LoadProblem( int nnodes , int nlinks ,
+			   std::vector< SPTLink > links ,
+			   int sourcenode , int sinknode );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-	/// updates the arc costs, keeping the same topology
-	/** Replaces the cost of every arc with the corresponding entry of
-	 * links (the topology, i.e., startnode/endnode of each arc, must be
-	 * unchanged), clearing any previously computed solution; meant to be
-	 * used to solve a sequence of instances differing only in the arc
-	 * costs (e.g., across Lagrangian iterations), without the overhead of
-	 * reloading the whole topology. */
+ /// updates the arc costs, keeping the same topology
+ /** Replaces the cost of every arc with the corresponding entry of
+  * links (the topology, i.e., startnode/endnode of each arc, must be
+  * unchanged), clearing any previously computed solution; meant to be
+  * used to solve a sequence of instances differing only in the arc
+  * costs (e.g., across Lagrangian iterations), without the overhead of
+  * reloading the whole topology. */
 
-	virtual void updCosts(vector<SPTLink> links);
+ virtual void updCosts( std::vector< SPTLink > links );
 
 /** @} ---------------------------------------------------------------------*/
 /*----------------------------------SOLVE-----------------------------------*/
@@ -176,52 +171,48 @@ class SPT
 /** @name Solving the problem
  *  @{ */
 
-	/// computes the Shortest Path Tree from the source node
-	/** Runs a FIFO-queue label-correcting (Bellman-Ford-type) algorithm to
-	 * compute shortest distances from the source node to every other node,
-	 * and reconstructs the shortest s-t path (see getPath()). See the
-	 * general notes of the class for the details of the algorithm; sets
-	 * getStatus() to Error if the sink cannot be reached backwards from
-	 * itself down to the source (a disconnected/unbounded instance). */
+ /// computes the Shortest Path Tree from the source node
+ /** Runs a FIFO-queue label-correcting (Bellman-Ford-type) algorithm to
+  * compute shortest distances from the source node to every other node,
+  * and reconstructs the shortest s-t path (see getPath()). See the
+  * general notes of the class for the details of the algorithm; sets
+  * getStatus() to Error if the sink cannot be reached backwards from
+  * itself down to the source (a disconnected/unbounded instance). */
 
-	virtual void Solve();
-	/*<solves SP with the Bellman algorithm*/
+ virtual void Solve();
 
 /** @} ---------------------------------------------------------------------*/
-/*----------------------------------GET RESULTS------------------------------*/
+/*---------------------------------GET RESULTS------------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Reading the results
  *  @{ */
 
-	/// returns the number of arcs (hops) of the optimal s-t path
-	virtual int getNHops();
-	/*<returns the number of arcs of the optimal path*/
+ /// returns the number of arcs (hops) of the optimal s-t path
+
+ virtual int getNHops( void );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-	/// returns the status of the last Solve() call
-	virtual Status getStatus();
-	/*<returns the status of the problem, i.e., whether it has been solved or is Unbounded*/
+ /// returns the status of the last Solve() call
+
+ virtual Status getStatus( void );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-    /// returns the optimal s-t path as a list of arc indices
-    /** Returns the sequence of arc indices (into the Links loaded by
-     * LoadProblem()/updCosts()) forming the shortest path from the source
-     * to the sink, in source-to-sink order. Note that if SPT is used on a
-     * "reduced" subgraph (a subset of arcs of some larger graph), these
-     * indices refer to the reduced graph and do *not* in general coincide
-     * with the corresponding arc indices in the original, full graph. */
-    virtual vector<int> getPath();
-	/*<returns the optimal path from source to sink,
-	 * as a list of indices of the involved links.
-	 * NB. if used on a reduced graph, these will not coincide with those
-	 * of the full graph*/
+ /// returns the optimal s-t path as a list of arc indices
+ /** Returns the sequence of arc indices (into the Links loaded by
+  * LoadProblem()/updCosts()) forming the shortest path from the source
+  * to the sink, in source-to-sink order. Note that if SPT is used on a
+  * "reduced" subgraph (a subset of arcs of some larger graph), these
+  * indices refer to the reduced graph and do *not* in general coincide
+  * with the corresponding arc indices in the original, full graph. */
+
+ virtual std::vector< int > getPath( void );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-	/// returns the dual solution of SP, i.e., the shortest-distance labels
-	/** Returns, for every node, its shortest distance from the source (the
-	 * dual variables/node potentials of the Shortest Path LP). */
-	virtual vector<double> getLabel();
-	/*<returns the dual solution of SP.*/
+ /// returns the dual solution of SP, i.e., the shortest-distance labels
+ /** Returns, for every node, its shortest distance from the source (the
+  * dual variables/node potentials of the Shortest Path LP). */
+
+ virtual std::vector< double > getLabel( void );
 
 /** @} ---------------------------------------------------------------------*/
 /*------------------------------ DESTRUCTOR --------------------------------*/
@@ -229,41 +220,42 @@ class SPT
 /** @name Destructor
  *  @{ */
 
-	/// destructor of SPT: releases all dynamically allocated memory
+ /// destructor of SPT: releases all dynamically allocated memory
 
-	~SPT();
+ ~SPT();
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- PRIVATE PART OF THE CLASS --------------------------*/
 /*--------------------------------------------------------------------------*/
 
+ private:
 
-	private:
-
-	vector<SPTLink> Links; ///< the arcs of the graph
-	int numNodes;          ///< number of nodes of the graph
-	int numLinks;           ///< number of arcs of the graph
-	int nhops;              ///< number of arcs of the optimal s-t path
-	int s; //sourceindex.
-	int t; //sinkindex.
-	vector<int> Sol;  //indices of the s-t path that solves SP.
-	vector<double> DualSol; //dual solution of SP (labels).
-	Status stat; //to check for the presence of negative-cost cycles.
-
-
-	/// deep-copies links into the Links data member
-	void copyDataArrays(vector<SPTLink> links);
-
-	/// returns the index (in Links) of the arc with tail = from, head = to,
-	/// or sets stat = Error and returns -1 if no such arc exists
-	int getLink(int from, int to);
-	/*<finds, if there is one, the arc with head = to and tail = from*/
-
-    /// clears all container data members (Links, Sol, DualSol)
-    void clean_up(void);
+ std::vector<SPTLink> Links; ///< the arcs of the graph
+ int numNodes;          ///< number of nodes of the graph
+ int numLinks;           ///< number of arcs of the graph
+ int nhops;              ///< number of arcs of the optimal s-t path
+ int s; //sourceindex.
+ int t; //sinkindex.
+ std::vector<int> Sol;  //indices of the s-t path that solves SP.
+ std::vector<double> DualSol; //dual solution of SP (labels).
+ Status stat; //to check for the presence of negative-cost cycles.
 
 
-};
+/*--------------------------------------------------------------------------*/
+ /// deep-copies links into the Links data member
+ void copyDataArrays(vector<SPTLink> links);
+
+/*--------------------------------------------------------------------------*/
+ /// returns the index (in Links) of the arc with tail = from, head = to,
+ /// or sets stat = Error and returns -1 if no such arc exists
+ int getLink(int from, int to);
+
+ /// clears all container data members (Links, Sol, DualSol)
+ void clean_up(void);
+
+ };  // end( class( SPT ) )
+
+/*--------------------------------------------------------------------------*/
 
 #endif
 

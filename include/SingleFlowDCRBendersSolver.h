@@ -49,7 +49,6 @@
 
 #include "CDASolver.h"
 
-
 /*--------------------------------------------------------------------------*/
 /*-------------------------- NAMESPACE & USING -----------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -57,11 +56,6 @@
 /// namespace for the Structured Modeling System++ (SMS++)
 namespace SMSpp_di_unipi_it
 {
-  
- //using Index = Block::Index;
- 
- //class SingleFlowDCRBendersSolverState;  // forward declaration of SingleFlowDCRBendersSolverState
-
 /*--------------------------------------------------------------------------*/
 /*------------------------------- CLASSES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -99,13 +93,13 @@ namespace SMSpp_di_unipi_it
  * compute()), and translates the results back into SMS++ terms (see
  * get_lb(), get_ub(), get_var_solution(), ...). */
 
-class SingleFlowDCRBendersSolver : public Solver , public BenBound {
-
+class SingleFlowDCRBendersSolver : public Solver , public BenBound
+{
 /*--------------------------------------------------------------------------*/
 /*----------------------- PUBLIC PART OF THE CLASS -------------------------*/
 /*--------------------------------------------------------------------------*/
 
-public:
+ public:
 
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PUBLIC TYPES --------------------------------*/

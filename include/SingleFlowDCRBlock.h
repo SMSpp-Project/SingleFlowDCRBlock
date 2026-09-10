@@ -182,12 +182,12 @@ namespace SMSpp_di_unipi_it
  * constructed is controlled by a Configuration passed to
  * generate_abstract_constraints() [see there].
  *
- * As in MCFBlock, the abstract representation can be changed (costs,
- * capacities, deficits, opening/closing arcs) via the corresponding methods,
- * which keep the "physical" and "abstract" representations of the
- * SingleFlowDCRBlock in sync and issue the appropriate Modification; more
- * complex changes to the structure of the graph are, at the time being, not
- * supported and result in exceptions being thrown. */
+ * The abstract representation can be changed (costs, capacities, deficits,
+ * opening/closing arcs) via the corresponding methods, which keep the
+ * "physical" and "abstract" representations of the SingleFlowDCRBlock in
+ * sync and issue the appropriate Modification; more complex changes to the
+ * structure of the graph are, at the time being, not supported and result
+ * in exceptions being thrown. */
 
 class SingleFlowDCRBlock : public Block
 {
@@ -217,13 +217,15 @@ public:
 /*--------------------------------------------------------------------------*/
 
  typedef const double c_double;            ///< a read-only double
+
  typedef std::vector< double > Vec_double; ///< a vector of double
+
  typedef const Vec_double c_Vec_double;    ///< a const vector of double
+
  typedef Vec_double::iterator Vec_double_it;   ///< iterator in Vec_double
+
  typedef Vec_double::const_iterator c_Vec_double_it;
                                            ///< const iterator in Vec_double
-
-/*--------------------------------------------------------------------------*/
 
 /** @} ---------------------------------------------------------------------*/
 /*------------------------------- FRIENDS ----------------------------------*/
@@ -313,7 +315,8 @@ public:
   * directly with chg_dfct() / chg_st().
   *
   * Like load( std::istream & ), if there is any Solver attached to this
-  * SingleFlowDCRBlock then a NBModification (the "nuclear option") is issued. */
+  * SingleFlowDCRBlock then a NBModification (the "nuclear option") is
+  * issued. */
 
  void load( Index n , Index m , c_Subset & pEn , c_Subset & pSn ,
 	    c_Vec_double & pU = {} , c_Vec_double & pC = {} ,
@@ -324,8 +327,8 @@ public:
 /*--------------------------------------------------------------------------*/
  /// extends Block::deserialize( netCDF::NcGroup )
  /** Extends Block::deserialize( netCDF::NcGroup ) to the specific format of
-  * a SingleFlowDCRBlock. Besides what is managed by the serialize() method of the base
-  * Block class, the group should contain the following:
+  * a SingleFlowDCRBlock. Besides what is managed by the serialize() method
+  * of the base Block class, the group should contain the following:
   *
   * - the dimension "NNodes" containing the number of nodes in the graph;
   *
@@ -372,10 +375,10 @@ public:
 
 /*--------------------------------------------------------------------------*/
  /// loads the DCR instance from file in DIMACS standard format
- /** Protected method for loading a SingleFlowDCRBlock out of a std::istream (which is
-  * what operator>> is dispatched to. The std::istream is assumed to contain
-  * the description of a DCR instance in DIMACS standard format, which is 
-  * the following. The first line must be
+ /** Protected method for loading a SingleFlowDCRBlock out of a std::istream
+  * (which is what operator>> is dispatched to. The std::istream is assumed
+  * to contain the description of a DCR instance in DIMACS standard format,
+  * which is  the following. The first line must be
   *
   *      p min <number of nodes> <number of arcs>
   *
@@ -404,8 +407,9 @@ public:
   *
   * Since there is only one supported input format, \p frmt is ignored.
   *
-  * Like load( memory ), if there is any Solver attached to this SingleFlowDCRBlock
-  * then a NBModification (the "nuclear option") is issued. */
+  * Like load( memory ), if there is any Solver attached to this
+  * SingleFlowDCRBlock then a NBModification (the "nuclear option") is
+  * issued. */
 
  void load( std::istream &input , char frmt = 0 ) override;
 
@@ -561,7 +565,7 @@ public:
  void generate_dynamic_constraints( Configuration *stcc = nullptr ) override;
 
 /** @} ---------------------------------------------------------------------*/
-/*-------------- Methods for reading the data of the SingleFlowDCRBlock --------------*/
+/*-------- Methods for reading the data of the SingleFlowDCRBlock ----------*/
 /*--------------------------------------------------------------------------*/
 /** @name Methods for reading the data of the SingleFlowDCRBlock
  *  @{ */
@@ -600,12 +604,16 @@ public:
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the vector of the (fixed) node processing delays
 
- [[nodiscard]] Vec_double get_NodeDelays( void ) const { return( NodeDelays ); }
+ [[nodiscard]] Vec_double get_NodeDelays( void ) const {
+  return( NodeDelays );
+  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the vector of the (fixed) arc/link propagation delays
 
- [[nodiscard]] Vec_double get_LinkDelays( void ) const { return( LinkDelays ); }
+ [[nodiscard]] Vec_double get_LinkDelays( void ) const {
+  return( LinkDelays );
+  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the burst of the flow
@@ -615,7 +623,9 @@ public:
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the (end-to-end) deadline of the flow
 
- [[nodiscard]] double get_FlowDeadline( void ) const { return( FlowDeadlines ); }
+ [[nodiscard]] double get_FlowDeadline( void ) const {
+  return( FlowDeadlines );
+  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get rho, the minimum rate to be reserved on any arc used by the flow
@@ -661,8 +671,7 @@ public:
    throw( std::invalid_argument( "invalid arc name" ) );
 
   return( const_cast< ColVariable * >( & x[ i ] ) );
-
- }
+  }
 
 /*--------------------------------------------------------------------------*/
  /// given a pointer to a reserved-rate Variable, returns the index of the arc
@@ -703,7 +712,7 @@ public:
   * IN THE FIRST PLACE, SEGFAULTS ARE BOUND TO HAPPEN OTHERWISE. */
 
  [[nodiscard]] ColVariable * p_rmin() const {
-    return( const_cast< ColVariable * >( & r_min ) );
+  return( const_cast< ColVariable * >( & r_min ) );
   }
 
 /*--------------------------------------------------------------------------*/
@@ -855,24 +864,26 @@ public:
 
  /// returns true if the current solution is (approximately) flow feasible
  /** Returns true if the solution encoded in the current value of the flow
-  * (x) Variable of the SingleFlowDCRBlock is approximately feasible w.r.t. the flow
-  * conservation constraints only. This clearly requires the Variable of the
-  * SingleFlowDCRBlock to have been defined, i.e., that generate_abstract_variables()
-  * has been called prior to this method. The parameter feps is the relative
-  * accuracy defining "approximately". The parameter "useabstract" has the
-  * same meaning as in is_feasible() and is_optimal(). */
+  * (x) Variable of the SingleFlowDCRBlock is approximately feasible w.r.t.
+  * the flow conservation constraints only. This clearly requires the
+  * Variable of the SingleFlowDCRBlock to have been defined, i.e., that
+  * generate_abstract_variables() has been called prior to this method. The
+  * parameter feps is the relative accuracy defining "approximately". The
+  * parameter "useabstract" has the same meaning as in is_feasible() and
+  * is_optimal(). */
 
  bool flow_feasible( double feps , bool useabstract = false );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns true if the current solution is (approximately) bound feasible
  /** Returns true if the solution encoded in the current value of the flow
-  * (x) Variable of the SingleFlowDCRBlock is approximately feasible w.r.t. the bound
-  * constraints only. This clearly requires the Variable of the SingleFlowDCRBlock to
-  * have been defined, i.e., that generate_abstract_variables() has been
-  * called prior to this method. The parameter feps is the relative accuracy
-  * defining "approximately". The parameter "useabstract" has the same
-  * meaning as in is_feasible() and is_optimal(). */
+  * (x) Variable of the SingleFlowDCRBlock is approximately feasible w.r.t.
+  * the bound constraints only. This clearly requires the Variable of the
+  * SingleFlowDCRBlock to have been defined, i.e., that
+  * generate_abstract_variables() has been called prior to this method. The
+  * parameter feps is the relative accuracy defining "approximately". The
+  * parameter "useabstract" has the same meaning as in is_feasible() and
+  * is_optimal(). */
 
  bool bound_feasible( double feps , bool useabstract = false );
 
@@ -922,7 +933,8 @@ public:
   * ones), with the same tolerance-selection logic for the parameter fsbc.
   * */
 
- bool is_feasible_flow( bool useabstract = false , Configuration *fsbc = nullptr );
+ bool is_feasible_flow( bool useabstract = false ,
+			Configuration *fsbc = nullptr );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns true if the DCR *instance* (not the current solution) is feasible
@@ -943,7 +955,7 @@ public:
   * case in which the heuristic merely fails to find a feasible solution
   * that may still exist, since DCR_SPT is not an exact solver). */
 
- bool is_feasible_instance();
+ bool is_feasible_instance( void );
 
 /** @} ---------------------------------------------------------------------*/
 /*------------------------- Methods for R3 Blocks --------------------------*/
@@ -952,8 +964,8 @@ public:
  *  @{ */
 
  /// gets an R3 Block of SingleFlowDCRBlock currently only the copy one
- /** Gets an R3 Block of the SingleFlowDCRBlock. The list of currently supported R3
-  * Block is:
+ /** Gets an R3 Block of the SingleFlowDCRBlock. The list of currently
+  * supported R3 Block is:
   *
   * - r3bc == nullptr: the copy (an SingleFlowDCRBlock identical to this)
   */
@@ -964,9 +976,9 @@ public:
 
 /*--------------------------------------------------------------------------*/
  /// maps back the solution from a copy SingleFlowDCRBlock to the current one
- /** Maps back the solution from a copy SingleFlowDCRBlock to the current one. The
-  * parameter r3bc is useless (has to be nullptr). The parameter solc decides
-  * which part of the solution is mapped:
+ /** Maps back the solution from a copy SingleFlowDCRBlock to the current
+  * one. The parameter r3bc is useless (has to be nullptr). The parameter
+  * solc decides which part of the solution is mapped:
   *
   * - if solc != nullptr and it is a SimpleConfiguration< int >, then it
   *   depends on solc->f_value:
@@ -998,10 +1010,10 @@ public:
 			 Configuration *solc = nullptr ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// maps the solution of the current SingleFlowDCRBlock to a copy SingleFlowDCRBlock
- /** Maps the solution of the current SingleFlowDCRBlock to a copy SingleFlowDCRBlock. The
-  * parameter r3bc is useless (has to be nullptr). The parameter solc decides
-  * which part of the solution is mapped:
+ /// maps the solution of the current SingleFlowDCRBlock to a copy 
+ /** Maps the solution of the current SingleFlowDCRBlock to a copy
+  * SingleFlowDCRBlock. The parameter r3bc is useless (has to be nullptr).
+  * The parameter solc decides which part of the solution is mapped:
   *
   * - if solc != nullptr and it is a SimpleConfiguration< int >, then it
   *   depends on solc->f_value:
@@ -1025,15 +1037,15 @@ public:
   * one would expect only one of these to be found (but both may
   * theoretically do).
   *
-  * Note that the current SingleFlowDCRBlock may not contain some or all of the
-  * required solution, if the corresponding Variable/Constraint have not
+  * Note that the current SingleFlowDCRBlock may not contain some or all of
+  * the required solution, if the corresponding Variable/Constraint have not
   * been constructed yet: this throws an exception. */ 
 
  void map_forward_solution( Block *R3B , Configuration *r3bc = nullptr ,
 			    Configuration *solc = nullptr ) override;
 
 /*--------------------------------------------------------------------------*/
- /** No specific Configuration is required, hence expected, for SingleFlowDCRBlock.
+ /** No specific Configuration is required, hence expected, 
   *
   * IMPORTANT NOTE: map_forward_Modification() only maps "physical"
   * Modification. The point is that if any part of the "abstract
@@ -1082,7 +1094,7 @@ public:
 				ModParam issueAMod = eModBlck ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /** No specific Configuration is required, hence expected, for SingleFlowDCRBlock.
+ /** No specific Configuration is required, hence expected
   *
   * The current implementation of map_back_Modification() actually uses
   * map_forward_Modification() in reverse, so see the comments to the latter
@@ -1099,7 +1111,7 @@ public:
 /** @name Methods for handling Solution
  *  @{ */
 
- /// returns a DCRSolution representing the current solution of this SingleFlowDCRBlock
+ /// returns as a DCRSolution the current solution of the SingleFlowDCRBlock
  /** Returns a new DCRSolution representing the current solution status of
   * this SingleFlowDCRBlock. The parameter solc decides which part of the
   * solution is retained: if it is not nullptr and it is a
@@ -1152,15 +1164,12 @@ public:
    throw( std::invalid_argument( "invalid arc name" ) );
 
   return( x[ arc ].get_value() );
-
   }
 
 /*--------------------------------------------------------------------------*/
  /// gets the current value of r_min, the minimum reserved rate
 
- double get_rmin( ) const {
-  return( r_min.get_value() );
-  }
+ double get_rmin( void ) const { return( r_min.get_value() ); }
 
 /*--------------------------------------------------------------------------*/
  /// gets a contiguous interval of the reserve solution
@@ -1182,7 +1191,6 @@ public:
 
  void get_r( Vec_double_it FSol , c_Subset & nms ) const;
 
-
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// gets the reserve solution of the given arc
 
@@ -1200,7 +1208,7 @@ public:
   * reserved-rate variable r[ i ] for i in rng, in the same order. */
 
   void set_r( c_Vec_double_it fstrt ,
-    Range rng = Range( 0 , Inf< Index >() ) );
+	      Range rng = Range( 0 , Inf< Index >() ) );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// sets a generic subset of the reserve solution
@@ -1219,7 +1227,7 @@ public:
   throw( std::invalid_argument( "invalid arc name" ) );
 
   r[ arc ].set_value( FSol );
-}
+  }
 
 /*--------------------------------------------------------------------------*/
  /// sets a contiguous interval of the flow solution
@@ -1253,17 +1261,15 @@ public:
  /// sets the value of r_min, the minimum reserved rate
 
  void set_rmin( double FSol ) {
-
   r_min.set_value( FSol );
-}
+  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// sets the value of theta_min, the burst-delay term associated to r_min
 
  void set_theta_min( double FSol ) {
-
   theta_min.set_value( FSol );
-}
+  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// sets the value of theta[ arc ], the burst-delay term of the given arc
@@ -1275,56 +1281,32 @@ public:
   theta[ arc ].set_value( FSol );
   }
 
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
-
 /** @} ---------------------------------------------------------------------*/
 /*-------------------- Methods for handling Modification -------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Methods for handling Modification
  *  @{ */
 
- /// returns true if there is any Solver "listening to this SingleFlowDCRBlock"
- /** Returns true if there is any Solver "listening to this SingleFlowDCRBlock", or if
-  * the SingleFlowDCRBlock has to "listen" anyway because the "abstract" representation
-  * is constructed, and therefore "abstract" Modification have to be generated
-  * anyway to keep the two representations in sync.
-  *
-  * No, this should not be needed. In fact, if the "abstract" representation
-  * is modified with the default eModBlck value of issueMod, it is issued
-  * irrespectively to the value of anyone_there(); see Observer::issue_mod().
-  * If the value of issueMod is anything else the  "abstract" representation
-  * has been modified already and there is no point in issuing the
-  * Modification.
-  * Note that that Observer::issue_mod() does not check if the "abstract"
-  * representation has been constructed, but this is clearly not
-  * necessary, as the Modification we are speaking of are issued while
-  * changing the "abstract" representation, if that has not been
-  * constructed then it cannot issue Modification
-
- bool anyone_there( void ) const override {
-  return( AR ? true : Block::anyone_there() );
-  }
- */
-/*--------------------------------------------------------------------------*/
  /// adding a new Modification to the SingleFlowDCRBlock
  /** Method for handling Modification.
   *
-  * The version of SingleFlowDCRBlock has to intercept any "abstract Modification" that
-  * modifies the "abstract representation" of the SingleFlowDCRBlock, and "translate"
-  * them into both changes of the actual data structures and corresponding
-  * "physical Modification". These Modification are those for which
-  * Modification::concerns_Block() is true. Note, however, that before sending
-  * the Modification to the Solver and/or the father Block, the
-  * concerns_Block() value is set to false. This is because once it is passed
-  * through this method, the "abstract Modification" has "already done its
-  * duty" of providing the information to the SingleFlowDCRBlock, and this must not be
-  * repeated. In particular, this would be an issue if the Modification would
-  * be [map_forward or map_back]-ed, because inside of this method a "physical
-  * Modification" doing the same job is surely issued. That Modification would
-  * also be [map_forward or map_back]-ed, together with the original "abstract
+  * The version of SingleFlowDCRBlock has to intercept any "abstract
+  * Modification" that modifies the "abstract representation" of the
+  * SingleFlowDCRBlock, and "translate" them into both changes of the actual
+  * data structures and corresponding "physical Modification". These
+  * Modification are those for which Modification::concerns_Block() is true.
+  * Note, however, that before sending the Modification to the Solver and/or
+  * the father Block, the concerns_Block() value is set to false. This is
+  * because once it is passed through this method, the "abstract Modification"
+  * has "already done its duty" of providing the information to the
+  * SingleFlowDCRBlock, and this must not be repeated. In particular, this
+  * would be an issue if the Modification would be [map_forward or
+  * map_back]-ed, because inside of this method a "physical Modification"
+  * doing the same job is surely issued. That Modification would also be
+  * [map_forward or map_back]-ed, together with the original "abstract
   * Modification" that would pass again through this method (in the other
-  * SingleFlowDCRBlock), which would mean that the "physical Modification" would be
-  * issued twice.
+  * SingleFlowDCRBlock), which would mean that the "physical Modification"
+  * would be issued twice.
   *
   * The following "abstract Modification" are handled:
   *
@@ -1346,8 +1328,8 @@ public:
   *   zero*, because that corresponds to closing the arc, exception being
   *   thrown otherwise.
   *
-  * Any other Modification reaching the SingleFlowDCRBlock will lead to exception
-  * being thrown.
+  * Any other Modification reaching the SingleFlowDCRBlock will lead to
+  * exception being thrown.
   *
   * Note: any "physical" Modification resulting from processing an "abstract"
   *       one will be sent to the same channel (chnl). */
@@ -1355,14 +1337,15 @@ public:
  void add_Modification( sp_Mod mod , ChnlName chnl = 0 ) override;
 
 /** @} ---------------------------------------------------------------------*/
-/*--------------- METHODS FOR PRINTING & SAVING THE SingleFlowDCRBlock ---------------*/
+/*---------- METHODS FOR PRINTING & SAVING THE SingleFlowDCRBlock ----------*/
 /*--------------------------------------------------------------------------*/
 /** @name Methods for printing & saving the SingleFlowDCRBlock
  *  @{ */
 
  /// print the SingleFlowDCRBlock on an ostream with the given verbosity
- /** Protected method to print information about the SingleFlowDCRBlock; with the
-  * "complete" level ('C') it outputs the SingleFlowDCRBlock in DIMACS format. */
+ /** Protected method to print information about the SingleFlowDCRBlock;
+  * with the "complete" level ('C') it outputs the SingleFlowDCRBlock in
+  * DIMACS format. */
 
  void print( std::ostream & output , char vlvl = 0 ) const override;
 
@@ -1386,8 +1369,8 @@ public:
  * Observer::make_par(), except that the value eModBlck is ignored and
  * treated it as if it were eNoBlck [see Observer::issue_pmod()]. This is
  * because it makes no sense to issue an "abstract" Modification with
- * concerns_Block() == true, since the changes in the SingleFlowDCRBlock have surely
- * been done already, and this is just not possible for a "physical"
+ * concerns_Block() == true, since the changes in the SingleFlowDCRBlock have
+ * surely been done already, and this is just not possible for a "physical"
  * Modification.
  *
  * IMPORTANT NOTE: the current implementation of all these methods issues (at
@@ -1401,9 +1384,9 @@ public:
  * the cost of a more intricate code that is best avoided for now.
  *
  * Note: the methods accept the eDryRun value for the issueAMod parameter for
- * the "abstract" representation. This allows to re-use them within SingleFlowDCRBlock
- * itself when reacting to abstract Modification, where the  "abstract"
- * representation has been changed already.
+ * the "abstract" representation. This allows to re-use them within
+ * SingleFlowDCRBlock itself when reacting to abstract Modification, where
+ * the  "abstract" representation has been changed already.
  *  @{ */
 
  /// change the costs of a contiguous interval of arcs
@@ -1428,7 +1411,8 @@ public:
   * Modification have to be issued *and* the abstract Objective has been
   * constructed.
   *
-  * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is issued. */
+  * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is
+  * issued. */
 
  void chg_costs( c_Vec_double_it NCost , Range rng = INFRange ,
 		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
@@ -1440,11 +1424,12 @@ public:
   * NCost.size(), (which means that nms.size() == NCost.size()). The
   * parameter ordered tells if the nms vector is ordered for increasing
   * index of the arc. As the && tells, nms is "consumed" by the method,
-  * typically being shipped to an appropriate SingleFlowDCRBlockSbstMod object.
+  * typically being shipped to an appropriate SingleFlowDCRBlockSbstMod
+  * object.
   *
   * See chg_costs( range ) for Modification issued (except that, of course,
-  * the "physical" one is a SingleFlowDCRBlockSbstMod), and about changes in costs
-  * of closed arcs. */
+  * the "physical" one is a SingleFlowDCRBlockSbstMod), and about changes in
+  * costs of closed arcs. */
 
  void chg_costs( c_Vec_double_it NCost ,
 		 Subset && nms , bool ordered = false ,
@@ -1489,7 +1474,8 @@ public:
   * capacity of the arcs cannot be changed: trying to do that will result in
   * an exception being thrown.
   *
-  * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is issued. */
+  * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is
+  * issued. */
 
  void chg_ucaps( c_Vec_double_it NCap , Range rng = INFRange ,
 		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
@@ -1508,8 +1494,8 @@ public:
   * an exception being thrown.
   *
   * See chg_ucaps( range ) for Modification issued (except that, of course,
-  * the "physical" one is a SingleFlowDCRBlockSbstMod) and about changing capacities
-  * of closed arcs. */
+  * the "physical" one is a SingleFlowDCRBlockSbstMod) and about changing
+  * capacities of closed arcs. */
 
  void chg_ucaps( c_Vec_double_it NCap ,
 		 Subset && nms , bool ordered = false ,
@@ -1548,7 +1534,8 @@ public:
   * applies if issueAMod specifies that abstract Modification have to be
   * issued *and* the abstract Constraint have been constructed.
   *
-  * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is issued. */
+  * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is
+  * issued. */
 
  void chg_dfcts( c_Vec_double_it NDfct , Range rng = INFRange ,
 		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
@@ -1562,7 +1549,8 @@ public:
   * of the node. Note that "node names" here go from 0 to get_NNodes() - 1,
   * despite the fact that get_SN() and get_EN() report node "names" between
   * 1 and get_NNodes(). As the && tells, nms is "consumed" by the method,
-  * typically being shipped to an appropriate SingleFlowDCRBlockSbstMod object.
+  * typically being shipped to an appropriate SingleFlowDCRBlockSbstMod
+  * object.
   *
   * See chg_dfcts( range ) for Modification issued (except that, of course,
   * the "physical" one is a SingleFlowDCRBlockSbstMod). */
@@ -1603,7 +1591,8 @@ public:
   * this only applies if issueAMod specifies that abstract Modification have
   * to be issued.
   *
-  * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is issued. */
+  * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is
+  * issued. */
 
  void close_arcs( Range rng = INFRange ,
 		  ModParam issueMod = eNoBlck ,
@@ -1620,7 +1609,8 @@ public:
   *
   * The parameter ordered tells if the nms vector is ordered for increasing 
   * index of the arc. As the && tells, nms is "consumed" by the method,
-  * typically being shipped to an appropriate SingleFlowDCRBlockSbstMod object.
+  * typically being shipped to an appropriate SingleFlowDCRBlockSbstMod
+  * object.
   *
   * See close_arcs( range ) for Modification issued (except that, of course,
   * the "physical" one is a SingleFlowDCRBlockSbstMod). */
@@ -1658,7 +1648,8 @@ public:
   * Modification and immediately closed when the last one is issued. Of course
   * this only applies if issueAMod specifies that abstract Modification.
   *
-  * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is issued. */
+  * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is
+  * issued. */
 
  void open_arcs( Range rng = INFRange ,
 		 ModParam issueMod = eNoBlck ,
@@ -1672,7 +1663,8 @@ public:
   *
   * The parameter ordered tells if the nms vector is ordered for increasing 
   * index of the arc. As the && tells, nms is "consumed" by the method,
-  * typically being shipped to an appropriate SingleFlowDCRBlockSbstMod object.
+  * typically being shipped to an appropriate SingleFlowDCRBlockSbstMod
+  * object.
   *
   * Note that closing multiple arcs can issue as many Modification as there
   * are arcs in the range, in particular VariableMod. If more than one
@@ -1685,7 +1677,8 @@ public:
   * Modification have to be issued *and* the abstract Constraint have been
   * constructed.
   *
-  * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is issued. */
+  * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is
+  * issued. */
 
  void open_arcs( Subset && nms , bool ordered = false ,
 		 ModParam issueMod = eNoBlck ,
@@ -1731,8 +1724,7 @@ public:
   * Modification: the two Constraint are simply appended to the abstract
   * representation via add_static_constraint(). */
 
-  void fix_rmin( double value ){
-
+ void fix_rmin( double value ){
   auto rmin_fixed1 = new FRowConstraint();
   auto rmin_fixed2 = new FRowConstraint();
 
@@ -1752,8 +1744,7 @@ public:
 
   add_static_constraint( *rmin_fixed1 , "rmin_fixed1" );
   add_static_constraint( *rmin_fixed2 , "rmin_fixed2" );
-
-}
+  }
 
 /** @} ---------------------------------------------------------------------*/
 /*-------------------- PROTECTED PART OF THE CLASS -------------------------*/
@@ -1853,7 +1844,8 @@ public:
 /*--------------------------------------------------------------------------*/
 /// register SingleFlowDCRBlock methods into the method factories
 /** Although in general private methods should not be commented, this one is
- * because it does the registration of the following SingleFlowDCRBlock methods:
+ * because it does the registration of the following SingleFlowDCRBlock
+ * methods:
  *
  * - chg_costs() (both range and subset version)
  *
@@ -1874,68 +1866,36 @@ public:
  * version of register_method<> with the compact MS_*_*::args(), so we just
  * use the slightly less compact one with the explicit argument and be done
  * with it. !!*/
-  // register_method< SingleFlowDCRBlock >( "SingleFlowDCRBlock::chg_costs", &SingleFlowDCRBlock::chg_costs,
-  //                              MS_dbl_rngd::args() );
-  //
-  // register_method< SingleFlowDCRBlock >( "SingleFlowDCRBlock::chg_costs", &SingleFlowDCRBlock::chg_costs,
-  //                              MS_dbl_sbst::args() );
-  //
-  // register_method< SingleFlowDCRBlock >( "SingleFlowDCRBlock::chg_ucaps", &SingleFlowDCRBlock::chg_ucaps,
-  //                              MS_dbl_rngd::args() );
-  //
-  // register_method< SingleFlowDCRBlock >( "SingleFlowDCRBlock::chg_ucaps", &SingleFlowDCRBlock::chg_ucaps,
-  //                              MS_dbl_sbst::args() );
-  //
-  // register_method< SingleFlowDCRBlock >( "SingleFlowDCRBlock::chg_dfcts", &SingleFlowDCRBlock::chg_dfcts,
-  //                              MS_dbl_rngd::args() );
-  //
-  // register_method< SingleFlowDCRBlock >( "SingleFlowDCRBlock::chg_dfcts", &SingleFlowDCRBlock::chg_dfcts,
-  //                              MS_dbl_sbst::args() );
-  //
-  // register_method< SingleFlowDCRBlock >( "SingleFlowDCRBlock::close_arcs",
-  //                              &SingleFlowDCRBlock::close_arcs,
-  //                              MS_rngd::args() );
-  //
-  // register_method< SingleFlowDCRBlock >( "SingleFlowDCRBlock::close_arcs",
-  //                              &SingleFlowDCRBlock::close_arcs,
-  //                              MS_sbst::args() );
-  //
-  // register_method< SingleFlowDCRBlock >( "SingleFlowDCRBlock::open_arcs", &SingleFlowDCRBlock::open_arcs,
-  //                              MS_rngd::args() );
-  //
-  // register_method< SingleFlowDCRBlock >( "SingleFlowDCRBlock::open_arcs", &SingleFlowDCRBlock::open_arcs,
-  //                              MS_sbst::args() );
 
-
-  register_method< SingleFlowDCRBlock , MF_dbl_it , Range >( "SingleFlowDCRBlock::chg_costs" ,
-						   & SingleFlowDCRBlock::chg_costs );
-
+  register_method< SingleFlowDCRBlock , MF_dbl_it , Range >(
+					  "SingleFlowDCRBlock::chg_costs" ,
+					  & SingleFlowDCRBlock::chg_costs );
+  
   register_method< SingleFlowDCRBlock , MF_dbl_it , Subset && , bool >(
    "SingleFlowDCRBlock::chg_costs" , & SingleFlowDCRBlock::chg_costs );
 
-  register_method< SingleFlowDCRBlock , MF_dbl_it , Range >( "SingleFlowDCRBlock::chg_ucaps" ,
-						   & SingleFlowDCRBlock::chg_ucaps );
+  register_method< SingleFlowDCRBlock , MF_dbl_it , Range >(
+					  "SingleFlowDCRBlock::chg_ucaps" ,
+					  & SingleFlowDCRBlock::chg_ucaps );
 
   register_method< SingleFlowDCRBlock , MF_dbl_it , Subset &&, bool >(
    "SingleFlowDCRBlock::chg_ucaps" , & SingleFlowDCRBlock::chg_ucaps );
-/*
-  register_method< SingleFlowDCRBlock , MF_dbl_it , Range >( "SingleFlowDCRBlock::chg_dfcts" ,
-						   & SingleFlowDCRBlock::chg_dfcts );
 
-  register_method< SingleFlowDCRBlock , MF_dbl_it , Subset && , bool >(
-   "SingleFlowDCRBlock::chg_dfcts" , & SingleFlowDCRBlock::chg_dfcts );
-*/
-  register_method< SingleFlowDCRBlock , Range >( "SingleFlowDCRBlock::close_arcs" ,
+  register_method< SingleFlowDCRBlock , Range >(
+				       "SingleFlowDCRBlock::close_arcs" ,
 				       & SingleFlowDCRBlock::close_arcs );
 
-  register_method< SingleFlowDCRBlock , Subset && , bool >( "SingleFlowDCRBlock::close_arcs" ,
-						  & SingleFlowDCRBlock::close_arcs );
+  register_method< SingleFlowDCRBlock , Subset && , bool >(
+				       "SingleFlowDCRBlock::close_arcs" ,
+				       & SingleFlowDCRBlock::close_arcs );
 
-  register_method< SingleFlowDCRBlock , Range >( "SingleFlowDCRBlock::open_arcs" ,
+  register_method< SingleFlowDCRBlock , Range >(
+				       "SingleFlowDCRBlock::open_arcs" ,
 				       & SingleFlowDCRBlock::open_arcs );
 
-  register_method< SingleFlowDCRBlock , Subset && , bool >( "SingleFlowDCRBlock::open_arcs" ,
-						  & SingleFlowDCRBlock::open_arcs );
+  register_method< SingleFlowDCRBlock , Subset && , bool >(
+				       "SingleFlowDCRBlock::open_arcs" ,
+				       & SingleFlowDCRBlock::open_arcs );
 
   }  // end( static_initialization )
 
@@ -2008,20 +1968,21 @@ public:
  };  // end( class( SingleFlowDCRBlock ) )
 
 /*--------------------------------------------------------------------------*/
-/*-------------------------- CLASS SingleFlowDCRBlockMod -----------------------------*/
+/*--------------------- CLASS SingleFlowDCRBlockMod ------------------------*/
 /*--------------------------------------------------------------------------*/
 /// derived class from Modification for modifications to a SingleFlowDCRBlock
-/** Derived class from Modification to describe modifications to a SingleFlowDCRBlock.
- *  This is actually "sort of abstract", since it does not say exactly what
- *  is changed, this being demanded to derived classes (which do this in
- *  different ways). Note that it is derived from Modification rather than,
- *  say, BlockMod (which has the same structure) because this is a class of
- *  "physical Modification". This means that a SingleFlowDCRBlockMod refers to changes
- *  in the "physical representation" of the SingleFlowDCRBlock; the corresponding
- *  changes in the "abstract representation" of the SingleFlowDCRBlock are dealt with
- *  by means of "abstract Modification", i.e., derived classes from
- *  AModification (as is BlockMod, which is why SingleFlowDCRBlockMod is not derived
- *  from BlockMod). */
+/** Derived class from Modification to describe modifications to a
+ * SingleFlowDCRBlock. This is actually "sort of abstract", since it does not
+ * say exactly what is changed, this being demanded to derived classes (which
+ * do this in different ways). Note that it is derived from Modification
+ * rather than,  say, BlockMod (which has the same structure) because this is
+ * a class of "physical Modification". This means that a 
+ * SingleFlowDCRBlockMod refers to changes in the "physical representation"
+ * of the SingleFlowDCRBlock; the corresponding changes in the "abstract
+ * representation" of the SingleFlowDCRBlock are dealt with  by means of
+ * "abstract Modification", i.e., derived classes from AModification (as is
+ * BlockMod, which is why SingleFlowDCRBlockMod is not derived from
+ * BlockMod). */
 
 class SingleFlowDCRBlockMod : public Modification
 {
@@ -2092,12 +2053,12 @@ class SingleFlowDCRBlockMod : public Modification
  };  // end( class( SingleFlowDCRBlockMod ) )
 
 /*--------------------------------------------------------------------------*/
-/*------------------------ CLASS SingleFlowDCRBlockRngdMod ---------------------------*/
+/*------------------- CLASS SingleFlowDCRBlockRngdMod ----------------------*/
 /*--------------------------------------------------------------------------*/
 /// derived from SingleFlowDCRBlockMod for "ranged" modifications
 /** Derived class from SingleFlowDCRBlockMod to describe "ranged"
- * modifications to a SingleFlowDCRBlock, i.e., modifications that apply to an interval
- * of either arcs or nodes. */
+ * modifications to a SingleFlowDCRBlock, i.e., modifications that apply to
+ * an interval of either arcs or nodes. */
 
 class SingleFlowDCRBlockRngdMod : public SingleFlowDCRBlockMod
 {
@@ -2109,12 +2070,14 @@ class SingleFlowDCRBlockRngdMod : public SingleFlowDCRBlockMod
 
  /// constructor: takes the SingleFlowDCRBlock, the type, and the range
 
- SingleFlowDCRBlockRngdMod( SingleFlowDCRBlock * fblock , int type , Block::Range rng )
+ SingleFlowDCRBlockRngdMod( SingleFlowDCRBlock * fblock , int type ,
+			    Block::Range rng )
   : SingleFlowDCRBlockMod( fblock , type ) , f_rng( rng ) {}
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
- virtual ~SingleFlowDCRBlockRngdMod() = default;   ///< destructor, does nothing
+ virtual ~SingleFlowDCRBlockRngdMod() = default;
+ ///< destructor, does nothing
 
 /*-------------------- PUBLIC METHODS OF THE CLASS ------------------------*/
 
@@ -2143,12 +2106,12 @@ class SingleFlowDCRBlockRngdMod : public SingleFlowDCRBlockMod
  };  // end( class( SingleFlowDCRBlockRngdMod ) )
 
 /*--------------------------------------------------------------------------*/
-/*------------------------ CLASS SingleFlowDCRBlockSbstMod ---------------------------*/
+/*------------------- CLASS SingleFlowDCRBlockSbstMod ----------------------*/
 /*--------------------------------------------------------------------------*/
 /// derived from SingleFlowDCRBlockMod for "subset" modifications
 /** Derived class from Modification to describe "subset" modifications to a
- *  SingleFlowDCRBlock, i.e., modifications that apply to an arbitrary subset of either
- * the arcs or the nodes. */
+ *  SingleFlowDCRBlock, i.e., modifications that apply to an arbitrary
+ * subset of either the arcs or the nodes. */
 
 class SingleFlowDCRBlockSbstMod : public SingleFlowDCRBlockMod
 {
@@ -2160,20 +2123,22 @@ class SingleFlowDCRBlockSbstMod : public SingleFlowDCRBlockMod
 /*---------------------- CONSTRUCTOR & DESTRUCTOR --------------------------*/
 
  ///< constructor: takes the SingleFlowDCRBlock, the type, and the subset
- /**< Constructor: takes the SingleFlowDCRBlock, the type, and the subset. As the the
-  * && tells, nms is "consumed" by the constructor and its resources become
-  * property of the SingleFlowDCRBlockSbstMod object.
+ /**< Constructor: takes the SingleFlowDCRBlock, the type, and the subset.
+  * As the the && tells, nms is "consumed" by the constructor and its
+  * resources become property of the SingleFlowDCRBlockSbstMod object.
   *
   *   NOTE THAT nms IS REQUIRED TO BE ORDERED IN INCREASING SENSE
   *
   * although this is not checked by the class. */
 
- SingleFlowDCRBlockSbstMod( SingleFlowDCRBlock * fblock , int type , Block::Subset && nms )
+ SingleFlowDCRBlockSbstMod( SingleFlowDCRBlock * fblock , int type ,
+			    Block::Subset && nms )
   : SingleFlowDCRBlockMod( fblock , type ) , f_nms( std::move( nms ) ) {}
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
- virtual ~SingleFlowDCRBlockSbstMod() = default;  ///< destructor, does nothing
+ virtual ~SingleFlowDCRBlockSbstMod() = default;
+ ///< destructor, does nothing
 
 /*-------------------- PUBLIC METHODS OF THE CLASS ------------------------*/
 
@@ -2216,8 +2181,8 @@ class SingleFlowDCRBlockSbstMod : public SingleFlowDCRBlockMod
  * variables and the burst-delay variables theta[i,j] are currently *not*
  * part of a DCRSolution. */
 
-class DCRSolution : public Solution {
-
+class DCRSolution : public Solution
+{
 /*--------------------------------------------------------------------------*/
 /*----------------------- PUBLIC PART OF THE CLASS -------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -2308,7 +2273,7 @@ class DCRSolution : public Solution {
 
  void print( std::ostream &output ) const override final {
   output << "DCRSolution [" << this << "]: " << v_r.size() 
-    << " flows" << std::endl;
+	 << " flows" << std::endl;
   }
 
 /*---------------------- PRIVATE PART OF THE CLASS -------------------------*/
@@ -2318,6 +2283,7 @@ class DCRSolution : public Solution {
 /*---------------------------- PRIVATE FIELDS ------------------------------*/
 
  SingleFlowDCRBlock::Vec_double v_x;  ///< the arc routing (binary) variables
+
  SingleFlowDCRBlock::Vec_double v_r;  ///< the arc reserved-rate variables
 
 /*--------------------------------------------------------------------------*/

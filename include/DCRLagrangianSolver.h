@@ -1,7 +1,6 @@
 /*--------------------------------------------------------------------------*/
-/*--------------------------- File DCRLagrangianSolver.h ----------------------------*/
+/*----------------------- File DCRLagrangianSolver.h -----------------------*/
 /*--------------------------------------------------------------------------*/
-
 /** @file
  * Header file for the class DCRLagrangianSolver, which solves the
  * Lagrangian relaxation (w.r.t. the delay constraint) of the Single-Flow
@@ -29,7 +28,6 @@
  * 
  * \copyright &copy; by Antonio Frangioni
  */ 
-
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -140,7 +138,7 @@ class DCRLagrangianSolver
 /*--------------------------------------------------------------------------*/
 /*----------------------- PUBLIC PART OF THE CLASS -------------------------*/
 /*--------------------------------------------------------------------------*/	
-	public:
+ public:
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------- Inf() and Eps() ------------------------------*/
@@ -174,14 +172,13 @@ class DCRLagrangianSolver
 /** @name Public types
  *  @{ */
 
-/// the possible outcomes of a call to Solve()
-  enum LAGStatus
-   {
-    OK,   ///<  solver found a feasible solution
-    Infeasible,   ///<  problem infeasible
-    Unbounded,    ///<  problem unbounded
-    Error
-   };
+ /// the possible outcomes of a call to Solve()
+ enum LAGStatus {
+  OK,   ///<  solver found a feasible solution
+  Infeasible,   ///<  problem infeasible
+  Unbounded,    ///<  problem unbounded
+  Error
+  };
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// a single affine "cut" (supporting line) of the Lagrangian function
@@ -192,10 +189,10 @@ class DCRLagrangianSolver
  * pCut and mCut, the two currently best cuts with non-negative and
  * negative slope respectively, define the current two-cut approximation
  * of the Lagrangian dual function used by the line search in Solve(). */
-  struct LinearCut
-  {
-     	double m; ///< slope of the cut (the delay slack beta)
-	    double q; ///< intercept of the cut (the routing cost alpha)
+
+ struct LinearCut {
+  double m; ///< slope of the cut (the delay slack beta)
+  double q; ///< intercept of the cut (the routing cost alpha)
   };
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -206,28 +203,26 @@ class DCRLagrangianSolver
  * was in force when the cut was generated (rmin), so that the cut can
  * later be checked for continued feasibility and its slope corrected if
  * r_min has since changed. */
-  struct Cut_Val
-  {
-      LinearCut c; ///< the cut (slope/intercept)
-      vector<double> RSol;  ///< the rate solution that generated the cut
-      int RSolsize; ///< the size of RSol (number of hops of the path)
 
-      double rmin; ///< the r_min in force when the cut was generated
+ struct Cut_Val {
+  LinearCut c; ///< the cut (slope/intercept)
+  vector<double> RSol;  ///< the rate solution that generated the cut
+  int RSolsize; ///< the size of RSol (number of hops of the path)
+
+  double rmin; ///< the r_min in force when the cut was generated
   };
 
 /** @} ---------------------------------------------------------------------*/
-/*--------------------------------------------------------------------------*/
 /*---------------------------- CONSTRUCTOR ---------------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Constructor
  *  @{ */
 
 /// constructor of DCRLagrangianSolver: initializes all fields to default values
-   DCRLagrangianSolver(void);
+
+ DCRLagrangianSolver(void);
 
 /** @} ---------------------------------------------------------------------*/
-
-/*--------------------------------------------------------------------------*/
 /*---------------------------------- METHODS -------------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Solving the problem
@@ -243,31 +238,36 @@ class DCRLagrangianSolver
  * various components of the optimal cut/path/rate solution with the
  * get...() methods below. If reoptflag is set (see updrmin()), Reopt()
  * is first attempted to warm-start the search from the cached cuts. */
-   void Solve();
+
+ void Solve();
 
 /** @} ---------------------------------------------------------------------*/
-/*-------------------- Methods for reading the solution ---------------------*/
+/*-------------------- Methods for reading the solution --------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Reading the solution
  *  @{ */
 
 /// returns the status of the last call to Solve() / isFeasible()
-   LAGStatus getStatus();
+
+ LAGStatus getStatus();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// returns the optimal Lagrangian multiplier (the pCut/mCut intersection)
-   double getLambda();
+
+ double getLambda();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// returns the value of the two-cut intersection at the optimal lambda
 /** Returns the value of the two-cut approximation (InterVal) at the
  * optimal lambda found by the line search; at convergence this
  * coincides, up to the tolerance eps, with getObjVal(). */
-   double getInterVal();
+
+ double getInterVal();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// returns the Lagrangian function value at the optimal lambda
-   double getObjVal();
+
+ double getObjVal();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// returns the optimal path (as arc indices in the reduced graph)
@@ -276,11 +276,13 @@ class DCRLagrangianSolver
  * getRedGraphPos() to map them back to the original graph]. This is
  * meaningful only when the optimal lambda is 0, i.e. when the delay
  * constraint is not active at the optimum. */
-   vector<int> getPath();
+
+ vector<int> getPath();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// returns the number of arcs (hops) of the optimal path
-   int getnumHops();
+
+ int getnumHops();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// returns the best delay-feasible primal solution value found so far
@@ -288,30 +290,36 @@ class DCRLagrangianSolver
  * the line search that was already delay-feasible (\f$ \beta \leq 0 \f$),
  * i.e., a valid upper bound (primal heuristic value) on the true SFSP DCR
  * optimum [see the class general notes]. */
-   double getHeurVal();
+
+ double getHeurVal();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// returns the slope (delay slack beta) of the cut at the optimum
-   double getOptBeta();
+
+ double getOptBeta();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// returns the vector of the r_ij rates of the optimal solution
-   vector<double> getRSol();
+
+ vector<double> getRSol();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// returns the arc costs f_ij corresponding to the r_ij of getRSol()
-   vector<double> getRSolCosts();
+
+ vector<double> getRSolCosts();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// returns the positions of the reduced graph arcs in the original graph
 /** Returns, for each arc of the current reduced graph [see
  * setReducedGraph()], its index in the original (full) graph; used e.g.
  * to check the Bellman optimality conditions on the full graph. */
-   vector<int> getRedGraphPos();
+
+ vector<int> getRedGraphPos();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// returns the number of arcs of the reduced graph
-   int getCardRedGraph();
+
+ int getCardRedGraph();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// returns the positions, in the original graph, of the arcs *not* in the reduced graph
@@ -319,7 +327,8 @@ class DCRLagrangianSolver
  * original graph, of the arcs that have been excluded from the reduced
  * graph because their capacity is below r_min; used for checks related
  * to the non-convexity of the per-arc Lagrangian cost. */
-   vector<int> getComplGraph();
+
+ vector<int> getComplGraph();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// returns a convex combination of the positive- and negative-slope solutions
@@ -328,40 +337,42 @@ class DCRLagrangianSolver
  * negative-slope cuts (solpos / solneg), weighted so as to (approximately)
  * satisfy the delay constraint; used as an auxiliary check/heuristic
  * solution (e.g. for comparison against a MILP solver such as CPLEX). */
-   vector<double> getCheckSol();
+
+ vector<double> getCheckSol();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// returns the positions (in the graph) of the positive-slope check solution
-   vector<int> getCheckSolPos();
+
+ vector<int> getCheckSolPos();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// returns the positions (in the graph) of the negative-slope check solution
-   vector<int> getCheckSolNeg();
+
+ vector<int> getCheckSolNeg();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// returns the Shortest Path Tree node potentials of the optimal solution
-   vector<double> getSPLabels();
+
+ vector<double> getSPLabels();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// returns the number of line-search iterations performed by Solve()
-   int getNumIte();
 
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-   //vector<Cut_Val> getCuts();
-   /*<returns the set of cuts currently under consideration (is this needed?)*/
+ int getNumIte();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// returns the elapsed solution time (see the timer set by DCRsetTime())
-   double DCRgetTime( void );
+
+ double DCRgetTime( void );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// returns the vector of the r_ij rates of the optimal solution, indexed
 /// over *all* the arcs of the (unreduced) network (0 if the arc is unused)
-   vector<double> getRSOLS() { return(RSOLS); }
+
+ vector<double> getRSOLS() { return(RSOLS); }
 
 /** @} ---------------------------------------------------------------------*/
-/*--------------------------------------------------------------------------*/
-/*-------------------- Methods for checking feasibility ---------------------*/
+/*-------------------- Methods for checking feasibility --------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Methods for checking feasibility
  *  @{ */
@@ -375,7 +386,8 @@ class DCRLagrangianSolver
  * a subsequent Solve() call will skip it (see inizialflag).
  * \return true if the problem is infeasible, false if a feasible solution
  *         (possibly requiring further line-search iterations) exists */
-   bool isFeasible ();
+
+ bool isFeasible();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// checks whether lambda = 0 is already the optimal Lagrangian multiplier
@@ -389,11 +401,11 @@ class DCRLagrangianSolver
  * arise for the current data.
  * \return true if lambda = 0 is NOT optimal (i.e., a positive lambda
  *         should be searched for), false if lambda = 0 is already optimal */
-   bool is0opt();
+
+ bool is0opt();
 
 /** @} ---------------------------------------------------------------------*/
-/*--------------------------------------------------------------------------*/
-/*----------------------------------LOAD METHODS ----------------------------*/
+/*---------------------------------LOAD METHODS ----------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Loading the data of the problem
  *  @{ */
@@ -411,7 +423,8 @@ class DCRLagrangianSolver
  * \param mtu the Maximum Transmit Unit of the network
  * \param r_min the minimum rate to be reserved on every arc of the path */
    //FIXME: should this also require the desired precision? (implemented with machine precision)
-   void LoadProblem (int nnodes, int nlinks, DCR::DCRFlow flow, DCR::DCRLink *links, DCR::DCRNode *nodes, double mtu, double r_min);
+
+ void LoadProblem (int nnodes, int nlinks, DCR::DCRFlow flow, DCR::DCRLink *links, DCR::DCRNode *nodes, double mtu, double r_min);
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// loads a new flow, keeping the previously loaded network data
@@ -422,10 +435,10 @@ class DCRLagrangianSolver
  * been closed with closeArcs() [see the FIXME in the .cpp for the
  * possibility of not doing so].
  * \param flow the new DCR::DCRFlow to be routed */
-   void LoadProblem(DCR::DCRFlow flow);
+
+ void LoadProblem(DCR::DCRFlow flow);
 
 /** @} ---------------------------------------------------------------------*/
-/*--------------------------------------------------------------------------*/
 /*----------------------------------MODIFIERS-------------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Changing the data of the problem
@@ -437,7 +450,8 @@ class DCRLagrangianSolver
  * reset and reoptflag is set so that the next Solve() call will attempt
  * to warm-start via Reopt() instead of a full re-initialization.
  * \param r_min the new minimum rate to be reserved on every arc */
-   void updrmin(double r_min);
+
+ void updrmin(double r_min);
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// closes a set of arcs, i.e., sets their (working) capacity to 0
@@ -447,7 +461,8 @@ class DCRLagrangianSolver
  * openArcs() can later restore it.
  * \param arcs vector of the indices of the na arcs to be closed
  * \param na number of arcs to be closed */
-   void closeArcs(vector<int> arcs, int na);
+
+ void closeArcs(vector<int> arcs, int na);
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// reopens a set of previously closed arcs
@@ -456,43 +471,42 @@ class DCRLagrangianSolver
  * original capacity stored in Links.
  * \param arcs pointer to an array of the indices of the na arcs to reopen
  * \param na number of arcs to be reopened */
-   void openArcs(int * arcs, int na);
+
+ void openArcs(int * arcs, int na);
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
-/*--------------------------- TIMING METHODS --------------------------------*/
+/*--------------------------- TIMING METHODS -------------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Handling the timer
  *  @{ */
 
 /// sets a time limit (in seconds) for the solver
-   void DCRsetTimeLimit(long secs);
+ void DCRsetTimeLimit(long secs);
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// creates, resets or destroys the timer used to measure the solution time
-   void DCRsetTime(bool timeON);
+ void DCRsetTime(bool timeON);
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// starts (or re-starts) the timer, if any was set with DCRsetTime()
-   void DCRstartTime();
+ void DCRstartTime();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// stops the timer, if any was set with DCRsetTime()
-   void DCRstopTime();
+ void DCRstopTime();
 
 /** @} ---------------------------------------------------------------------*/
-/*--------------------------------------------------------------------------*/
 /*------------------------------ DESTRUCTOR --------------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Destructor
  *  @{ */
 
 /// destructor of DCRLagrangianSolver: releases all dynamically allocated memory
-	~DCRLagrangianSolver();
+
+ ~DCRLagrangianSolver();
 
 /** @} ---------------------------------------------------------------------*/
-
-/*--------------------------------------------------------------------------*/
 /*--------------------- PRIVATE PART OF THE CLASS --------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Private methods of the class
@@ -504,7 +518,8 @@ class DCRLagrangianSolver
  * working copy of the arc capacities used by closeArcs()/openArcs()) to
  * the original capacities. Called by LoadProblem(memory) after
  * clean_up(). */
-    void copyDataArray(DCR::DCRFlow flow, DCR::DCRLink *links, DCR::DCRNode *nodes);
+
+ void copyDataArray(DCR::DCRFlow flow, DCR::DCRLink *links, DCR::DCRNode *nodes);
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// computes a trivial worst-case upper bound (LimitVal) on the routing cost
@@ -514,7 +529,8 @@ class DCRLagrangianSolver
  * upper bound on the cost of any feasible routing, used by Inizial() to
  * detect that the Lagrangian relaxation (and hence the original problem)
  * is infeasible. */
-    void getLimitVal();
+
+ void getLimitVal();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// returns the Lagrangian cost of reserving rate r on arc lindex
@@ -527,7 +543,8 @@ class DCRLagrangianSolver
  * \param lindex index of the arc in the reduced graph
  * \return the corresponding Lagrangian arc cost, to be fed to the
  *         Shortest Path Tree solver */
-    double getCost(double r, int lindex);
+
+ double getCost(double r, int lindex);
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// initializes the line search by finding the first negative-slope cut
@@ -540,7 +557,8 @@ class DCRLagrangianSolver
  * itself fails (negative-cost cycle / disconnected sink), in which case
  * lagstat is also set to Infeasible. In every case both pCut and mCut are
  * updated with the cuts found along the way. */
-    void Inizial();
+
+ void Inizial();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// updates the best positive- or negative-slope cut with a new one
@@ -550,7 +568,8 @@ class DCRLagrangianSolver
  * search in Solve() and Reopt() is thereby tightened.
  * \param alpha the intercept (routing cost) of the new cut
  * \param beta the slope (delay slack) of the new cut */
-    void UpdCut(double alpha, double beta);
+
+ void UpdCut(double alpha, double beta);
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// (re)builds the reduced graph, keeping only the arcs with capacity >= r_min
@@ -560,7 +579,8 @@ class DCRLagrangianSolver
  * at the required minimum rate; RedGraPos records, for each arc of the
  * reduced graph, its index in the original graph. Must be called again
  * whenever r_min or the arc capacities change. */
-    void setReducedGraph();
+ 
+ void setReducedGraph();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// computes, for the current lambda, the locally optimal rate and cost of every reduced-graph arc
@@ -570,7 +590,8 @@ class DCRLagrangianSolver
  * r* = capacity, otherwise at r* = clip( sqrt( lambda * MTU / cost ) ,
  * r_min , capacity ); the resulting (rstar, cost) pairs are stored in
  * Linksp, ready to be fed to SPT::updCosts() / SPT::Solve(). */
-    void setSPTcosts();
+
+ void setSPTcosts();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 /// attempts to warm-start the line search from the cached cuts after r_min changed
@@ -587,92 +608,94 @@ class DCRLagrangianSolver
  * \return 1 if the caller must fall back to a full re-initialization
  *         (Inizial()), 0 if the warm-start succeeded and pCut/mCut/lambda
  *         are ready for Solve() to resume the line search */
-    int Reopt();
+
+ int Reopt();
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 /*--------------------- PROTECTED PART OF THE CLASS ------------------------*/
-/*--------------------------------------------------------------------------*/	
-	
-	protected:
+/*--------------------------------------------------------------------------*/
+
+ protected:
 
 /** @name Protected fields of the class
  *  @{ */
 
-	LinearCut pCut; ///< best cut with non-negative slope defining the optimal solution
-	LinearCut mCut; ///< best cut with negative slope defining the optimal solution
-  vector<Cut_Val> Cuts; ///< cache of the cuts currently in play (for Reopt())
-  double InterVal; ///< value of the pCut/mCut intersection
-  double lambda;    ///< current/optimal Lagrangian multiplier (intersection point)
-  double ObjVal;   ///< value of the Lagrangian function at lambda
-  double LimitVal; ///< trivial worst-case upper bound on the routing cost
-  double HeurVal; ///< best delay-feasible primal solution value found so far
-  double optBeta; ///< slope of the Lagrangian function at the optimum
+ LinearCut pCut; ///< best cut with non-negative slope defining the optimal solution
+ LinearCut mCut; ///< best cut with negative slope defining the optimal solution
+ vector<Cut_Val> Cuts; ///< cache of the cuts currently in play (for Reopt())
+ double InterVal; ///< value of the pCut/mCut intersection
+ double lambda;    ///< current/optimal Lagrangian multiplier (intersection point)
+ double ObjVal;   ///< value of the Lagrangian function at lambda
+ double LimitVal; ///< trivial worst-case upper bound on the routing cost
+ double HeurVal; ///< best delay-feasible primal solution value found so far
+ double optBeta; ///< slope of the Lagrangian function at the optimum
 
-  vector<double> RSOLS; ///< optimal r_ij, indexed over all arcs (0 if unused)
+ vector<double> RSOLS; ///< optimal r_ij, indexed over all arcs (0 if unused)
 
-  int num_ite; ///< number of line-search iterations performed by Solve()
+ int num_ite; ///< number of line-search iterations performed by Solve()
 
   // data describing the input instance, kept around to be passed to SPT
-  double rmin; ///< the minimum rate to be reserved on every arc of the path
-  double MTU; ///< the Maximum Transmit Unit of the network
-  DCR::DCRNode * Nodes; ///< array of numNodes DCR::DCRNode (network node data)
-  DCR::DCRLink * Links; ///< array of numLinks DCR::DCRLink (network link data)
-  DCR::DCRFlow  Flow; ///< the (single) flow being routed
-  int numNodes,numLinks; ///< number of nodes / links of the network
-  int cardRedGraph; ///< number of arcs of the reduced graph
-  vector<double> ModCaps; ///< working (possibly closed/reopened) arc capacities
-  //int * closedArcs; //vector of the arcs that have been closed
-  //int nclar; //commented out because it might be useful to reopen them, but it isn't really necessary
+ double rmin; ///< the minimum rate to be reserved on every arc of the path
+ double MTU; ///< the Maximum Transmit Unit of the network
+ DCR::DCRNode * Nodes; ///< array of numNodes DCR::DCRNode (network node data)
+ DCR::DCRLink * Links; ///< array of numLinks DCR::DCRLink (network link data)
+ DCR::DCRFlow  Flow; ///< the (single) flow being routed
+ int numNodes,numLinks; ///< number of nodes / links of the network
+ int cardRedGraph; ///< number of arcs of the reduced graph
+ vector<double> ModCaps; ///< working (possibly closed/reopened) arc capacities
 
-  // data produced by the Shortest Path Tree solves
-  int nhops; ///< number of arcs (hops) of the optimal path
-  vector<DCR::DCRLink> RedGraLinks; ///< the DCR arcs of the reduced graph
-  vector<int> RedGraPos; ///< positions of the reduced graph arcs in the full graph
-  vector<int> ComplGraph; ///< positions, in the full graph, of the arcs NOT in the reduced graph
-  vector<int> OptPath; ///< positions (in the reduced graph) of the optimal path
-  int solvedflag; ///< true if the current data have already been solved
-  int inizialflag; ///< true if Inizial() has already been run on the current data
-  int reoptflag; ///< true if Solve() should attempt Reopt() (r_min just changed)
+ // data produced by the Shortest Path Tree solves
+ int nhops; ///< number of arcs (hops) of the optimal path
+ vector<DCR::DCRLink> RedGraLinks; ///< the DCR arcs of the reduced graph
+ vector<int> RedGraPos; ///< positions of the reduced graph arcs in the full graph
+ vector<int> ComplGraph; ///< positions, in the full graph, of the arcs NOT in the reduced graph
+ vector<int> OptPath; ///< positions (in the reduced graph) of the optimal path
+ int solvedflag; ///< true if the current data have already been solved
+ int inizialflag; ///< true if Inizial() has already been run on the current data
+ int reoptflag; ///< true if Solve() should attempt Reopt() (r_min just changed)
   //double * XSol;
-  int numHops; ///< number of arcs (hops) of the optimal path (see nhops)
-  vector<double> RSol; ///< the r_ij of the optimal solution
-  vector<double> RSolCosts; ///< the arc costs f_ij associated with the r*_ij of RSol
-  vector<double> SPLabels; ///< Shortest Path Tree node potentials of the optimal solution
+ int numHops; ///< number of arcs (hops) of the optimal path (see nhops)
+ vector<double> RSol; ///< the r_ij of the optimal solution
+ vector<double> RSolCosts; ///< the arc costs f_ij associated with the r*_ij of RSol
+ vector<double> SPLabels; ///< Shortest Path Tree node potentials of the optimal solution
 
-  int maxCutSize; ///< maximum number of cuts kept in the Cuts cache for Reopt()
+ int maxCutSize; ///< maximum number of cuts kept in the Cuts cache for Reopt()
 
-  // auxiliary data used to build a CPLEX-comparable heuristic check solution
-  vector<double> solpos; ///< rate solution of the best positive-slope cut
-  vector<double> solneg; ///< rate solution of the best negative-slope cut
-  double betaneg; ///< slope of the best negative-slope cut
-  double betapos; ///< slope of the best positive-slope cut
-  int nonposflag; ///< true if no positive-slope cut is available
-  vector<int> checkSolPos; ///< positions (in the graph) of solpos
-  vector<int> checkSolNeg; ///< positions (in the graph) of solneg
+ // auxiliary data used to build a CPLEX-comparable heuristic check solution
+ vector<double> solpos; ///< rate solution of the best positive-slope cut
+ vector<double> solneg; ///< rate solution of the best negative-slope cut
+ double betaneg; ///< slope of the best negative-slope cut
+ double betapos; ///< slope of the best positive-slope cut
+ int nonposflag; ///< true if no positive-slope cut is available
+ vector<int> checkSolPos; ///< positions (in the graph) of solpos
+ vector<int> checkSolNeg; ///< positions (in the graph) of solneg
 
-  double eps; ///< relative precision used as convergence tolerance (machine epsilon)
-  SPT spt;     ///< the Shortest Path Tree solver used by the line search
-  vector<SPT::SPTLink> Linksp; ///< simplified arcs (cost only) fed to spt
-  SPT::Status spstat; ///< outcome of the last spt.Solve() call
-  LAGStatus lagstat;  ///< outcome of the Lagrangian relaxation (see getStatus())
+ double eps; ///< relative precision used as convergence tolerance (machine epsilon)
+ SPT spt;     ///< the Shortest Path Tree solver used by the line search
+ vector<SPT::SPTLink> Linksp; ///< simplified arcs (cost only) fed to spt
+ SPT::Status spstat; ///< outcome of the last spt.Solve() call
+ LAGStatus lagstat;  ///< outcome of the Lagrangian relaxation (see getStatus())
 
-  OPTtimers *timer;  ///< timer
-  long tlimit; ///< time limit
+ OPTtimers *timer;  ///< timer
+ long tlimit; ///< time limit
 
 /// releases all dynamically allocated memory and resets the solution data
 /** Deletes Links and Nodes and clears all the vectors holding solution and
  * cut-cache data, so that the object is left in the same state as right
  * after construction (net of the timer). Called by LoadProblem(memory)
  * before loading a new instance, and by the destructor. */
-  void clean_up();
+
+ void clean_up();
 
 /** @} ---------------------------------------------------------------------*/
 
 };
 
+/*--------------------------------------------------------------------------*/
+
 #endif
 
 /*--------------------------------------------------------------------------*/
-/*-------------------------- End File DCRLagrangianSolver.h ---------------------------*/
+/*--------------------- End File DCRLagrangianSolver.h ---------------------*/
 /*--------------------------------------------------------------------------*/
