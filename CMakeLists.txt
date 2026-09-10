@@ -22,7 +22,7 @@ smspp_derive_version(SMSPP_MODULE_VERSION)
 
 project(SingleFlowDCRBlock
         VERSION ${SMSPP_MODULE_VERSION}
-        DESCRIPTION "SMS++ Block and Solver for Delay-Constrained Routing problems"
+        DESCRIPTION "SMS++ Block for Delay-Constrained Routing problems"
         HOMEPAGE_URL https://gitlab.com/smspp/singleflowdcrblock
         LANGUAGES C CXX)
 
