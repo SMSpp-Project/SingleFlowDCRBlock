@@ -104,3 +104,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `DCR_SPT::DCRgetLink()` fell off the end of the function when the arc was
   not there, and `DCRLagrangianSolver` compared a `double` through the
   integer `abs()`
+
+- `BenBound` moved a trial value of `r_min` that it had already solved for
+  by shrinking it multiplicatively, which walks past the left endpoint of
+  the window where an `r_min` can be feasible at all: it could therefore
+  reserve less than the sustained rate of the flow, and hand back a point
+  that is not a solution together with a value below the optimum. The
+  point is now moved towards that endpoint, and stops there

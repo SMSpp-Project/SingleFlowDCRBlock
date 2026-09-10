@@ -520,7 +520,15 @@ void BenBound::Solve()
     lgstat = lagSol.getStatus();
 
     if( Q[ p ].solflag == 1 && counter_ite_Ben > 2 ) {
-     Q[ p ].inter *= myparam;
+     // the point has been solved already: move it a little, towards the
+     // left endpoint of the window of the r_min that can be feasible at
+     // all, exactly as the preliminary phase moves it towards the right
+     // one [see Inizial()]. Note that the endpoint is where it stops: a
+     // multiplicative shrink of the point alone walks past it, and an
+     // r_min below Q[ 0 ].rmin reserves less than the sustained rate of
+     // the flow, i.e. it is not a solution of the problem
+     Q[ p ].inter = myparam * Q[ p ].inter +
+                    ( 1 - myparam ) * Q[ 0 ].rmin;
 
      lagSol.updrmin(
       Q[ p ].inter ); //let the new candidate show us its potential :)
