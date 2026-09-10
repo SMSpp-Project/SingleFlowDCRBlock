@@ -1,1 +1,35 @@
-2023-10-09 [high] everything
+2026-09-10 [high] MultiFlowDCRBlock has no :Solution of its own
+
+	The multi-commodity Block has no :Solution of its own, hence it has no
+	is_sol_feasible() either: the solution of each commodity is a
+	DCRSolution of the corresponding sub-Block, but the Solution of the
+	father would have to carry them all, and Block::get_Solution() gives a
+	ColVariableSolution, which nests ColVariableSolution only. Define a
+	MultiFlowDCRSolution holding one DCRSolution per commodity, and
+	is_sol_feasible() then checks the mutual capacity constraints on it and
+	asks each sub-Block about its own.
+
+2026-09-10 [medium] the "P/C" formulation is only a relaxation
+
+	generate_dynamic_constraints() separates the perspective cuts violated
+	by the *current* point, so the P/C formulation is an outer
+	approximation of the two cones until nobody separates any more: solving
+	it once gives a lower bound, not the optimum. The cutting-plane loop
+	that closes it (separate, re-solve, repeat) is not there, and a
+	:MILPSolver has to be driven through it from the outside.
+
+2026-09-10 [medium] the DCR data cannot be changed
+
+	chg_costs(), chg_ucaps(), chg_dfcts(), open_arcs() and close_arcs()
+	change the "MCF part" of the instance and issue the corresponding
+	Modification, but the DCR-specific data (the delays, the burst, the
+	deadline, the MTU and rho) can only be set by load() / deserialize():
+	changing any of them means reloading the whole instance.
+
+2026-09-10 [low] UB is declared but never generated
+
+	generate_abstract_constraints() sets the AR & HasBnd bit but does not
+	construct the UB bound Constraint, the arc capacity being enforced by
+	Indicator_cnst_r1 instead; the chg_ucap[s]() methods, however, do try
+	to update UB[] whenever that bit is set. Either generate UB or stop
+	claiming that it is there.

@@ -21,15 +21,17 @@
  * \author Enrico Sorbera \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
- * 
- * \copyright &copy; by Antonio Frangioni
- */ 
+ *
+ * \copyright &copy; by Antonio Frangioni, Laura Galli, Luca Mencarelli,
+ *                      Enrico Sorbera
+ */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
 /*--------------------------------------------------------------------------*/
 
 #ifndef __SingleFlowDCRBlock
- #define __SingleFlowDCRBlock  /* self-identification: #endif at the end of the file */
+ #define __SingleFlowDCRBlock
+                      /* self-identification: #endif at the end of the file */
 
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
@@ -66,7 +68,8 @@ namespace SMSpp_di_unipi_it
 /** @defgroup SingleFlowDCRBlock_TYPES SingleFlowDCRBlock-related types
  *  @{ */
 
- using p_SingleFlowDCRBlock = SingleFlowDCRBlock *;  ///< a pointer to SingleFlowDCRBlock
+ using p_SingleFlowDCRBlock = SingleFlowDCRBlock *;  ///< a pointer to
+                                                     ///< SingleFlowDCRBlock
 
  using Vec_SingleFlowDCRBlock = std::vector< p_SingleFlowDCRBlock>;
  ///< a vector of pointers to SingleFlowDCRBlock
@@ -80,7 +83,7 @@ namespace SMSpp_di_unipi_it
  using c_Vec_SingleFlowDCRBlock_it = c_Vec_SingleFlowDCRBlock::iterator;
  ///< iterator for a c_Vec_SingleFlowDCRBlock
 
-/** @}  end( group( SingleFlowDCRBlock_TYPES ) ) */ 
+/** @}  end( group( SingleFlowDCRBlock_TYPES ) ) */
 /*--------------------------------------------------------------------------*/
 /*------------------------------- CLASSES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -241,8 +244,10 @@ public:
 /** @name Constructor and Destructor
  *  @{ */
 
- /// constructor of SingleFlowDCRBlock, taking a pointer to the father (generic) Block
- /** Constructor of SingleFlowDCRBlock. It accepts a pointer to the father Block, which
+ /// constructor of SingleFlowDCRBlock, taking a pointer to the father
+ /// (generic) Block
+ /** Constructor of SingleFlowDCRBlock. It accepts a pointer to the
+  * father Block, which
   * can be of any type, defaulting to nullptr so that this can also be used as
   * the void constructor. */
 
@@ -251,7 +256,8 @@ public:
     f_cond_lower( - Inf< double >() ) , f_cond_upper( - Inf< double >() ) { }
 
 /*--------------------------------------------------------------------------*/
- /// destructor of SingleFlowDCRBlock: deletes the abstract representation, if any
+ /// destructor of SingleFlowDCRBlock: deletes the abstract representation, if
+ /// any
 
  virtual ~SingleFlowDCRBlock() { guts_of_destructor(); }
 
@@ -318,11 +324,12 @@ public:
   * SingleFlowDCRBlock then a NBModification (the "nuclear option") is
   * issued. */
 
- void load( Index n , Index m , c_Subset & pEn , c_Subset & pSn ,
-	    c_Vec_double & pU = {} , c_Vec_double & pC = {} ,
-      c_Vec_double & pNodeDelays = {} , c_Vec_double & pLinkDelays = {} , 
-      c_double FlowBursts  = 0 , c_double FlowDeadlines  = 0 ,
-      c_double MTU  = 0 , c_double rho  = 0 );
+ void load( Index n , Index m , c_Subset & pSn , c_Subset & pEn ,
+            c_Vec_double & pU = {} , c_Vec_double & pC = {} ,
+            c_Vec_double & pNodeDelays = {} ,
+            c_Vec_double & pLinkDelays = {} ,
+            c_double FlowBursts = 0 , c_double FlowDeadlines = 0 ,
+            c_double MTU = 0 , c_double rho = 0 );
 
 /*--------------------------------------------------------------------------*/
  /// extends Block::deserialize( netCDF::NcGroup )
@@ -426,7 +433,7 @@ public:
   * those of the MCF part already read. Note that this method does *not*
   * issue any Modification. */
 
- void load_dcr( std::istream &input , Index NNodes, Index NArcs );
+ void load_dcr( std::istream &input , Index NNodes , Index NArcs );
 
 /*--------------------------------------------------------------------------*/
  /// generate the abstract variables of the DCR
@@ -604,14 +611,14 @@ public:
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the vector of the (fixed) node processing delays
 
- [[nodiscard]] Vec_double get_NodeDelays( void ) const {
+ [[nodiscard]] c_Vec_double & get_NodeDelays( void ) const {
   return( NodeDelays );
   }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the vector of the (fixed) arc/link propagation delays
 
- [[nodiscard]] Vec_double get_LinkDelays( void ) const {
+ [[nodiscard]] c_Vec_double & get_LinkDelays( void ) const {
   return( LinkDelays );
   }
 
@@ -690,7 +697,8 @@ public:
   }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// given an arc, returns the pointer to the corresponding reserved-rate Variable
+ /// given an arc, returns the pointer to the corresponding reserved-rate
+ /// Variable
  /** Given the index of an arc, returns the pointer to the corresponding
   * reserved-rate variable R[ i , j ] (a ColVariable *). This ASSUMES THE
   * Variable ARE CONSTRUCTED IN THE FIRST PLACE, SEGFAULTS ARE BOUND TO
@@ -816,7 +824,7 @@ public:
 
  [[nodiscard]] c_Vec_double & get_C( void ) const { return( C ); }
 
- /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// get the cost of arc i (0 <= i < get_NArcs()), NaN if deleted
 
  [[nodiscard]] double get_C( c_Index i ) const { return( C[ i ] ); }
@@ -851,99 +859,205 @@ public:
  /** Returns the deficit of node i. Note that "node names" here go from 0 to
   * get_NNodes() - 1, despite the fact that get_SN() and get_EN() report node
   * "names" between 1 and get_NNodes(). */
- 
+
  [[nodiscard]] double get_B( Index i ) const {
   return( B.empty() ? 0 : B[ i ] );
   }
-  
+
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- Methods for checking the Block ---------------------*/
 /*--------------------------------------------------------------------------*/
 /** @name Methods for checking the Block
+ *
+ * Feasibility of a solution of the DCR problem is checked in four steps:
+ * the routing variables have to describe a path from the source to the sink
+ * [see flow_feasible()], the routing and reserved-rate variables have to
+ * satisfy their bounds [see bound_feasible()] and the constraints linking
+ * the two [see link_feasible()], and the end-to-end delay of the resulting
+ * path must not exceed the deadline of the flow [see delay_feasible()].
+ * is_feasible() checks the four together on the current solution, while
+ * is_sol_feasible() does the same on the solution held by a DCRSolution.
+ *
+ * Each of the four checks comes in two versions: one taking the solution to
+ * be checked from the outside, and one reading it out of the abstract
+ * representation of the SingleFlowDCRBlock, either "physically" (out of the
+ * value of the Variable) or "abstractly" (out of the corresponding
+ * Constraint), according to the useabstract parameter. Note that the
+ * "physical" version only reads the routing and reserved-rate variables
+ * (x, r), the burst-delay ones (theta, theta_min) being *reconstructed*
+ * from these: see delay_feasible( double , c_Vec_double & ,
+ * c_Vec_double & ).
  *  @{ */
 
- /// returns true if the current solution is (approximately) flow feasible
- /** Returns true if the solution encoded in the current value of the flow
-  * (x) Variable of the SingleFlowDCRBlock is approximately feasible w.r.t.
-  * the flow conservation constraints only. This clearly requires the
-  * Variable of the SingleFlowDCRBlock to have been defined, i.e., that
-  * generate_abstract_variables() has been called prior to this method. The
-  * parameter feps is the relative accuracy defining "approximately". The
-  * parameter "useabstract" has the same meaning as in is_feasible() and
-  * is_optimal(). */
+ /// returns true if the given routing is (approximately) flow feasible
+ /** Returns true if the routing described by the value of the x Variable of
+  * the SingleFlowDCRBlock approximately satisfies the flow conservation
+  * constraints, i.e., it describes a path from the source to the sink of
+  * the flow. This clearly requires the Variable of the SingleFlowDCRBlock
+  * to have been defined, i.e., that generate_abstract_variables() has been
+  * called prior to this method. The parameter feps is the relative accuracy
+  * defining "approximately". The parameter "useabstract" has the same
+  * meaning as in is_feasible(). */
 
  bool flow_feasible( double feps , bool useabstract = false );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// like flow_feasible(), but the routing is given from the outside
+ /** Like flow_feasible( double , bool ), but the routing to be checked is X
+  * rather than the one encoded in the Variable of the SingleFlowDCRBlock,
+  * which therefore need not even exist. X must have size at least
+  * get_NArcs(); the entries corresponding to deleted arcs are ignored. This
+  * is what the "physical" version of flow_feasible() and is_sol_feasible()
+  * both boil down to. */
+
+ bool flow_feasible( double feps , c_Vec_double & X );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns true if the current solution is (approximately) bound feasible
- /** Returns true if the solution encoded in the current value of the flow
-  * (x) Variable of the SingleFlowDCRBlock is approximately feasible w.r.t.
-  * the bound constraints only. This clearly requires the Variable of the
-  * SingleFlowDCRBlock to have been defined, i.e., that
+ /** Returns true if the current value of the x and r Variable of the
+  * SingleFlowDCRBlock approximately satisfies their bounds, i.e.,
+  * 0 <= x[ i ] <= 1 and 0 <= r[ i ] <= U[ i ]. This clearly requires the
+  * Variable of the SingleFlowDCRBlock to have been defined, i.e., that
   * generate_abstract_variables() has been called prior to this method. The
   * parameter feps is the relative accuracy defining "approximately". The
-  * parameter "useabstract" has the same meaning as in is_feasible() and
-  * is_optimal(). */
+  * parameter "useabstract" has the same meaning as in is_feasible(). */
 
  bool bound_feasible( double feps , bool useabstract = false );
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// like bound_feasible(), but the solution is given from the outside
+ /** Like bound_feasible( double , bool ), but the solution to be checked is
+  * the pair ( X , R ) rather than the one encoded in the Variable of the
+  * SingleFlowDCRBlock, which therefore need not even exist. Both X and R
+  * must have size at least get_NArcs(); the entries corresponding to
+  * deleted arcs are ignored, while those corresponding to closed arcs are
+  * checked against an upper bound of 0. */
+
+ bool bound_feasible( double feps , c_Vec_double & X , c_Vec_double & R );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// returns true if routing and reserved rates are (approximately) linked
+ /** Returns true if the current value of the x and r Variable of the
+  * SingleFlowDCRBlock approximately satisfies the three families of
+  * constraints linking the reserved rates to the routing decisions [see
+  * generate_abstract_constraints()], i.e., rho x[ i ] <= r[ i ] <=
+  * U[ i ] x[ i ] and r_min <= r[ i ] for every arc i used by the flow. The
+  * parameter feps is the relative accuracy defining "approximately". The
+  * parameter "useabstract" has the same meaning as in is_feasible(). */
+
+ bool link_feasible( double feps , bool useabstract = false );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// like link_feasible(), but the solution is given from the outside
+ /** Like link_feasible( double , bool ), but the solution to be checked is
+  * the pair ( X , R ) rather than the one encoded in the Variable of the
+  * SingleFlowDCRBlock, which therefore need not even exist. Both X and R
+  * must have size at least get_NArcs(). Note that r_min is not part of the
+  * pair: the value it is checked against is the largest feasible one, i.e.,
+  * the smallest reserved rate among the arcs used by the flow, which makes
+  * the corresponding constraints satisfied by construction. */
+
+ bool link_feasible( double feps , c_Vec_double & X , c_Vec_double & R );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// returns true if the end-to-end delay (approximately) meets the deadline
+ /** Returns true if the current value of the Variable of the
+  * SingleFlowDCRBlock approximately satisfies the end-to-end delay
+  * constraint DCR_cnst [see generate_abstract_constraints()]. The parameter
+  * feps is the relative accuracy defining "approximately". The parameter
+  * "useabstract" has the same meaning as in is_feasible(). */
+
+ bool delay_feasible( double feps , bool useabstract = false );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// like delay_feasible(), but the solution is given from the outside
+ /** Like delay_feasible( double , bool ), but the solution to be checked is
+  * the pair ( X , R ) rather than the one encoded in the Variable of the
+  * SingleFlowDCRBlock, which therefore need not even exist. Both X and R
+  * must have size at least get_NArcs().
+  *
+  * Note that the pair does not comprise the burst-delay variables theta and
+  * theta_min, which the delay constraint is written in terms of: these are
+  * *reconstructed* out of ( X , R ) as the smallest values the two cone
+  * constraints allow, i.e., theta[ i ] = MTU x[ i ] / r[ i ] and
+  * theta_min = FlowBursts / r_min with r_min the smallest reserved rate
+  * among the arcs used by the flow. Since the delay constraint is
+  * monotonically increasing in theta and theta_min, ( X , R ) can be
+  * completed into a solution that satisfies it if and only if the
+  * reconstructed one does, which is what makes this the right question to
+  * ask of a solution that only says which arcs are used and at which rate.
+  */
+
+ bool delay_feasible( double feps , c_Vec_double & X , c_Vec_double & R );
+
 /*--------------------------------------------------------------------------*/
  /// returns true if the current solution is approximately feasible
- /** Returns true if the current solution, i.e., the current values of all
-  * the (x, r, theta, r_min, theta_min) Variable, (approximately) satisfies
-  * the flow conservation constraints (E), the DCR delay constraint
-  * (DCR_cnst) and the three "linking" constraints between routing and
-  * reserved-rate variables (Indicator_cnst_rmin, Indicator_cnst_r1 and
-  * Indicator_cnst_r2). Note that the rotated-cone constraints cone_cnst and
-  * cone_min_cnst are currently *not* checked here (they are only relevant
-  * for the "SOCP" formulation, see generate_abstract_constraints()). This
-  * clearly requires the Constraint of the SingleFlowDCRBlock to have been
-  * defined, i.e., that generate_abstract_constraints() has been called
-  * prior to this method.
+ /** Returns true if the current solution, i.e., the current value of the
+  * Variable of the SingleFlowDCRBlock, is approximately feasible: the
+  * routing describes a path from the source to the sink of the flow
+  * [see flow_feasible()], the routing and the reserved rates satisfy their
+  * bounds [see bound_feasible()] and the constraints linking the two [see
+  * link_feasible()], and the end-to-end delay of the flow does not exceed
+  * its deadline [see delay_feasible()]. This clearly requires the Variable
+  * of the SingleFlowDCRBlock to have been defined, i.e., that
+  * generate_abstract_variables() has been called prior to this method (and,
+  * if useabstract == true, that generate_abstract_constraints() has been
+  * called as well).
   *
-  * The parameters for deciding what "approximately feasible" exactly means
-  * are a tolerance tol and a Boolean rel_viol saying whether violations are
-  * to be intended in a relative or absolute sense; these are to be found
-  * as:
+  * If useabstract == true the check is performed on the Constraint of the
+  * abstract representation, which is only possible if they have been
+  * constructed; otherwise, the value of the Variable is read and checked
+  * against the "physical" data of the SingleFlowDCRBlock. The two are not
+  * quite the same check: the abstract one takes the burst-delay variables
+  * theta and theta_min at their face value, while the physical one
+  * reconstructs them out of the reserved rates [see delay_feasible(
+  * double , c_Vec_double & , c_Vec_double & )]. In particular, a solution
+  * of the "P/C" formulation, in which the cone constraints are only
+  * outer-approximated by finitely many linear cuts, can satisfy all the
+  * Constraint that are there and still not be feasible for the DCR problem;
+  * the physical check is the one that says so.
+  *
+  * The parameter for deciding what "approximately feasible" exactly means
+  * is a single double value, the *relative* tolerance for the satisfaction
+  * of all the constraints. This value is to be found as:
   *
   * - if fsbc is not nullptr and it is a SimpleConfiguration< double >, then
-  *   tol = fsbc->f_value and rel_viol == true;
+  *   it is fsbc->f_value;
   *
-  * - if fsbc is not nullptr and it is a
-  *   SimpleConfiguration< std::pair< double , int > >, then
-  *   tol = fsbc->f_value.first and rel_viol = fsbc->f_value.second;
+  * - otherwise, if f_BlockConfig is not nullptr,
+  *   f_BlockConfig->f_is_feasible_Configuration is not nullptr and it is a
+  *   SimpleConfiguration< double >, then it is
+  *   f_BlockConfig->f_is_feasible_Configuration->f_value;
   *
-  * - otherwise, if f_BlockConfig is not nullptr, the same is tried on
-  *   f_BlockConfig->f_is_feasible_Configuration;
-  *
-  * - otherwise, tol == 1e-4 and rel_viol == true.
-  *
-  * Note that the parameter useabstract is currently not used: feasibility
-  * is always checked using the abstract representation. */
+  * - otherwise, it is 0. */
 
  bool is_feasible( bool useabstract = false , Configuration *fsbc = nullptr )
   override;
 
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// returns true if the current solution satisfies the DCR constraints
- /** Identical to is_feasible(), except that it does not require the flow
-  * conservation constraints E to also be checked as part of "the flow"; as
-  * currently implemented it in fact checks exactly the same set of
-  * Constraint as is_feasible() (E, DCR_cnst, and the three Indicator_cnst_*
-  * ones), with the same tolerance-selection logic for the parameter fsbc.
-  * */
+/*--------------------------------------------------------------------------*/
+ /// returns true if the solution in the Solution is approximately feasible
+ /** Returns true if the solution held by the DCRSolution sol is
+  * approximately feasible, i.e., it satisfies the flow conservation
+  * constraints, the bounds, the constraints linking the reserved rates to
+  * the routing decisions and the end-to-end delay constraint; the
+  * SingleFlowDCRBlock is only read for its data, its Variable are not
+  * touched and they need not even exist. sol must be a DCRSolution holding
+  * both the routing and the reserved-rate variables, otherwise false is
+  * returned (a Solution that is not a DCRSolution is an error, and it
+  * throws). The tolerance is found exactly as in is_feasible( bool ,
+  * Configuration * ). */
 
- bool is_feasible_flow( bool useabstract = false ,
-			Configuration *fsbc = nullptr );
+ bool is_sol_feasible( Solution * sol ,
+                       Configuration * fsbc = nullptr ) override;
 
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+/*--------------------------------------------------------------------------*/
  /// returns true if the DCR *instance* (not the current solution) is feasible
- /** Unlike is_feasible() and is_feasible_flow(), which check whether the
-  * *current solution* satisfies the constraints, this method checks whether
-  * the DCR *instance* itself admits any feasible solution at all, i.e.,
-  * whether there exists some path from the (unique) source to the (unique)
-  * sink of the flow (identified via the sign of the node deficits B[], see
-  * load()) whose end-to-end delay does not exceed FlowDeadlines.
+ /** Unlike is_feasible() and is_sol_feasible(), which check whether a
+  * *solution* satisfies the constraints, this method checks whether the DCR
+  * *instance* itself admits any feasible solution at all, i.e., whether
+  * there exists some path from the (unique) source to the (unique) sink of
+  * the flow (identified via the sign of the node deficits B[], see load())
+  * whose end-to-end delay does not exceed FlowDeadlines.
   *
   * This is done by translating the SingleFlowDCRBlock data into a DCR::
   * DCRFlow / DCRLink / DCRNode description [see DCR.h] and handing it to a
@@ -971,7 +1085,7 @@ public:
   */
 
  Block * get_R3_Block( Configuration *r3bc = nullptr ,
-		       Block * base = nullptr , Block * father = nullptr )
+                       Block * base = nullptr , Block * father = nullptr )
   override;
 
 /*--------------------------------------------------------------------------*/
@@ -1004,13 +1118,13 @@ public:
   *
   * Note that R3B may not contain some or all of the required solution, if
   * the corresponding Variable/Constraint have not been constructed yet:
-  * this throws an exception. */ 
+  * this throws an exception. */
 
  void map_back_solution( Block *R3B , Configuration *r3bc = nullptr ,
-			 Configuration *solc = nullptr ) override;
+                         Configuration *solc = nullptr ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// maps the solution of the current SingleFlowDCRBlock to a copy 
+ /// maps the solution of the current SingleFlowDCRBlock to a copy
  /** Maps the solution of the current SingleFlowDCRBlock to a copy
   * SingleFlowDCRBlock. The parameter r3bc is useless (has to be nullptr).
   * The parameter solc decides which part of the solution is mapped:
@@ -1039,19 +1153,21 @@ public:
   *
   * Note that the current SingleFlowDCRBlock may not contain some or all of
   * the required solution, if the corresponding Variable/Constraint have not
-  * been constructed yet: this throws an exception. */ 
+  * been constructed yet: this throws an exception. */
 
  void map_forward_solution( Block *R3B , Configuration *r3bc = nullptr ,
-			    Configuration *solc = nullptr ) override;
+                            Configuration *solc = nullptr ) override;
 
 /*--------------------------------------------------------------------------*/
- /** No specific Configuration is required, hence expected, 
+ /** No specific Configuration is required, hence expected,
   *
   * IMPORTANT NOTE: map_forward_Modification() only maps "physical"
   * Modification. The point is that if any part of the "abstract
-  * representation" of SingleFlowDCRBlock is changed, the corresponding "abstract"
+  * representation" of SingleFlowDCRBlock is changed, the corresponding
+  * "abstract"
   * Modification is intercepted in add_Modification() and a "physical"
-  * Modification is also issued. Hence, for any change in SingleFlowDCRBlock there
+  * Modification is also issued. Hence, for any change in SingleFlowDCRBlock
+  * there
   * will always be both Modification "in flight", and therefore there is
   * no need (and good reasons not) to map both.
   *
@@ -1067,8 +1183,9 @@ public:
   *
   * Any other Modification is ignored (and false is returned).
   *
-  *     IMPORTANT NOTE: SingleFlowDCRBlockRngdMod ALLOW TO ADD/DELETE ARCS IN THE
-  *     PROBLEM, WHICH ALSO CHANGES THE "NAMES" OF EXISTING ARCS. SingleFlowDCRBlock
+  * IMPORTANT NOTE: SingleFlowDCRBlockRngdMod ALLOW TO ADD/DELETE ARCS IN THE
+  * PROBLEM, WHICH ALSO CHANGES THE "NAMES" OF EXISTING ARCS.
+  * SingleFlowDCRBlock
   *     IMPLEMENTS map_forward_Modification() IN A WAY THAT IS ONLY
   *     GUARANTEED TO BE CORRECT IF:
   *
@@ -1076,7 +1193,8 @@ public:
   *
   *     = OR THE Modification ARE MAPPED IMMEDIATELY AFTER THEY ARE ISSUED.
   *
-  * This is because otherwise SingleFlowDCRBlock should have to understand whether the
+  * This is because otherwise SingleFlowDCRBlock should have to understand
+  * whether the
   * set of arc "names" in the Modification is still correct and do something
   * in case it is not, which is too complex to do at the moment.
   *
@@ -1089,9 +1207,9 @@ public:
   * true. */
 
  bool map_forward_Modification( Block *R3B , c_p_Mod mod ,
-				Configuration *r3bc = nullptr ,
-				ModParam issuePMod = eNoBlck ,
-				ModParam issueAMod = eModBlck ) override;
+                                Configuration *r3bc = nullptr ,
+                                ModParam issuePMod = eNoBlck ,
+                                ModParam issueAMod = eModBlck ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /** No specific Configuration is required, hence expected
@@ -1101,9 +1219,9 @@ public:
   * method. */
 
  bool map_back_Modification( Block *R3B , c_p_Mod mod ,
-			     Configuration *r3bc = nullptr ,
-			     ModParam issuePMod = eNoBlck ,
-			     ModParam issueAMod = eModBlck ) override;
+                             Configuration *r3bc = nullptr ,
+                             ModParam issuePMod = eNoBlck ,
+                             ModParam issueAMod = eModBlck ) override;
 
 /** @} ---------------------------------------------------------------------*/
 /*----------------------- Methods for handling Solution --------------------*/
@@ -1124,9 +1242,9 @@ public:
   * also called to fill it in with the current solution. */
 
  Solution * get_Solution( Configuration *solc = nullptr ,
-			  bool emptys = true ) override;
+                          bool emptys = true ) override;
 
- /*--------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
  /// returns the objective value of the current solution
 
  double get_objective_value( void ) {
@@ -1160,6 +1278,8 @@ public:
  /// gets the flow solution of the given arc
 
  double get_x( Index arc ) const {
+  if( ! ( AR & HasVar ) )
+   throw( std::logic_error( "flow Variable not available" ) );
   if( arc >= get_NArcs() )
    throw( std::invalid_argument( "invalid arc name" ) );
 
@@ -1194,7 +1314,9 @@ public:
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// gets the reserve solution of the given arc
 
-  double get_r( Index arc ) const {
+ double get_r( Index arc ) const {
+  if( ! ( AR & HasVar ) )
+   throw( std::logic_error( "reserved-rate Variable not available" ) );
   if( arc >= get_NArcs() )
    throw( std::invalid_argument( "invalid arc name" ) );
 
@@ -1208,7 +1330,7 @@ public:
   * reserved-rate variable r[ i ] for i in rng, in the same order. */
 
   void set_r( c_Vec_double_it fstrt ,
-	      Range rng = Range( 0 , Inf< Index >() ) );
+              Range rng = Range( 0 , Inf< Index >() ) );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// sets a generic subset of the reserve solution
@@ -1223,8 +1345,10 @@ public:
  /// sets the reserve solution of the given arc
 
  void set_r( Index arc , double FSol ) {
+  if( ! ( AR & HasVar ) )
+   throw( std::logic_error( "reserved-rate Variable not available" ) );
   if( arc >= get_NArcs() )
-  throw( std::invalid_argument( "invalid arc name" ) );
+   throw( std::invalid_argument( "invalid arc name" ) );
 
   r[ arc ].set_value( FSol );
   }
@@ -1236,7 +1360,7 @@ public:
   * x[ i ] for i in rng, in the same order. */
 
  void set_x( c_Vec_double_it fstrt ,
-	     Range rng = Range( 0 , Inf< Index >() ) );
+             Range rng = Range( 0 , Inf< Index >() ) );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// sets a generic subset of the flow solution
@@ -1251,9 +1375,11 @@ public:
  /// sets the flow solution of the given arc
 
  void set_x( Index arc , double FSol ) {
+  if( ! ( AR & HasVar ) )
+   throw( std::logic_error( "flow Variable not available" ) );
   if( arc >= get_NArcs() )
    throw( std::invalid_argument( "invalid arc name" ) );
-  
+
   x[ arc ].set_value( FSol );
   }
 
@@ -1275,6 +1401,8 @@ public:
  /// sets the value of theta[ arc ], the burst-delay term of the given arc
 
  void set_theta( Index arc , double FSol ) {
+  if( ! ( AR & HasVar ) )
+   throw( std::logic_error( "burst-delay Variable not available" ) );
   if( arc >= get_NArcs() )
    throw( std::invalid_argument( "invalid arc name" ) );
 
@@ -1352,7 +1480,7 @@ public:
 /*--------------------------------------------------------------------------*/
  /// extends Block::serialize( netCDF::NcGroup )
  /** Extends Block::serialize( netCDF::NcGroup ) to the specific format of a
-  * SingleFlowDCRBlock. See SingleFlowDCRBlock::deserialize( netCDF::NcGroup ) 
+  * SingleFlowDCRBlock. See SingleFlowDCRBlock::deserialize( netCDF::NcGroup )
   * for details of the format of the created netCDF group. */
 
  void serialize( netCDF::NcGroup & group ) const override;
@@ -1392,7 +1520,7 @@ public:
  /// change the costs of a contiguous interval of arcs
  /** Method to change the costs of a subset of arcs with "contiguous names".
   * That is, *( NCost + i - strt ) becomes the new cost of the i-th arc in
-  * \p rng. Note that if the right extreme of the range is >= get_NArcs() it 
+  * \p rng. Note that if the right extreme of the range is >= get_NArcs() it
   * is ignored.
   *
   * Note that if \p rng contains some closed arc, its cost is also changed.
@@ -1415,7 +1543,7 @@ public:
   * issued. */
 
  void chg_costs( c_Vec_double_it NCost , Range rng = INFRange ,
-		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
+                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// change the costs of an arbitrary subset of arcs
@@ -1432,8 +1560,8 @@ public:
   * costs of closed arcs. */
 
  void chg_costs( c_Vec_double_it NCost ,
-		 Subset && nms , bool ordered = false ,
-		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
+                 Subset && nms , bool ordered = false ,
+                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// changes the cost of the given arc
@@ -1443,7 +1571,7 @@ public:
   * "physical" one is a SingleFlowDCRBlockRngdMod with rng = [ arc ). */
 
  void chg_cost( double NCost , Index arc ,
-		ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
+                ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*--------------------------------------------------------------------------*/
  /// change the capacities of a contiguous interval of arcs
@@ -1478,7 +1606,7 @@ public:
   * issued. */
 
  void chg_ucaps( c_Vec_double_it NCap , Range rng = INFRange ,
-		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
+                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// change the capacities of an arbitrary subset of arcs
@@ -1498,8 +1626,8 @@ public:
   * capacities of closed arcs. */
 
  void chg_ucaps( c_Vec_double_it NCap ,
-		 Subset && nms , bool ordered = false ,
-		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
+                 Subset && nms , bool ordered = false ,
+                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// change the capacity of the given arc
@@ -1512,7 +1640,7 @@ public:
   * SingleFlowDCRBlockRngdMod with rng = [ arc ). */
 
  void chg_ucap( double NCap , Index arc ,
-		ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
+                ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*--------------------------------------------------------------------------*/
  /// change the deficits of a contiguous interval of nodes
@@ -1538,7 +1666,7 @@ public:
   * issued. */
 
  void chg_dfcts( c_Vec_double_it NDfct , Range rng = INFRange ,
-		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
+                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// change the deficits of an arbitrary subset of nodes
@@ -1556,8 +1684,8 @@ public:
   * the "physical" one is a SingleFlowDCRBlockSbstMod). */
 
  void chg_dfcts( c_Vec_double_it NDfct ,
-		 Subset && nms , bool ordered = false ,
-		 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
+                 Subset && nms , bool ordered = false ,
+                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// changes the deficit of the given node
@@ -1570,7 +1698,7 @@ public:
   * SingleFlowDCRBlockRngdMod with rng = [ arc ). */
 
  void chg_dfct( double NDfct , Index nde ,
-		ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
+                ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*--------------------------------------------------------------------------*/
  /// closes a contiguous interval of arcs
@@ -1595,8 +1723,8 @@ public:
   * issued. */
 
  void close_arcs( Range rng = INFRange ,
-		  ModParam issueMod = eNoBlck ,
-		  ModParam issueAMod = eNoBlck );
+                  ModParam issueMod = eNoBlck ,
+                  ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// closes an arbitrary subset of arcs
@@ -1607,7 +1735,7 @@ public:
   * is created, all arcs are open. Closing an already closed arc does
   * nothing.
   *
-  * The parameter ordered tells if the nms vector is ordered for increasing 
+  * The parameter ordered tells if the nms vector is ordered for increasing
   * index of the arc. As the && tells, nms is "consumed" by the method,
   * typically being shipped to an appropriate SingleFlowDCRBlockSbstMod
   * object.
@@ -1616,8 +1744,8 @@ public:
   * the "physical" one is a SingleFlowDCRBlockSbstMod). */
 
  void close_arcs( Subset && nms , bool ordered = false ,
-		  ModParam issueMod = eNoBlck ,
-		  ModParam issueAMod = eNoBlck );
+                  ModParam issueMod = eNoBlck ,
+                  ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// closes the given arc
@@ -1630,7 +1758,7 @@ public:
   * SingleFlowDCRBlockRngdMod with rng = [ arc ). */
 
  void close_arc( Index arc , ModParam issueMod = eNoBlck ,
-		             ModParam issueAMod = eNoBlck );
+                             ModParam issueAMod = eNoBlck );
 
 /*--------------------------------------------------------------------------*/
 /// re-opens a contiguous interval of arcs
@@ -1652,8 +1780,8 @@ public:
   * issued. */
 
  void open_arcs( Range rng = INFRange ,
-		 ModParam issueMod = eNoBlck ,
-		 ModParam issueAMod = eNoBlck );
+                 ModParam issueMod = eNoBlck ,
+                 ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// re-opens an arbitrary subset of arcs
@@ -1661,7 +1789,7 @@ public:
   * whose names are found in the array nms. Opening an already open arc
   * (which is what all arcs are when the problem is created) does nothing.
   *
-  * The parameter ordered tells if the nms vector is ordered for increasing 
+  * The parameter ordered tells if the nms vector is ordered for increasing
   * index of the arc. As the && tells, nms is "consumed" by the method,
   * typically being shipped to an appropriate SingleFlowDCRBlockSbstMod
   * object.
@@ -1681,8 +1809,8 @@ public:
   * issued. */
 
  void open_arcs( Subset && nms , bool ordered = false ,
-		 ModParam issueMod = eNoBlck ,
-		 ModParam issueAMod = eNoBlck );
+                 ModParam issueMod = eNoBlck ,
+                 ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// re-opens the given arc
@@ -1694,7 +1822,7 @@ public:
   * SingleFlowDCRBlockRngdMod with rng = [ arc ). */
 
  void open_arc( Index arc , ModParam issueMod = eNoBlck ,
-		            ModParam issueAMod = eNoBlck );
+                            ModParam issueAMod = eNoBlck );
 
 /*--------------------------------------------------------------------------*/
  /// changes the source and the sink of the flow
@@ -1862,40 +1990,40 @@ public:
  static void static_initialization( void )
  {
   /*!!
- * Not all C++ compilers enjoy the template wizardry behind the three-args
- * version of register_method<> with the compact MS_*_*::args(), so we just
- * use the slightly less compact one with the explicit argument and be done
- * with it. !!*/
+   * Not all C++ compilers enjoy the template wizardry behind the three-args
+   * version of register_method<> with the compact MS_*_*::args(), so we just
+   * use the slightly less compact one with the explicit argument and be done
+   * with it. !!*/
 
   register_method< SingleFlowDCRBlock , MF_dbl_it , Range >(
-					  "SingleFlowDCRBlock::chg_costs" ,
-					  & SingleFlowDCRBlock::chg_costs );
-  
+                                          "SingleFlowDCRBlock::chg_costs" ,
+                                          & SingleFlowDCRBlock::chg_costs );
+
   register_method< SingleFlowDCRBlock , MF_dbl_it , Subset && , bool >(
    "SingleFlowDCRBlock::chg_costs" , & SingleFlowDCRBlock::chg_costs );
 
   register_method< SingleFlowDCRBlock , MF_dbl_it , Range >(
-					  "SingleFlowDCRBlock::chg_ucaps" ,
-					  & SingleFlowDCRBlock::chg_ucaps );
+                                          "SingleFlowDCRBlock::chg_ucaps" ,
+                                          & SingleFlowDCRBlock::chg_ucaps );
 
-  register_method< SingleFlowDCRBlock , MF_dbl_it , Subset &&, bool >(
+  register_method< SingleFlowDCRBlock , MF_dbl_it , Subset && , bool >(
    "SingleFlowDCRBlock::chg_ucaps" , & SingleFlowDCRBlock::chg_ucaps );
 
   register_method< SingleFlowDCRBlock , Range >(
-				       "SingleFlowDCRBlock::close_arcs" ,
-				       & SingleFlowDCRBlock::close_arcs );
+                                       "SingleFlowDCRBlock::close_arcs" ,
+                                       & SingleFlowDCRBlock::close_arcs );
 
   register_method< SingleFlowDCRBlock , Subset && , bool >(
-				       "SingleFlowDCRBlock::close_arcs" ,
-				       & SingleFlowDCRBlock::close_arcs );
+                                       "SingleFlowDCRBlock::close_arcs" ,
+                                       & SingleFlowDCRBlock::close_arcs );
 
   register_method< SingleFlowDCRBlock , Range >(
-				       "SingleFlowDCRBlock::open_arcs" ,
-				       & SingleFlowDCRBlock::open_arcs );
+                                       "SingleFlowDCRBlock::open_arcs" ,
+                                       & SingleFlowDCRBlock::open_arcs );
 
   register_method< SingleFlowDCRBlock , Subset && , bool >(
-				       "SingleFlowDCRBlock::open_arcs" ,
-				       & SingleFlowDCRBlock::open_arcs );
+                                       "SingleFlowDCRBlock::open_arcs" ,
+                                       & SingleFlowDCRBlock::open_arcs );
 
   }  // end( static_initialization )
 
@@ -1903,22 +2031,22 @@ public:
 
  int p2i_x_s( const Variable * var ) const {
   return( std::distance( x.data() ,
-			 static_cast< const ColVariable * >( var ) ) );
+                         static_cast< const ColVariable * >( var ) ) );
   }
 
-  int p2i_r_s( const Variable * var ) const {
+ int p2i_r_s( const Variable * var ) const {
   return( std::distance( r.data() ,
-			 static_cast< const ColVariable * >( var ) ) );
+                         static_cast< const ColVariable * >( var ) ) );
   }
 
  int p2i_ub_s( const Constraint * cns ) const {
   return( std::distance( UB.data() ,
-			 static_cast< const LB0Constraint * >( cns ) ) );
+                         static_cast< const LB0Constraint * >( cns ) ) );
   }
 
  int p2i_e_s( const Constraint * cns ) const {
   return( std::distance( E.data() ,
-			 static_cast< const FRowConstraint * >( cns ) ) );
+                         static_cast< const FRowConstraint * >( cns ) ) );
   }
 
  LinearFunction * get_lfo( void ) {
@@ -1949,11 +2077,52 @@ public:
  void compute_conditional_bounds( void );
 
 /*--------------------------------------------------------------------------*/
+ /// which of the two formulations of the burst-delay terms is in use
+ /** Returns PCuts or SOCP according to what stcc says, or, failing that,
+  * what the BlockConfig says in the Configuration of the static Constraint
+  * (or in that of the static Variable, where the formulation used to be
+  * asked for); the SOCP one, which is the exact formulation of the problem,
+  * if nobody says anything. */
+
+ Index formulation( Configuration * stcc = nullptr ) const;
+
+/*--------------------------------------------------------------------------*/
+ /// extracts out of fsbc, or of the BlockConfig, the is_feasible() tolerance
+
+ void feps_of( Configuration * fsbc , double & feps , bool & rel_viol ) const;
+
+/*--------------------------------------------------------------------------*/
+ /// throws if X or R are too small to describe a solution of this Block
+
+ void check_sizes( c_Vec_double & X , c_Vec_double & R ,
+                   const char * method ) const;
+
+/*--------------------------------------------------------------------------*/
+ /// the largest r_min compatible with the solution ( X , R )
+ /** The smallest reserved rate among the arcs that the routing X uses,
+  * which is the largest value the Indicator_cnst_rmin constraints allow
+  * r_min to take, and therefore the one that makes the burst-delay term
+  * FlowBursts / r_min of the delay constraint as small as possible; 0 if
+  * the flow uses no arc at all. */
+
+ double min_rate( c_Vec_double & X , c_Vec_double & R ) const;
+
+/*--------------------------------------------------------------------------*/
+ /// true if lhs <= rhs is violated by more than the tolerance feps
+ /** The tolerance is relative to rhs, save that a rhs smaller than one
+  * counts as one, so that the check does not become an exact one where the
+  * right-hand side happens to be zero. */
+
+ static bool violated( c_double lhs , c_double rhs , c_double feps ) {
+  return( lhs - rhs > feps * std::max( double( 1 ) , std::abs( rhs ) ) );
+  }
+
+/*--------------------------------------------------------------------------*/
 
 #ifndef NDEBUG
 
  void CheckAbsVSPhys( void );
- 
+
 #endif
 
 /*--------------------------------------------------------------------------*/
@@ -1976,7 +2145,7 @@ public:
  * say exactly what is changed, this being demanded to derived classes (which
  * do this in different ways). Note that it is derived from Modification
  * rather than,  say, BlockMod (which has the same structure) because this is
- * a class of "physical Modification". This means that a 
+ * a class of "physical Modification". This means that a
  * SingleFlowDCRBlockMod refers to changes in the "physical representation"
  * of the SingleFlowDCRBlock; the corresponding changes in the "abstract
  * representation" of the SingleFlowDCRBlock are dealt with  by means of
@@ -1992,7 +2161,7 @@ class SingleFlowDCRBlockMod : public Modification
 
 /*---------------------------- PUBLIC TYPES --------------------------------*/
  /// public enum for the types of SingleFlowDCRBlockMod
- 
+
  enum DCRB_mod_type {
   eChgCost = 0 ,   ///< change the arc costs
   eChgCaps     ,   ///< change the arc capacities
@@ -2008,17 +2177,17 @@ class SingleFlowDCRBlockMod : public Modification
  SingleFlowDCRBlockMod( SingleFlowDCRBlock * fblock , int type )
   : f_Block( fblock ) , f_type( type ) {}
 
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
  virtual ~SingleFlowDCRBlockMod() = default;   ///< destructor, does nothing
 
-/*-------------------- PUBLIC METHODS OF THE CLASS ------------------------*/
+/*---------------------- PUBLIC METHODS OF THE CLASS -----------------------*/
 
  /// returns the [DCR]Block to which the SingleFlowDCRBlockMod refers
 
  Block * get_Block( void ) const override  { return( f_Block ); }
 
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// accessor to the type of modification
 
  int type( void ) const { return( f_type ); }
@@ -2044,7 +2213,8 @@ class SingleFlowDCRBlockMod : public Modification
 /*--------------------- PROTECTED FIELDS OF THE CLASS ----------------------*/
 
  SingleFlowDCRBlock *f_Block;
-               ///< pointer to the SingleFlowDCRBlock to which the SingleFlowDCRBlockMod refers
+               ///< pointer to the SingleFlowDCRBlock to which the
+               ///< SingleFlowDCRBlockMod refers
 
  int f_type;   ///< type of Modification
 
@@ -2071,20 +2241,20 @@ class SingleFlowDCRBlockRngdMod : public SingleFlowDCRBlockMod
  /// constructor: takes the SingleFlowDCRBlock, the type, and the range
 
  SingleFlowDCRBlockRngdMod( SingleFlowDCRBlock * fblock , int type ,
-			    Block::Range rng )
+                            Block::Range rng )
   : SingleFlowDCRBlockMod( fblock , type ) , f_rng( rng ) {}
 
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
  virtual ~SingleFlowDCRBlockRngdMod() = default;
  ///< destructor, does nothing
 
-/*-------------------- PUBLIC METHODS OF THE CLASS ------------------------*/
+/*---------------------- PUBLIC METHODS OF THE CLASS -----------------------*/
 
  /// accessor to the range
 
  Block::c_Range & rng( void ) const { return( f_rng ); }
- 
+
 /*--------------------- PROTECTED PART OF THE CLASS ------------------------*/
 
  protected:
@@ -2132,15 +2302,15 @@ class SingleFlowDCRBlockSbstMod : public SingleFlowDCRBlockMod
   * although this is not checked by the class. */
 
  SingleFlowDCRBlockSbstMod( SingleFlowDCRBlock * fblock , int type ,
-			    Block::Subset && nms )
+                            Block::Subset && nms )
   : SingleFlowDCRBlockMod( fblock , type ) , f_nms( std::move( nms ) ) {}
 
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
  virtual ~SingleFlowDCRBlockSbstMod() = default;
  ///< destructor, does nothing
 
-/*-------------------- PUBLIC METHODS OF THE CLASS ------------------------*/
+/*---------------------- PUBLIC METHODS OF THE CLASS -----------------------*/
 
  /// accessor to the subset
 
@@ -2265,6 +2435,43 @@ class DCRSolution : public Solution
 
  DCRSolution * clone( bool empty = false ) const override final;
 
+/*----------- METHODS FOR READING AND WRITING THE SOLUTION -----------------*/
+ /// returns the routing variables saved in this DCRSolution
+ /** Returns the value of the routing variables x[] saved in this
+  * DCRSolution, which is empty if it does not save them [see
+  * SingleFlowDCRBlock::get_Solution()]. */
+
+ [[nodiscard]] SingleFlowDCRBlock::c_Vec_double & get_x( void ) const {
+  return( v_x );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// returns the reserved-rate variables saved in this DCRSolution
+ /** Returns the value of the reserved-rate variables r[] saved in this
+  * DCRSolution, which is empty if it does not save them [see
+  * SingleFlowDCRBlock::get_Solution()]. */
+
+ [[nodiscard]] SingleFlowDCRBlock::c_Vec_double & get_r( void ) const {
+  return( v_r );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// sets the routing variables saved in this DCRSolution
+ /** Sets the value of the routing variables x[] saved in this DCRSolution.
+  * This is what a Solver fills the Solution with directly out of its own
+  * data structures, rather than writing the solution in the Variable of the
+  * SingleFlowDCRBlock and having it read back from there, which requires
+  * the Variable to exist at all [see
+  * SingleFlowDCRBendersSolver::get_Solution()]. */
+
+ void set_x( SingleFlowDCRBlock::Vec_double && x ) { v_x = std::move( x ); }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// sets the reserved-rate variables saved in this DCRSolution
+ /** The counterpart of set_x() for the reserved rates. */
+
+ void set_r( SingleFlowDCRBlock::Vec_double && r ) { v_r = std::move( r ); }
+
 /*-------------------- PROTECTED PART OF THE CLASS -------------------------*/
 
  protected:
@@ -2272,8 +2479,8 @@ class DCRSolution : public Solution
 /*-------------------------- PROTECTED METHODS -----------------------------*/
 
  void print( std::ostream &output ) const override final {
-  output << "DCRSolution [" << this << "]: " << v_r.size() 
-	 << " flows" << std::endl;
+  output << "DCRSolution [" << this << "]: " << v_r.size()
+         << " flows" << std::endl;
   }
 
 /*---------------------- PRIVATE PART OF THE CLASS -------------------------*/

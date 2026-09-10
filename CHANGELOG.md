@@ -1,0 +1,106 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+
+- the standard SMS++ module build system: the CMake project (with the
+  package configuration files and the version derived from the git tag),
+  the CI for both GitLab and GitHub, and the `makefile` / `makefile-c` /
+  `makefile-s` triple of every other module
+
+- `SingleFlowDCRBlock::is_sol_feasible()`, which checks the solution held
+  by a `DCRSolution` without touching the `Block`, i.e., without requiring
+  its abstract representation to exist at all
+
+- the accessors and the setters of `DCRSolution`, so that a `Solver` can
+  fill it directly out of its own data structures
+
+- `SingleFlowDCRBendersSolver::get_Solution()`, which does exactly that:
+  the `DCRSolution` is filled out of what BenBound found, and the `Variable`
+  of the `Block` are not written at all
+
+- `SingleFlowDCRBlock::link_feasible()` and `delay_feasible()`, the two
+  halves of the feasibility check that were nowhere to be found: the
+  constraints tying the reserved rates to the routing decisions, and the
+  end-to-end delay constraint
+
+### Changed
+
+- `SingleFlowDCRBlock::is_feasible()` checks all the constraints of the
+  problem, the bounds of the variables and the two cone constraints
+  comprised, and its "physical" branch reads the solution out of the
+  `Variable` and checks it against the data, where it used to do nothing
+
+- each of the four feasibility checks has a version taking the solution to
+  be checked from the outside, which is what the "physical" version and
+  `is_sol_feasible()` both boil down to
+
+- `SingleFlowDCRBendersSolver::get_var_solution()` also writes the two
+  "aggregate" variables `r_min` and `theta_min`, which it used to compute
+  and drop; `is_DCR_feasible()` asks `SingleFlowDCRBlock::delay_feasible()`
+  rather than repeating the network calculus formula, and the data of the
+  `Block` are translated for BenBound in one place instead of two
+
+- `SingleFlowDCRBendersSolver::has_var_solution()` says no unless the point
+  BenBound stopped at is feasible for the DCR problem, which is now checked
+  in full (the routing, the rates and the delay) and with a tolerance of
+  1e-6 rather than the 1e-2 of the delay alone; `get_ub()` accordingly
+  returns +INF where there is no feasible solution, in place of the
+  (possibly optimistic) relaxed value of `BenBound::getHeurVal()`: neither
+  that value nor the value of an infeasible point bounds the optimum
+
+- `SingleFlowDCRBendersSolver::get_var_value()` computes the value of the
+  solution BenBound found rather than of whatever the `Variable` of the
+  `Block` happen to hold, which is what anybody could have written there
+
+- `MultiFlowDCRBlock::is_feasible()` asks each commodity sub-`Block` about
+  the commodity it describes, where it only checked the mutual capacity
+  constraints of its own
+
+- which of the two formulations is in use is asked for in the
+  `Configuration` of the *static Constraint* of the `BlockConfig`, the one
+  of the static `Variable` being still honoured as it used to be; the two
+  methods that ask no longer disagree on the default, which is the SOCP
+  formulation for both
+
+- `SingleFlowDCRBlock::load()` takes the starting nodes before the ending
+  ones, as its own documentation says
+
+- `get_NodeDelays()` and `get_LinkDelays()` return a reference, as every
+  other datum of the `Block` does
+
+- the timer of the DCR solvers is the `std::chrono`-based `DCRtimer`,
+  which builds everywhere, in place of the POSIX-only `OPTtimers`
+
+### Removed
+
+- the local copies of `OPTUtils.h`, `OPTtypes.h` and `OPTvect.h`, some
+  3700 lines of somebody else's code that the module carried around
+
+- `SingleFlowDCRBlock::is_feasible_flow()`, which did exactly the same
+  checks as `is_feasible()` under a name saying otherwise
+
+### Fixed
+
+- the aggregate cone constraint was added to the abstract representation
+  even when the "P/C" formulation was asked for, so that formulation was
+  not linear at all and a `:MILPSolver` that does not do conic constraints
+  could not solve it
+
+- the debug output that the solvers wrote on `std::cout` at every
+  iteration, and the `exit( 1 )` calls with which they killed the whole
+  process where they should throw
+
+- `is_feasible_instance()` read the node deficits, the arc capacities and
+  the delays out of vectors that are allowed to be empty, and left the
+  source and the sink uninitialised when the instance had none
+
+- `DCR_SPT::DCRgetLink()` fell off the end of the function when the arc was
+  not there, and `DCRLagrangianSolver` compared a `double` through the
+  integer `abs()`

@@ -7,7 +7,7 @@
  * Flow, as set by SingleFlowDCRBlock, via a "Benders with nested Lagrange"
  * approach.
  *
-* \author Antonio Frangioni \n
+ * \author Antonio Frangioni \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
@@ -22,16 +22,17 @@
  * \author Enrico Sorbera \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
- * 
- * \copyright &copy; by Antonio Frangioni
- */ 
+ *
+ * \copyright &copy; by Antonio Frangioni, Laura Galli, Luca Mencarelli,
+ *                      Enrico Sorbera
+ */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
 /*--------------------------------------------------------------------------*/
 
 #ifndef __SingleFlowDCRBendersSolver
- #define __SingleFlowDCRBendersSolver
-                      /* self-identification: #endif at the end of the file */
+#define __SingleFlowDCRBendersSolver
+/* self-identification: #endif at the end of the file */
 
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
@@ -54,12 +55,12 @@
 /*--------------------------------------------------------------------------*/
 
 /// namespace for the Structured Modeling System++ (SMS++)
-namespace SMSpp_di_unipi_it
-{
+namespace SMSpp_di_unipi_it {
 /*--------------------------------------------------------------------------*/
 /*------------------------------- CLASSES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @defgroup SingleFlowDCRBendersSolver_CLASSES Classes in SingleFlowDCRBendersSolver.h
+/** @defgroup SingleFlowDCRBendersSolver_CLASSES
+ *  Classes in SingleFlowDCRBendersSolver.h
  *  @{ */
 
 /*--------------------------------------------------------------------------*/
@@ -99,25 +100,24 @@ class SingleFlowDCRBendersSolver : public Solver , public BenBound
 /*----------------------- PUBLIC PART OF THE CLASS -------------------------*/
 /*--------------------------------------------------------------------------*/
 
- public:
-
+public:
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PUBLIC TYPES --------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @name Public Types
- *  @{ */
+ /** @name Public Types
+  *  @{ */
 
-/** @} ---------------------------------------------------------------------*/
-/*----------------- CONSTRUCTING AND DESTRUCTING SingleFlowDCRBendersSolver */
+ /** @} ---------------------------------------------------------------------*/
+ /*----------------- CONSTRUCTING AND DESTRUCTING SingleFlowDCRBendersSolver */
 /*--------------------------------------------------------------------------*/
-/** @name Constructing and destructing SingleFlowDCRBendersSolver
- *  @{ */
+ /** @name Constructing and destructing SingleFlowDCRBendersSolver
+  *  @{ */
 
  /// constructor: does nothing special
  /** Void constructor: does nothing special besides default-constructing
   * both base classes, Solver and BenBound. */
 
- SingleFlowDCRBendersSolver( void ) : Solver() , BenBound()  { }
+ SingleFlowDCRBendersSolver( void ) : Solver() , BenBound() {}
 
 /*--------------------------------------------------------------------------*/
  /// destructor: does nothing special
@@ -125,17 +125,17 @@ class SingleFlowDCRBendersSolver : public Solver , public BenBound
   * care of releasing their own resources (comprised any pending
   * Modification) via their own destructors. */
 
- virtual ~SingleFlowDCRBendersSolver() { }
+ virtual ~SingleFlowDCRBendersSolver() {}
 
-/** @} ---------------------------------------------------------------------*/
+ /** @} ---------------------------------------------------------------------*/
 /*-------------------------- OTHER INITIALIZATIONS -------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @name Other initializations
- *
- * SingleFlowDCRBendersSolver currently does not define any Solver
- * parameter of its own (no {get,set}_{num_,}*_par() method is overridden):
- * it only inherits the (empty) set of parameters of the base Solver class.
- *  @{ */
+ /** @name Other initializations
+  *
+  * SingleFlowDCRBendersSolver currently does not define any Solver
+  * parameter of its own (no {get,set}_{num_,}*_par() method is overridden):
+  * it only inherits the (empty) set of parameters of the base Solver class.
+  *  @{ */
 
  /// set the (pointer to the) Block that the Solver has to solve
  /** Sets (or resets, if \p block == nullptr) the SingleFlowDCRBlock that
@@ -155,74 +155,24 @@ class SingleFlowDCRBendersSolver : public Solver , public BenBound
  void set_Block( Block * block ) override
  {
 
-  if( block == f_Block )  // actually doing nothing
-   return;                // cowardly and silently return
+  if( block == f_Block ) // actually doing nothing
+   return;               // cowardly and silently return
 
-  Solver::set_Block( block );  // attach to the new Block
+  Solver::set_Block( block ); // attach to the new Block
 
-  if( block ) {  // this is not just resetting everything
+  if( block ) { // this is not just resetting everything
    auto MCFB = dynamic_cast< SingleFlowDCRBlock * >( f_Block );
    if( ! MCFB )
-    throw( std::invalid_argument(
-		         "SingleFlowDCRBendersSolver:set_Block: block must be a SingleFlowDCRBlock" ) );
+    throw( std::invalid_argument( "SingleFlowDCRBendersSolver:set_Block: "
+                                  "block must be a SingleFlowDCRBlock" ) );
 
    bool owned = MCFB->is_owned_by( f_id );
    if( ( ! owned ) && ( ! MCFB->read_lock() ) )
-    throw( std::logic_error( "cannot acquire read_lock on SingleFlowDCRBlock" ) );
+    throw(
+     std::logic_error( "cannot acquire read_lock on SingleFlowDCRBlock" ) );
    // load the new SingleFlowDCRBlock into the :BenBound object
 
-   vector<double> B = MCFB->get_B();
-   int source, sink;
-
-   int nnodes = MCFB->get_NNodes();
-   int narcs = MCFB->get_NArcs();
-
-   for(int i = 0; i < nnodes; i++) {
-    if( B[i] < 0 )
-      source = i;
-    if( B[i] > 0 )
-      sink = i;
-   }
-
-   DCR::DCRFlow flows;
-   flows = {};
-   flows.sourcenode = source;
-   flows.sinknode = sink;
-   flows.burst = MCFB->get_FlowBurst();
-   flows.rate = MCFB->get_rho();        
-   flows.deadline = MCFB->get_FlowDeadline();   
-
-   vector<double> u = MCFB->get_U(); 
-   vector<double> c = MCFB->get_C();
-   vector<Index> sn = MCFB->get_SN();
-   vector<Index> en = MCFB->get_EN();
-   vector<double> link_delay = MCFB->get_LinkDelays();
-   vector<DCR::DCRLink> links(narcs);
-
-   for (int i = 0; i < narcs; i++) {
-      links[i] = {};
-      links[i].startnode = sn[i]-1;
-      links[i].endnode = en[i]-1;
-      links[i].speed = u[i];
-      links[i].capacity = u[i];
-      links[i].delay = link_delay[i];
-      links[i].cost = c[i];
-   }
-
-   vector<double> node_delay = MCFB->get_NodeDelays();
-
-   vector<DCR::DCRNode> nodes(nnodes);
-   for (int i = 0; i < nnodes; i++) {
-      nodes[i] = {};
-      nodes[i].delay = node_delay[i];
-   }
-
-   //DCR::DCRLink* link_ptr = links;
-   //DCR::DCRNode* node_ptr = nodes;
-
-   double mtu = MCFB->get_MTU();
-
-   BenBound::LoadProblem(nnodes, narcs, flows, links, nodes, mtu);
+   load_BenBound();
 
    // once done, read_unlock the SingleFlowDCRBlock (if it was read-lock()-ed)
    if( ! owned )
@@ -230,16 +180,16 @@ class SingleFlowDCRBendersSolver : public Solver , public BenBound
 
    // TODO: maybe log it
    }
-  }  // end( set_Block )
+  } // end( set_Block )
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-/** @} ---------------------------------------------------------------------*/
+ /** @} ---------------------------------------------------------------------*/
 /*--------------------- METHODS FOR SOLVING THE Block ----------------------*/
 /*--------------------------------------------------------------------------*/
-/** @name Solving the SingleFlowDCR 
- *  @{ */
+ /** @name Solving the SingleFlowDCR
+  *  @{ */
 
  /// (try to) solve the SingleFlowDCR
  /** (Tries to) solve the SingleFlowDCRBlock currently attached to this
@@ -264,24 +214,24 @@ class SingleFlowDCRBendersSolver : public Solver , public BenBound
  int compute( bool changedvars = true ) override
  {
 
-  lock();  // first of all, acquire self-lock
+  lock(); // first of all, acquire self-lock
 
-  if( ! f_Block )           // there is no [SingleFlowDCRBlock] to solve
-   return( kBlockLocked );  // return error 
+  if( ! f_Block )            // there is no [SingleFlowDCRBlock] to solve
+   return( kBlockLocked ); // return error
 
-  bool owned = f_Block->is_owned_by( f_id );       // check if already locked
-  if( ( ! owned ) && ( ! f_Block->read_lock() ) )  // if not try to read_lock
-   return( kBlockLocked );                         // return error on failure
+  bool owned = f_Block->is_owned_by( f_id );    // check if already locked
+  if( ( ! owned ) && ( ! f_Block->read_lock() ) ) // if not try to read_lock
+   return( kBlockLocked );                     // return error on failure
 
   // while [read_]locked, process any outstanding Modification
-  
-  if( ! owned )             // if the [SingleFlowDCR]Block was actually read_locked
-   f_Block->read_unlock();  // read_unlock it
+
+  if( ! owned ) // if the [SingleFlowDCR]Block was actually read_locked
+   f_Block->read_unlock(); // read_unlock it
 
   process_outstanding_Modification();
 
- auto f_Block_aux = f_Block;
-/*
+  auto f_Block_aux = f_Block;
+  /*
  const std::string warmstart_cfg_file = "MILPPar-initial.txt";
 
  auto warmstart_cfg = Configuration::deserialize( warmstart_cfg_file );
@@ -297,7 +247,7 @@ class SingleFlowDCRBendersSolver : public Solver , public BenBound
  auto warmstart =
   dynamic_cast< CDASolver * >(
    Solver::new_Solver( warmstart_bsc->get_SolverName( 0 ) ) );
- 
+
  if( warmstart_bsc->num_ComputeConfig() > 0 )
     if( auto cc = warmstart_bsc->get_SolverConfig( 0 ) )
       warmstart->set_ComputeConfig( cc );
@@ -309,7 +259,7 @@ class SingleFlowDCRBendersSolver : public Solver , public BenBound
 
  std::cout << "bound_PC = " << bound_PC << std::endl;
  std::cout << "sol = " << warmstart->get_lb() << std::endl;
-*/
+   */
   // ensure the timer exists (or reset it)
   BenBound::DCRsetTime( true );
   // then (try to) solve the SingleFlowDCR
@@ -319,99 +269,101 @@ class SingleFlowDCRBendersSolver : public Solver , public BenBound
   //std::cout << "LB = " << get_lb() << std::endl;
   //std::cout << "UB = " << get_ub() << std::endl;
 
-  unlock();                  // unlock the mutex     
+  unlock(); // unlock the mutex
 
   // now give out the result: note that the vector MCFstatus_2_sol_type[]
   // starts from 0 whereas the first value of MCFStatus is -1 (= kUnSolved),
   // hence the returned status has to be shifted by + 1
-  
+
   return( kOK );
   }
 
-/** @} ---------------------------------------------------------------------*/
+ /** @} ---------------------------------------------------------------------*/
 /*---------------------- METHODS FOR READING RESULTS -----------------------*/
 /*--------------------------------------------------------------------------*/
-/** @name Accessing the found solutions (if any)
- *  @{ */
+ /** @name Accessing the found solutions (if any)
+  *  @{ */
 
  /// returns the time (in seconds) spent so far in BenBound::Solve()
 
- double get_elapsed_time( void ) const override {
+ double get_elapsed_time( void ) const override
+ {
   return( this->BenBound::getTime() );
   }
 
 /*--------------------------------------------------------------------------*/
  /// returns the best lower bound found so far by the Benders/Lagrange bound
 
- OFValue get_lb( void ) override {
-
-  return( this->BenBound::getLB() );
- }
+ OFValue get_lb( void ) override { return( this->BenBound::getLB() ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// returns the best upper bound: BenBound's UB if DCR-feasible, else the
- /// (relaxed) heuristic value
- /** If the current best solution found by BenBound is (approximately)
-  * feasible for the DCR delay constraint (see is_DCR_feasible()), returns
-  * BenBound::getUB(); otherwise, since that solution does not actually
-  * respect the delay deadline, the (possibly optimistic) relaxed value
-  * BenBound::getHeurVal() is returned instead. */
+ /// returns the best upper bound on the optimum
+ /** BenBound::getUB() is the value of the best solution BenBound found,
+  * and that bounds the optimum from above only if the solution is
+  * feasible: hence it is returned if the solution meets the deadline of
+  * the flow [see is_DCR_feasible()], and +INF, i.e. no bound at all, if it
+  * does not. The value of a solution that misses the deadline can still be
+  * looked at with get_var_value(), and the (possibly optimistic) relaxed
+  * one with BenBound::getHeurVal(); what neither of them is, is an upper
+  * bound on the optimum. */
 
- OFValue get_ub( void ) override {
+ OFValue get_ub( void ) override
+ {
+  if( has_var_solution() )
+   return( this->BenBound::getUB() );
 
-  if( is_DCR_feasible() )
-    return( this->BenBound::getUB() );
-  else
-    return( this->BenBound::getHeurVal() );
-}
+  return( Inf< OFValue >() );
+  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// returns the objective value of the current reserved-rate solution
+ /// returns the objective value of the solution BenBound found
  /** Recomputes, from scratch, the objective value \f$ \sum_i C[ i ] r[ i ]
-  * \f$ of the current reserved-rate solution stored in the
-  * SingleFlowDCRBlock, rather than using BenBound::getObjVal() (which is
-  * currently not used, see the commented-out line below). */
+  * \f$ of the solution BenBound found [see get_solution_vectors()]. Note
+  * that the reserved rates are taken from BenBound and *not* from the
+  * Variable of the SingleFlowDCRBlock: what the Variable hold is whatever
+  * was last written there, by this Solver or by anybody else, while what
+  * this method has to answer is the value of the solution that this Solver
+  * found. */
 
-  OFValue get_var_value( void ) override {
+ OFValue get_var_value( void ) override
+ {
+  auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
 
-    //return( this->BenBound::getObjVal() );
+  SingleFlowDCRBlock::Vec_double X , R;
+  get_solution_vectors( X , R );
 
-    double sum = 0.0;
+  double sum = 0;
+  for( Index i = 0 ; i < R.size() ; ++i )
+   if( ! DCRB->is_deleted( i ) )
+    sum += DCRB->get_C( i ) * R[ i ];
 
-    auto DCRB = dynamic_cast< SingleFlowDCRBlock * >( f_Block );
-    auto costi =  DCRB->get_C();
-
-    for (int i = 0; i < DCRB->get_NArcs() ; i++)
-     sum += costi[i] * DCRB->get_r( i );
-
-    return( sum );
+  return( sum );
   }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns the number of Benders iterations performed so far
 
- Index get_BenIt( void ) {
+ Index get_BenIt( void )
+ {
   return( this->BenBound::getNumIterationBender() );
-}
+  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns the total number of (nested) Lagrangian iterations performed
 
- Index get_LagIt( void ) {
-  return( this->BenBound::getNumIterationLagr() );
-}
+ Index get_LagIt( void ) { return( this->BenBound::getNumIterationLagr() ); }
 
 /*--------------------------------------------------------------------------*/
  /// returns true if BenBound found a feasible (primal) solution
- /** Returns true if and only if BenBound::getStat() == BenBound::OK, i.e.,
-  * a feasible solution was found and can be retrieved by
-  * get_var_solution(). */
+ /** Returns true if and only if BenBound terminated with a solution
+  * (BenBound::getStat() == BenBound::OK) *and* that solution is feasible
+  * for the DCR problem [see solution_is_feasible()]: a point that is not
+  * is not a solution, whatever BenBound makes of it. */
 
-bool has_var_solution( void ) override {
-  switch( this->BenBound::getStat() ) {
-   case( BenBound::OK ): return( true ) ;
-   default:                      return( false );
-   }
+ bool has_var_solution( void ) override
+ {
+  return( ( this->BenBound::getStat() == BenBound::OK ) &&
+          solution_is_feasible() );
   }
 
 /*--------------------------------------------------------------------------*/
@@ -426,80 +378,98 @@ bool has_var_solution( void ) override {
 
  void get_var_solution( Configuration * solc = nullptr ) override
  {
-  if( ! f_Block )  // no [SingleFlowDCR]Block to write to
-   return;         // cowardly and silently return
+  if( ! f_Block ) // no [SingleFlowDCR]Block to write to
+   return;       // cowardly and silently return
 
-  //auto tsolc = dynamic_cast< SimpleConfiguration< int > * >( solc );
-  //if( tsolc && ( tsolc->f_value == 2 ) )
-  // return;
-  
   auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
-  int nnarc = DCRB->get_NArcs();
 
-  double rmin = Inf<double>();
-  double theta_min = Inf<double>();
+  SingleFlowDCRBlock::Vec_double X , R;
+  get_solution_vectors( X , R );
 
-  for( Index i = 0 ; i < nnarc ; ++i ){
-    auto v = BenBound::getSolution( i );
-    DCRB->set_r( i , v );
-    if( v > 0.0 ){
-      DCRB->set_x( i , 1 );
-      rmin = std::min( rmin , v );
-      DCRB->set_theta( i , DCRB->get_MTU() / v );
-    } else {
-      DCRB->set_x( i , 0 );
-      DCRB->set_theta( i , 0 );
-    }
+  for( Index i = 0 ; i < X.size() ; ++i ) {
+   DCRB->set_x( i , X[ i ] );
+   DCRB->set_r( i , R[ i ] );
+   // the smallest burst delay the cone constraint of the arc allows
+   DCRB->set_theta( i , X[ i ] > 0 ? DCRB->get_MTU() / R[ i ] : 0 );
+   }
+
+  // the same for the two "aggregate" variables: the minimum reserved rate
+  // along the path and the burst delay that goes with it
+  auto rmin = BenBound::getr_min();
+  DCRB->set_rmin( rmin );
+  DCRB->set_theta_min( rmin > 0 ? DCRB->get_FlowBurst() / rmin : 0 );
   }
-}
+
+/*--------------------------------------------------------------------------*/
+ /// produces the Solution of the SingleFlowDCRBlock out of BenBound
+ /** Fills the Solution that the SingleFlowDCRBlock provides directly out of
+  * the solution BenBound found, without writing anything into the Variable
+  * of the Block, which therefore need not even exist [see
+  * Solver::get_Solution()]. The Solution is asked to the Block, as the
+  * general rule requires; should it not be a DCRSolution, which is what a
+  * SingleFlowDCRBlock gives, the base class is left to do the job. */
+
+ [[nodiscard]] Solution *
+ get_Solution( Configuration * solc = nullptr ) override
+ {
+  if( ! f_Block )
+   return( Solver::get_Solution( solc ) );
+
+  auto sol = f_Block->get_Solution( solc , true );
+  auto dsol = dynamic_cast< DCRSolution * >( sol );
+  if( ! dsol )      // not the Solution this Solver knows how to fill:
+   return( sol ); // hand back the empty one the Block gave
+
+  if( ! has_var_solution() ) // nothing to put in it
+   return( sol );
+
+  SingleFlowDCRBlock::Vec_double X , R;
+  get_solution_vectors( X , R );
+
+  // which of the two parts the Solution wants is its own business, as
+  // dictated by the Configuration it was asked with: only fill in what is
+  // there [see SingleFlowDCRBlock::get_Solution()]
+  if( ! dsol->get_x().empty() )
+   dsol->set_x( std::move( X ) );
+  if( ! dsol->get_r().empty() )
+   dsol->set_r( std::move( R ) );
+
+  return( sol );
+  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns true if the current BenBound solution meets the DCR deadline
- /** Checks (with relative tolerance 1e-2) whether the current solution
-  * found by BenBound satisfies the worst-case delay bound of the DCR
-  * problem, computed via network calculus: for every arc j whose reserved
-  * rate BenBound::getSolution( j ) is at least the flow's sustained rate
-  * DCRB->get_rho() (i.e., every arc actually used on the routing path),
-  * the per-arc worst-case delay contribution MTU / r[ j ] + ( MTU / U[ j ]
-  * + LinkDelays[ j ] + NodeDelays[ start node of j ] ) is accumulated;
-  * adding the burst term FlowBurst / r_min (r_min being the smallest
-  * reserved rate along the path, see BenBound::getr_min()) yields the
-  * overall worst-case end-to-end delay, which is compared against the
-  * flow's deadline DCRB->get_FlowDeadline(). */
+ /** Checks, within the relative tolerance feps, whether the worst-case
+  * end-to-end delay of the routing found by BenBound meets the deadline of
+  * the flow: the routing and the reserved rates are read out of BenBound
+  * [see get_solution_vectors()] and handed to
+  * SingleFlowDCRBlock::delay_feasible(), which is where the network
+  * calculus formula lives. Note that this says nothing about the *other*
+  * constraints of the DCR problem: use
+  * SingleFlowDCRBlock::is_sol_feasible() on the Solution this Solver
+  * produces to have them all checked.
+  *
+  * The default tolerance is the one this Solver holds itself to when it
+  * declares having a solution [see solution_is_feasible()], and it is
+  * deliberately a tight one: a point that misses the deadline by a whisker
+  * is still a point that misses the deadline, and its value bounds
+  * nothing. */
 
- bool is_DCR_feasible( void ) {
+ bool is_DCR_feasible( double feps = 1e-6 )
+ {
+  auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
 
-  auto DCRB = dynamic_cast< SingleFlowDCRBlock * >( f_Block );
-  int nnarc = DCRB->get_NArcs();
-  auto r_min = BenBound::getr_min();
-  auto theta_min = DCRB->get_FlowBurst() / r_min;
+  SingleFlowDCRBlock::Vec_double X , R;
+  get_solution_vectors( X , R );
 
-  vector<double> LinkDelays = DCRB->get_LinkDelays();
-  vector<double> NodeDelays = DCRB->get_NodeDelays();
-  double lhs = 0.0;
-
-  for( Index j = 0 ; j < nnarc ; ++j ) {
-    auto v = BenBound::getSolution( j );
-    if( v >= DCRB->get_rho() )
-      lhs += DCRB->get_MTU() / v + ( DCRB->get_MTU() /  DCRB->get_U( j ) +  LinkDelays[ j ] + NodeDelays[ DCRB->get_SN( j ) - 1 ] );
+  return( DCRB->delay_feasible( feps , X , R ) );
   }
 
-  lhs += theta_min;
-  bool DCR_feasible = false;
-
-  //std::cout << " pviol=" << ( lhs - DCRB->get_FlowDeadline() ) / DCRB->get_FlowDeadline() << std::endl;
-
-  if( ( lhs - DCRB->get_FlowDeadline() ) / DCRB->get_FlowDeadline() <= 1e-2 ){
-    DCR_feasible = true;
-  }
-  return( DCR_feasible );
-}
-
-/** @} ---------------------------------------------------------------------*/
+ /** @} ---------------------------------------------------------------------*/
 /*------------- METHODS FOR ADDING / REMOVING / CHANGING DATA --------------*/
 /*--------------------------------------------------------------------------*/
-/** @name Changing the data of the model
- *  @{ */
+ /** @name Changing the data of the model
+  *  @{ */
 
 /*--------------------------------------------------------------------------*/
  /// processes any Modification issued by the SingleFlowDCRBlock since the
@@ -515,96 +485,151 @@ bool has_var_solution( void ) override {
   * specific Modification received; any change at all triggers a full
   * reload. */
 
-  void process_outstanding_Modification( void ) {
+ void process_outstanding_Modification( void )
+ {
 
-      bool reload = false;
+  bool reload = false;
 
-      // note: since processing the Modification is fast, we don't bother with
-      // being nice to other processes and do it all with v_mod under lock
-       // try to acquire lock, spin on failure
-      while( f_mod_lock.test_and_set( std::memory_order_acquire ) )
-       ;
-     
-      // process all the Modifications
-      for( auto mod : v_mod )
-        if( auto tmod = mod.get() ) {
-          reload = true;  // a reset must be done
-          break;          // ignore all the remaining Modifications
-        }
-     
-      v_mod.clear();  // all Modifications tackled, clear the list
-     
-      f_mod_lock.clear( std::memory_order_release );  // release lock
-     
-      if( reload ){
+  // note: since processing the Modification is fast, we don't bother with
+  // being nice to other processes and do it all with v_mod under lock
+  // try to acquire lock, spin on failure
+  while( f_mod_lock.test_and_set( std::memory_order_acquire ) )
+   ;
 
-        auto MCFB = dynamic_cast< SingleFlowDCRBlock * >( f_Block );
-        vector<double> B = MCFB->get_B();
-        int source, sink;
+  // process all the Modifications
+  for( auto mod : v_mod )
+   if( auto tmod = mod.get() ) {
+    reload = true; // a reset must be done
+    break;         // ignore all the remaining Modifications
+   }
 
-        int nnodes = MCFB->get_NNodes();
-        int narcs = MCFB->get_NArcs();
+  v_mod.clear(); // all Modifications tackled, clear the list
 
-        for (int i = 0; i < nnodes; i++) {
-          if (B[i] < 0 )
-            source = i;
-          if (B[i] > 0 )
-            sink = i;
-        }
+  f_mod_lock.clear( std::memory_order_release ); // release lock
 
-        DCR::DCRFlow flows;
-        flows = {};
-        flows.sourcenode = source;
-        flows.sinknode = sink;
-        flows.burst = MCFB->get_FlowBurst();
-        flows.rate = MCFB->get_rho();        
-        flows.deadline = MCFB->get_FlowDeadline();   
+  if( reload ) {
 
-        vector<DCR::DCRLink> links(narcs);
-        vector<double> u = MCFB->get_U();
-        vector<double> c = MCFB->get_C();
-        vector<Index> sn = MCFB->get_SN();
-        vector<Index> en = MCFB->get_EN();
-        vector<double> link_delay = MCFB->get_LinkDelays();
-
-        for (int i = 0; i < narcs; i++) {
-            links[i] = {};
-            links[i].startnode = sn[i]-1;
-            links[i].endnode = en[i]-1;
-            links[i].speed = u[i];
-            links[i].capacity = u[i];
-            links[i].delay = link_delay[i];
-            links[i].cost = c[i];
-        }
-
-        vector<double> node_delay = MCFB->get_NodeDelays();
-
-        vector<DCR::DCRNode> nodes(nnodes);
-        for (int i = 0; i < nnodes; i++) {
-            nodes[i] = {};
-            nodes[i].delay = node_delay[i];
-        }
-
-        //DCR::DCRLink* link_ptr = links;
-        //DCR::DCRNode* node_ptr = nodes;
-
-        double mtu = MCFB->get_MTU();
-
-        BenBound::LoadProblem(nnodes, narcs, flows, links, nodes, mtu);
-      }
+   load_BenBound();
+   }
   }
 
-/** @} ---------------------------------------------------------------------*/
+ /** @} ---------------------------------------------------------------------*/
 /*--------------------- PROTECTED PART OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
 
 protected:
-
 /*--------------------------------------------------------------------------*/
 /*-------------------------- PROTECTED METHODS -----------------------------*/
 /*--------------------------------------------------------------------------*/
+ /// (re)loads the data of the SingleFlowDCRBlock into BenBound
+ /** Translates the instance held by the SingleFlowDCRBlock this Solver is
+  * attached to into the DCR::DCRFlow / DCRLink / DCRNode description that
+  * BenBound wants [see DCR.h] and hands it to BenBound::LoadProblem(). The
+  * source and the sink of the flow are the nodes with, respectively,
+  * negative and positive deficit; a Block with no source or no sink has
+  * nothing to route, and BenBound is left with whatever it had. This is
+  * done when the Block is attached and every time it changes [see
+  * set_Block() and process_outstanding_Modification()]. */
+
+ void load_BenBound( void )
+ {
+  auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
+  auto nnodes = DCRB->get_NNodes();
+  auto narcs = DCRB->get_NArcs();
+
+  int source = -1;
+  int sink = -1;
+  for( Index i = 0 ; i < nnodes ; ++i ) {
+   auto Bi = DCRB->get_B( i );
+   if( Bi < 0 )
+    source = i;
+   else
+    if( Bi > 0 )
+     sink = i;
+   }
+
+  if( ( source < 0 ) || ( sink < 0 ) )  // nothing to route
+   return;
+
+  DCR::DCRFlow flow = {};
+  flow.sourcenode = source;
+  flow.sinknode = sink;
+  flow.burst = DCRB->get_FlowBurst();
+  flow.rate = DCRB->get_rho();
+  flow.deadline = DCRB->get_FlowDeadline();
+
+  auto & LD = DCRB->get_LinkDelays();
+  auto & ND = DCRB->get_NodeDelays();
+
+  std::vector< DCR::DCRLink > links( narcs );
+  for( Index i = 0 ; i < narcs ; ++i ) {
+   links[ i ] = {};
+   links[ i ].startnode = DCRB->get_SN( i ) - 1;
+   links[ i ].endnode = DCRB->get_EN( i ) - 1;
+   links[ i ].speed = DCRB->get_U( i );
+   links[ i ].capacity = DCRB->get_U( i );
+   links[ i ].delay = LD.empty() ? 0 : LD[ i ];
+   links[ i ].cost = DCRB->is_deleted( i ) ? 0 : DCRB->get_C( i );
+   }
+
+  std::vector< DCR::DCRNode > nodes( nnodes );
+  for( Index i = 0 ; i < nnodes ; ++i ) {
+   nodes[ i ] = {};
+   nodes[ i ].delay = ND.empty() ? 0 : ND[ i ];
+   }
+
+  BenBound::LoadProblem( nnodes , narcs , flow , links , nodes ,
+                         DCRB->get_MTU() );
+ }
 
 /*--------------------------------------------------------------------------*/
+ /// true if the solution BenBound found is feasible for the DCR problem
+ /** Asks the SingleFlowDCRBlock whether the routing and the reserved rates
+  * BenBound found [see get_solution_vectors()] satisfy all the constraints
+  * of the DCR problem: that the routing is a path from the source to the
+  * sink, that the rates are within the arc capacities and go with the
+  * routing, and that the end-to-end delay meets the deadline. This is what
+  * has_var_solution() and get_ub() are held to: a Solver that hands out a
+  * point that is not feasible, and calls its value an upper bound on the
+  * optimum, says something false. */
+
+ bool solution_is_feasible( double feps = 1e-6 )
+ {
+  auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
+
+  SingleFlowDCRBlock::Vec_double X , R;
+  get_solution_vectors( X , R );
+
+  return( DCRB->flow_feasible( feps , X ) &&
+          DCRB->bound_feasible( feps , X , R ) &&
+          DCRB->link_feasible( feps , X , R ) &&
+          DCRB->delay_feasible( feps , X , R ) );
+  }
+
+/*--------------------------------------------------------------------------*/
+ /// reads the solution of BenBound into a routing and a rate vector
+ /** Fills X and R, both sized get_NArcs(), with the solution BenBound
+  * found: R[ i ] is the rate reserved on arc i and X[ i ] is 1 if the arc
+  * is used by the flow, i.e., if that rate is positive, and 0 otherwise.
+  * This is the one place where the solution of BenBound is turned into a
+  * solution of the SingleFlowDCRBlock, and it is what get_var_solution(),
+  * get_Solution() and is_DCR_feasible() all go through. */
+
+ void get_solution_vectors( SingleFlowDCRBlock::Vec_double & X ,
+                            SingleFlowDCRBlock::Vec_double & R )
+ {
+  auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
+  auto narcs = DCRB->get_NArcs();
+
+  X.resize( narcs );
+  R.resize( narcs );
+
+  for( Index i = 0 ; i < narcs ; ++i ) {
+   auto v = BenBound::getSolution( i );
+   R[ i ] = v;
+   X[ i ] = v > 0 ? 1 : 0;
+   }
+  }
 
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PROTECTED FIELDS  ---------------------------*/
@@ -615,11 +640,11 @@ protected:
 /*--------------------------------------------------------------------------*/
 
 private:
-
-double bound_PC = 0.0;  ///< bound on r_min computed by an (optional) warm-start
-                         ///< primal heuristic Solver; currently only set by
-                         ///< the code commented out inside compute(), so it
-                         ///< is unused in the present implementation
+ double bound_PC = 0.0; ///< bound on r_min computed by an (optional)
+                        ///< warm-start
+                        ///< primal heuristic Solver; currently only set by
+                        ///< the code commented out inside compute(), so it
+                        ///< is unused in the present implementation
 
 /*--------------------------------------------------------------------------*/
 /*-------------------------- PRIVATE METHODS -------------------------------*/
@@ -629,25 +654,20 @@ double bound_PC = 0.0;  ///< bound on r_min computed by an (optional) warm-start
 
 /*--------------------------------------------------------------------------*/
 
-};  // end( class( SingleFlowDCRBendersSolver ) )
+ }; // end( class( SingleFlowDCRBendersSolver ) )
 
 /*--------------------------------------------------------------------------*/
 
 /** @}  end( group( SingleFlowDCRBendersSolver_CLASSES ) ) -----------------*/
 /*--------------------------------------------------------------------------*/
 
-}  // end( namespace SMSpp_di_unipi_it )
+ } // namespace SMSpp_di_unipi_it
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-#endif  /* SingleFlowDCRBendersSolver.h included */
+#endif /* SingleFlowDCRBendersSolver.h included */
 
 /*--------------------------------------------------------------------------*/
 /*---------------- End File SingleFlowDCRBendersSolver.h -------------------*/
 /*--------------------------------------------------------------------------*/
-
-
-
-
-

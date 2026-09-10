@@ -27,9 +27,10 @@
  * \author Enrico Sorbera \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
- * 
- * \copyright &copy; by Antonio Frangioni
- */ 
+ *
+ * \copyright &copy; by Antonio Frangioni, Laura Galli, Luca Mencarelli,
+ *                      Enrico Sorbera
+ */
 
 /*<SPT for directed graphs with a single source*/
 
@@ -43,11 +44,12 @@
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
-#include<vector>
+#include <limits>
 
-using namespace std;
+#include <vector>
+
 /*--------------------------------------------------------------------------*/
-/*----------------------------- CLASS SPT -----------------------------------*/
+/*------------------------------- CLASS SPT --------------------------------*/
 /*--------------------------------------------------------------------------*/
 /*--------------------------- GENERAL NOTES --------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -75,74 +77,74 @@ class SPT
 /*----------------------- PUBLIC PART OF THE CLASS -------------------------*/
 /*--------------------------------------------------------------------------*/
 
-	public:
-
+public:
 /*--------------------------------------------------------------------------*/
 /*--------------------------- Inf() and Eps() ------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** Very small class to simplify extracting the "+ infinity" value for a
+ /** Very small class to simplify extracting the "+ infinity" value for a
     basic type; just use Inf<type>(). */
 
- template <typename T>
-  class Inf {
-   public:
+ template < typename T > class Inf
+ {
+ public:
   Inf() {}
-  operator T() { return( std::numeric_limits<T>::max() ); }
-  };
+  operator T() { return( std::numeric_limits< T >::max() ); }
+ };
 
 /*--------------------------------------------------------------------------*/
-/** Very small class to simplify extracting the "machine epsilon" for a
+ /** Very small class to simplify extracting the "machine epsilon" for a
     basic type; just use Eps<type>(). */
 
- template <typename T>
-  class Eps {
-   public:
+ template < typename T > class Eps
+ {
+ public:
   Eps() {}
-  operator T() { return( std::numeric_limits<T>::epsilon() ); }
+  operator T() { return( std::numeric_limits< T >::epsilon() ); }
   };
 
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PUBLIC TYPES --------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @name Public types
- *  @{ */
+ /** @name Public types
+  *  @{ */
 
  /// status of the Shortest Path computation
  enum Status {
-  OK, 	///<  solver found a feasible solution
-  Infeasible,   ///<  problem infeasible
-  Unbounded,    ///<  problem unbounded
-  Error         ///<  the graph is disconnected between s and some node
-                /// needed to reconstruct the s-t path
+  OK ,         ///<  solver found a feasible solution
+  Infeasible , ///<  problem infeasible
+  Unbounded ,  ///<  problem unbounded
+  Error       ///<  the graph is disconnected between s and some node
+              /// needed to reconstruct the s-t path
   };
 
-/*--------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
  /// a simplified arc for SPT: only cost, start and end node
- struct SPTLink {
-  int startnode;  ///< index of the tail node of the arc
-  int endnode;    ///< index of the head node of the arc
-  double cost;    ///< (possibly negative) cost/length of the arc
+ struct SPTLink
+ {
+  int startnode; ///< index of the tail node of the arc
+  int endnode;   ///< index of the head node of the arc
+  double cost;   ///< (possibly negative) cost/length of the arc
 
-  double rstar;   // not very useful in SP, but avoids a double check
-                  // on input and output for the Lagrangian solution.
+  double rstar; // not very useful in SP, but avoids a double check
+                // on input and output for the Lagrangian solution.
   };
 
-/** @} ---------------------------------------------------------------------*/
+ /** @} ---------------------------------------------------------------------*/
 /*---------------------------- CONSTRUCTOR ---------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @name Constructor
- *  @{ */
+ /** @name Constructor
+  *  @{ */
 
  /// constructor of SPT: initializes all data members to "empty"
 
  SPT( void );
 
-/** @} ---------------------------------------------------------------------*/
+ /** @} ---------------------------------------------------------------------*/
 /*---------------------------------- METHODS -------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @name Loading the data of the problem
- *  @{ */
+ /** @name Loading the data of the problem
+  *  @{ */
 
  /// loads a new graph, source and sink node
  /** Loads a directed graph with nnodes nodes and nlinks arcs (links,
@@ -151,10 +153,10 @@ class SPT
   * Any previously loaded instance is discarded. */
 
  virtual void LoadProblem( int nnodes , int nlinks ,
-			   std::vector< SPTLink > links ,
-			   int sourcenode , int sinknode );
+                           std::vector< SPTLink > links , int sourcenode ,
+                           int sinknode );
 
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// updates the arc costs, keeping the same topology
  /** Replaces the cost of every arc with the corresponding entry of
   * links (the topology, i.e., startnode/endnode of each arc, must be
@@ -165,11 +167,11 @@ class SPT
 
  virtual void updCosts( std::vector< SPTLink > links );
 
-/** @} ---------------------------------------------------------------------*/
+ /** @} ---------------------------------------------------------------------*/
 /*----------------------------------SOLVE-----------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @name Solving the problem
- *  @{ */
+ /** @name Solving the problem
+  *  @{ */
 
  /// computes the Shortest Path Tree from the source node
  /** Runs a FIFO-queue label-correcting (Bellman-Ford-type) algorithm to
@@ -181,22 +183,22 @@ class SPT
 
  virtual void Solve();
 
-/** @} ---------------------------------------------------------------------*/
+ /** @} ---------------------------------------------------------------------*/
 /*---------------------------------GET RESULTS------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @name Reading the results
- *  @{ */
+ /** @name Reading the results
+  *  @{ */
 
  /// returns the number of arcs (hops) of the optimal s-t path
 
  virtual int getNHops( void );
 
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns the status of the last Solve() call
 
  virtual Status getStatus( void );
 
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns the optimal s-t path as a list of arc indices
  /** Returns the sequence of arc indices (into the Links loaded by
   * LoadProblem()/updCosts()) forming the shortest path from the source
@@ -207,58 +209,57 @@ class SPT
 
  virtual std::vector< int > getPath( void );
 
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns the dual solution of SP, i.e., the shortest-distance labels
  /** Returns, for every node, its shortest distance from the source (the
   * dual variables/node potentials of the Shortest Path LP). */
 
  virtual std::vector< double > getLabel( void );
 
-/** @} ---------------------------------------------------------------------*/
+ /** @} ---------------------------------------------------------------------*/
 /*------------------------------ DESTRUCTOR --------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @name Destructor
- *  @{ */
+ /** @name Destructor
+  *  @{ */
 
  /// destructor of SPT: releases all dynamically allocated memory
 
  ~SPT();
 
-/** @} ---------------------------------------------------------------------*/
+ /** @} ---------------------------------------------------------------------*/
 /*--------------------- PRIVATE PART OF THE CLASS --------------------------*/
 /*--------------------------------------------------------------------------*/
 
- private:
-
- std::vector<SPTLink> Links; ///< the arcs of the graph
- int numNodes;          ///< number of nodes of the graph
- int numLinks;           ///< number of arcs of the graph
- int nhops;              ///< number of arcs of the optimal s-t path
- int s; //sourceindex.
- int t; //sinkindex.
- std::vector<int> Sol;  //indices of the s-t path that solves SP.
- std::vector<double> DualSol; //dual solution of SP (labels).
+private:
+ std::vector< SPTLink > Links;  ///< the arcs of the graph
+ int numNodes;                  ///< number of nodes of the graph
+ int numLinks;                  ///< number of arcs of the graph
+ int nhops;                     ///< number of arcs of the optimal s-t path
+ int s;                         //sourceindex.
+ int t;                         //sinkindex.
+ std::vector< int > Sol;        //indices of the s-t path that solves SP.
+ std::vector< double > DualSol; //dual solution of SP (labels).
  Status stat; //to check for the presence of negative-cost cycles.
 
 
 /*--------------------------------------------------------------------------*/
  /// deep-copies links into the Links data member
- void copyDataArrays(vector<SPTLink> links);
+ void copyDataArrays( std::vector< SPTLink > links );
 
 /*--------------------------------------------------------------------------*/
  /// returns the index (in Links) of the arc with tail = from, head = to,
  /// or sets stat = Error and returns -1 if no such arc exists
- int getLink(int from, int to);
+ int getLink( int from , int to );
 
  /// clears all container data members (Links, Sol, DualSol)
- void clean_up(void);
+ void clean_up( void );
 
- };  // end( class( SPT ) )
+ }; // end( class( SPT ) )
 
 /*--------------------------------------------------------------------------*/
 
 #endif
 
 /*--------------------------------------------------------------------------*/
-/*-------------------------- End File SPT.h ----------------------------*/
+/*----------------------------- End File SPT.h -----------------------------*/
 /*--------------------------------------------------------------------------*/

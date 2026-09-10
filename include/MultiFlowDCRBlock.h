@@ -22,15 +22,16 @@
  * \author Luca Mencarelli \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
- * 
- * \copyright &copy; by Antonio Frangioni
- */ 
+ *
+ * \copyright &copy; by Antonio Frangioni, Laura Galli, Luca Mencarelli
+ */
 /*--------------------------------------------------------------------------*/
 /*----------------------------- DEFINITIONS --------------------------------*/
 /*--------------------------------------------------------------------------*/
 
 #ifndef __MultiFlowDCRBlock
- #define __MultiFlowDCRBlock  /* self-identification: #endif at the end of the file */
+ #define __MultiFlowDCRBlock
+                      /* self-identification: #endif at the end of the file */
 
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
@@ -130,10 +131,9 @@ namespace SMSpp_di_unipi_it
  *
  * Since the whole per-commodity structure (Variable, flow-conservation and
  * delay Constraint, Objective) is delegated to the NComm SingleFlowDCRBlock
- * sub-Block, is_feasible() as implemented here only checks the mutual
- * capacity coupling Constraint MCs; feasibility of the individual
- * commodities has to be separately assessed on the corresponding
- * sub-Block. */
+ * sub-Block, the only Constraint this Block has of its own are the mutual
+ * capacity coupling ones; is_feasible() checks those and then asks each
+ * sub-Block about the commodity it describes. */
 
 class MultiFlowDCRBlock : public Block
 {
@@ -209,7 +209,8 @@ class MultiFlowDCRBlock : public Block
   *
   * TODO: properly document all the formats.
   *
-  * If there is any Solver attached to this MultiFlowDCRBlock then a NBModification
+  * If there is any Solver attached to this MultiFlowDCRBlock then a
+  * NBModification
   * (the "nuclear option") is issued.
   *
   * IMPLEMENTATION NOTE: the above describes the intended, general design.
@@ -237,7 +238,8 @@ class MultiFlowDCRBlock : public Block
   *
   * TODO: properly document the formats.
   *
-  * If there is any Solver attached to this MultiFlowDCRBlock then a NBModification
+  * If there is any Solver attached to this MultiFlowDCRBlock then a
+  * NBModification
   * (the "nuclear option") is issued.
   *
   * IMPLEMENTATION NOTE: this method is currently a stub (its body is
@@ -333,8 +335,8 @@ class MultiFlowDCRBlock : public Block
   * calling it will result in a link-time error. */
 
  void PreProcess( double IncUk = 0 , double DecUk = 0 ,
-		  double IncUjk = 0 , double DecUjk = 0 ,
-		  double ChgDfct = 0 , double DecCsts = 0 );
+                  double IncUjk = 0 , double DecUjk = 0 ,
+                  double ChgDfct = 0 , double DecCsts = 0 );
 
 /*--------------------------------------------------------------------------*/
  /// generate the "abstract representation" of the Variable of the Block
@@ -350,7 +352,8 @@ class MultiFlowDCRBlock : public Block
   *   BinaryKnapsackBlock sub-Block are constructed, one for each commodity,
   *   and the flow constraints are handled in the father MultiFlowDCRBlock;
   *
-  * - [0]: the standard flow formulation in which get_NComm() SingleFlowDCRBlock
+  * - [0]: the standard flow formulation in which get_NComm()
+  * SingleFlowDCRBlock
   *   sub-Block are constructed, one for each commodity, and the
   *   linking constraints are handled in the father MultiFlowDCRBlock;
   *
@@ -399,7 +402,8 @@ class MultiFlowDCRBlock : public Block
  *  @{ */
 
  /// print the MultiFlowDCRBlock on an ostream with the given verbosity
- /** Print the MultiFlowDCRBlock on an ostream. So far vlvl is ignored and only very
+ /** Print the MultiFlowDCRBlock on an ostream. So far vlvl is ignored
+  * and only very
   * basic information is printed.
   *
   * TODO: implement some verbosity level that produce output files in at
@@ -414,7 +418,8 @@ class MultiFlowDCRBlock : public Block
 /*--------------------------------------------------------------------------*/
 /// extends Block::serialize( netCDF::NcGroup )
 /** Extends Block::serialize( netCDF::NcGroup ) to the specific format of a
- * MultiFlowDCRBlock. See MultiFlowDCRBlock::deserialize(netCDF::NcGroup) for details of the
+ * MultiFlowDCRBlock. See MultiFlowDCRBlock::deserialize(netCDF::NcGroup) for
+ * details of the
  * format of the created netCDF group; in short, besides calling
  * Block::serialize(), this writes the "NNodes", "NArcs", "NComm" and
  * "NCnst" dimensions, the "SN", "EN" and "Utot" variables (the graph
@@ -425,13 +430,14 @@ class MultiFlowDCRBlock : public Block
  void serialize( netCDF::NcGroup & file ) const override;
 
 /*--------------------------------------------------------------------------*/
- /// returns true if the mutual capacity Constraint are (approximately)
- /// satisfied
+ /// returns true if the current solution is approximately feasible
  /** Returns true if the current value of the reserved-rate Variable of all
   * the commodity sub-Block satisfies the mutual capacity Constraint MCs
-  * (see generate_abstract_constraints()) within tolerance. The tolerance
-  * and the type of violation (absolute vs. relative) are extracted, in
-  * order, from:
+  * (see generate_abstract_constraints()) within tolerance, and every
+  * commodity sub-Block declares the DCR problem of its own commodity
+  * feasible [see SingleFlowDCRBlock::is_feasible()]. The tolerance and the
+  * type of violation (absolute vs. relative) are extracted, in order,
+  * from:
   *
   * - fsbc, if it is a SimpleConfiguration< double > (only the tolerance,
   *   relative violation is assumed) or a
@@ -441,14 +447,11 @@ class MultiFlowDCRBlock : public Block
   * - otherwise, f_BlockConfig->f_is_feasible_Configuration, tested against
   *   the same two types;
   *
-  * - otherwise, the default tolerance 1e-6 and relative violation are used.
+  * - otherwise, the tolerance is 0 and the violation is relative.
   *
-  * Note that this method only checks the mutual capacity coupling
-  * Constraint: it does *not* check the flow-conservation, bound or delay
-  * feasibility of the individual commodities, which has to be separately
-  * verified on each commodity's SingleFlowDCRBlock sub-Block. Also note
-  * that \p useabstract is currently unused, as RowConstraint::is_feasible()
-  * is always applied to the abstract Constraint MCs. */
+  * Note that \p useabstract plays no part in the check of MCs, as
+  * RowConstraint::is_feasible() is always applied to the abstract
+  * Constraint, but it is passed down to the sub-Block, where it does. */
 
  bool is_feasible( bool useabstract = false ,
                    Configuration * fsbc = nullptr ) override;
@@ -511,7 +514,7 @@ class MultiFlowDCRBlock : public Block
 
  bool useFlowRelaxation( void ) const {
   return( ! ( AR & KnapsackRelaxation ) );
- }
+  }
 
 /*--------------------------------------------------------------------------*/
  /// getting the current sense of the Objective (minimization by default)
@@ -528,7 +531,7 @@ class MultiFlowDCRBlock : public Block
 
   double get_rs( Index k , Index i ) const {
     return( static_cast< SingleFlowDCRBlock * >( v_Block[ k ] )->get_r( i ) );
-  }
+   }
 
 /*--------------------------------------------------------------------------*/
  /// get the flow of a given arc for a given commodity
@@ -551,7 +554,7 @@ class MultiFlowDCRBlock : public Block
 
   if( ! ( AR & KnapsackRelaxation ) )
    return( static_cast< SingleFlowDCRBlock * >( v_Block[ k ] )->get_x( i ) );
-  */
+   */
   }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
@@ -566,13 +569,13 @@ class MultiFlowDCRBlock : public Block
 
  void get_flow( std::vector< double > & fk , Index k ) const {
   if( ! ( AR & HasVar ) ) {
-   std::fill( fk.begin(), fk.end() , 0 );
+   std::fill( fk.begin() , fk.end() , 0 );
    return;
    }
 
   if( ! ( AR & KnapsackRelaxation ) )
    static_cast<SingleFlowDCRBlock *>( v_Block[ k ] )->get_x( fk.begin() ,
-						   Range( 0 , NArcs ) );
+                                                   Range( 0 , NArcs ) );
   }
 
 /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
@@ -603,7 +606,7 @@ class MultiFlowDCRBlock : public Block
   * and calls deserialize() on it. */
 
  void load_nc4( std::string & filename ) {
-  netCDF::NcFile f( filename, netCDF::NcFile::read );
+  netCDF::NcFile f( filename , netCDF::NcFile::read );
 
   netCDF::NcGroupAtt gtype = f.getAtt( "SMS++_file_type" );
 
@@ -653,13 +656,14 @@ class MultiFlowDCRBlock : public Block
  static constexpr unsigned char HasMutual = 2;
  ///< second bit of AR == 1 if the Mutual Constraints has been constructed
 
- static constexpr unsigned char KnapsackRelaxation = 4; 
+ static constexpr unsigned char KnapsackRelaxation = 4;
  /**< third bit of AR == 1
-   * - [1]: the standard knapsack formulation in which get_NArcs()
+  * - [1]: the standard knapsack formulation in which get_NArcs()
   *   BinaryKnapsackBlock sub-Block are constructed, one for each commodity,
   *   and the flow constraints are handled in the father MultiFlowDCRBlock;
   *
-  * - [0]: the standard flow formulation in which get_NComm() SingleFlowDCRBlock
+  * - [0]: the standard flow formulation in which get_NComm()
+  * SingleFlowDCRBlock
   *   sub-Block are constructed, one for each commodity, and the
   *   linking constraints are handled in the father MultiFlowDCRBlock;
   *
@@ -667,7 +671,7 @@ class MultiFlowDCRBlock : public Block
   * IS IN [ 0 , 1 ] TO OBTAIN THE SOLUTION OF THE INITIAL PROBLEM IS
   * NECESSARY TO RESCALE x^k_{ij} --> u_{ij} x^k_{ij}
   * the functions get_flow provides the value of the variable already
-  * rescaled. 
+  * rescaled.
   *
   * by default is considered the Flow relaxation
   */
@@ -771,4 +775,3 @@ class MultiFlowDCRBlock : public Block
 /*--------------------------------------------------------------------------*/
 /*---------------------- End File MultiFlowDCRBlock.h ----------------------*/
 /*--------------------------------------------------------------------------*/
-

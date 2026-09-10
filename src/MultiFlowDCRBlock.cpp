@@ -4,7 +4,7 @@
 /** @file
  * Implementation of the MultiFlowDCRBlock class.
  *
-* \author Antonio Frangioni \n
+ * \author Antonio Frangioni \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
@@ -15,9 +15,9 @@
  * \author Luca Mencarelli \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
- * 
- * \copyright &copy; by Antonio Frangioni
- */ 
+ *
+ * \copyright &copy; by Antonio Frangioni, Laura Galli, Luca Mencarelli
+ */
 /*--------------------------------------------------------------------------*/
 /*---------------------------- IMPLEMENTATION ------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -76,8 +76,7 @@ static const auto FACTOR = 0.8;
 // load the MultiFlowDCRBlock out of an istream: currently unimplemented,
 // see the IMPLEMENTATION NOTE in MultiFlowDCRBlock.h
 
-void  MultiFlowDCRBlock::load( std::istream & input , char frmt ){
-}
+void MultiFlowDCRBlock::load( std::istream & input , char frmt ) {}
 
 /*--------------------------------------------------------------------------*/
 
@@ -86,25 +85,27 @@ void MultiFlowDCRBlock::load( const std::string & input , char frmt )
  // ensure starting from clean slate
  guts_of_destructor();
 
- int i, j, source, destination, commodity;
- int SN, EN, numberArc, numberComm;
- float rho0, rho1, mtu, FlowBurstK, FlowDeadlineK;
- float capacity, cost, NC, NA, NN;
+ int i , j , source , destination , commodity;
+ int SN , EN , numberArc , numberComm;
+ float rho0 , rho1 , mtu , FlowBurstK , FlowDeadlineK;
+ float capacity , cost , NC , NA , NN;
 
  // open the three "global" files: input + ".nod" (sizes and MTU),
  // input + ".sup" (per-commodity source/sink/rate) and input + ".param"
  // (per-commodity burst/deadline); \p frmt is not used, this is the only
  // supported format (see the IMPLEMENTATION NOTE in MultiFlowDCRBlock.h)
 
- std::ifstream iNode( input.substr(0,input.find_last_of('.'))+".nod" );
+ std::ifstream iNode( input.substr( 0 , input.find_last_of( '.' ) ) + ".nod" );
  if( ! iNode.is_open() )
   throw( std::invalid_argument( "can't open file .nod" ) );
 
- std::ifstream iFile2( input.substr(0,input.find_last_of('.'))+".sup" );
+ std::ifstream iFile2( input.substr( 0 , input.find_last_of( '.' ) ) +
+                       ".sup" );
  if( ! iFile2.is_open() )
   throw( std::invalid_argument( "can't open file .sup" ) );
 
- std::ifstream iFile3( input.substr(0,input.find_last_of('.'))+".param" );
+ std::ifstream iFile3( input.substr( 0 , input.find_last_of( '.' ) ) +
+                       ".param" );
  if( ! iFile3.is_open() )
   throw( std::invalid_argument( "can't open file .param" ) );
 
@@ -142,22 +143,23 @@ void MultiFlowDCRBlock::load( const std::string & input , char frmt )
  // for each commodity, read its own topology/delay/traffic data and build
  // the corresponding SingleFlowDCRBlock sub-Block - - - - - - - - - - - - -
 
- for(j=0; j<NC; ++j){
+ for( j = 0 ; j < NC ; ++j ) {
   //std::cout << j << "\n";
 
-  C[j].resize( NArcs );
+  C[ j ].resize( NArcs );
 
   // open the per-commodity delay-related file (".dcr") and the (shared,
   // but re-read for every commodity) arc topology/individual-capacity
   // file (".arc")
 
-  std::ifstream iFile1( input.substr(0,input.find_last_of('.'))+".dcr" );
+  std::ifstream iFile1( input.substr( 0 , input.find_last_of( '.' ) ) +
+                        ".dcr" );
   if( ! iFile1.is_open() )
-    throw( std::invalid_argument( "can't open file .dcr" ) );
+   throw( std::invalid_argument( "can't open file .dcr" ) );
 
-  std::ifstream iArc( input.substr(0,input.find_last_of('.'))+".arc" );
+  std::ifstream iArc( input.substr( 0 , input.find_last_of( '.' ) ) + ".arc" );
   if( ! iArc.is_open() )
-    throw( std::invalid_argument( "can't open file .arc" ) );
+   throw( std::invalid_argument( "can't open file .arc" ) );
 
   // read the source/sink node and rate of this commodity from ".sup", and
   // its traffic burst/deadline from ".param"
@@ -176,19 +178,19 @@ void MultiFlowDCRBlock::load( const std::string & input , char frmt )
   // data copied verbatim from ".dcr", plus burst/deadline/mtu/rate
   // appended at the end)
 
-  std::ofstream foutdmx("output.dmx");
-  std::ofstream foutdcr("output.dcr");
+  std::ofstream foutdmx( "output.dmx" );
+  std::ofstream foutdcr( "output.dcr" );
 
-  while (!iFile1.eof()) {
+  while( ! iFile1.eof() ) {
    std::string buffer;
-   getline(iFile1, buffer);
+   getline( iFile1 , buffer );
    foutdcr << buffer << '\n';
-  }
+   }
 
   foutdcr << FlowBurstK << '\n';
-  foutdcr << FlowDeadlineK  << '\n';
-  foutdcr << mtu  << '\n';
-  foutdcr << rho0  << '\n';
+  foutdcr << FlowDeadlineK << '\n';
+  foutdcr << mtu << '\n';
+  foutdcr << rho0 << '\n';
 
   iFile1.close();
   foutdcr.close();
@@ -208,7 +210,7 @@ void MultiFlowDCRBlock::load( const std::string & input , char frmt )
   // and used as the arc upper bound in the temporary DIMACS file, since
   // the per-commodity sub-Block only sees the shared capacity
 
-  for(i=0; i<NA; i++){
+  for( i = 0 ; i < NA ; i++ ) {
    iArc >> numberArc;
    iArc >> SN;
    Startn[ i ] = SN;
@@ -221,8 +223,9 @@ void MultiFlowDCRBlock::load( const std::string & input , char frmt )
    iArc >> numberArc;
    //UTot[ i ] = (j+1)*UTot[ i ];
    CapTot[ i ] = std::floor( FACTOR * NC * UTot[ i ] );
-   foutdmx << "a " << Startn[ i ] << " " << Endn[ i ] << " -1 " << CapTot[ i ] << " " << C[ j ][ i ] << "\n"; //0.5*NC*UTot[ i ]
-  }
+   foutdmx << "a " << Startn[ i ] << " " << Endn[ i ] << " -1 " << CapTot[ i ]
+           << " " << C[ j ][ i ] << "\n"; //0.5*NC*UTot[ i ]
+   }
 
   foutdmx.close();
   iArc.close();
@@ -241,13 +244,12 @@ void MultiFlowDCRBlock::load( const std::string & input , char frmt )
   try {
    MCFB->load_dcr( fndcr , NNodes , NArcs );
 
-  }
-  catch(...) {
-    std::cerr << "Error: dcr file error!" << std::endl;
-    return;
+  } catch( ... ) {
+   std::cerr << "Error: dcr file error!" << std::endl;
+   return;
    }
-   v_Block[ j ] = MCFB;
- }
+  v_Block[ j ] = MCFB;
+  }
 
  iFile2.close();
  iFile3.close();
@@ -259,7 +261,7 @@ void MultiFlowDCRBlock::load( const std::string & input , char frmt )
  if( anyone_there() )
   add_Modification( std::make_shared< NBModification >( this ) );
 
- }  // end( MultiFlowDCRBlock::load( const std::string & input )
+ } // end( MultiFlowDCRBlock::load( const std::string & input )
 
 /*--------------------------------------------------------------------------*/
 // NOTE: this unconditionally uses the "flow" formulation (each commodity
@@ -269,8 +271,8 @@ void MultiFlowDCRBlock::load( const std::string & input , char frmt )
 
 void MultiFlowDCRBlock::generate_abstract_variables( Configuration * stvv )
 {
-  for( auto blck : v_Block )
-    blck->generate_abstract_variables();
+ for( auto blck : v_Block )
+  blck->generate_abstract_variables();
  }
 
 /*--------------------------------------------------------------------------*/
@@ -304,63 +306,70 @@ void MultiFlowDCRBlock::generate_abstract_constraints( Configuration * stcc )
   for( Index k = 0 ; k < get_NComm() ; ++k )
    for( Index j = 0 ; j < get_NArcs() ; ++j )
     coeffs[ j ][ k ] = std::make_pair(
-      static_cast< SingleFlowDCRBlock * >( v_Block[ k ] )->i2p_r( j ) , double( 1 ) );
+     static_cast< SingleFlowDCRBlock * >( v_Block[ k ] )->i2p_r( j ) ,
+     double( 1 ) );
 
   // generate the mutual capacity constraints  - - - - - - - - - - - - - - -
   // each constraint is an inequality, i.e., RHS = CapTot[ j ]
   MCs.resize( get_NArcs() );
   for( Index j = 0 ; j < get_NArcs() ; ++j ) {
-    LinearFunction::v_coeff_pair v_var;
-    for( Index k = 0 ; k < get_NComm() ; ++k ) {
-      v_var.push_back( coeffs[ j ][ k ] );
+   LinearFunction::v_coeff_pair v_var;
+   for( Index k = 0 ; k < get_NComm() ; ++k ) {
+    v_var.push_back( coeffs[ j ][ k ] );
     }
-    MCs[ j ].set_function( new LinearFunction( std::move( v_var )));
-    MCs[ j ].set_rhs( CapTot[ j ] ); //0.5*get_NComm()*UTot[ j ]
-    MCs[ j ].set_lhs( -Inf< double >() );
-    }
+   MCs[ j ].set_function( new LinearFunction( std::move( v_var ) ) );
+   MCs[ j ].set_rhs( CapTot[ j ] ); //0.5*get_NComm()*UTot[ j ]
+   MCs[ j ].set_lhs( -Inf< double >() );
+   }
   add_static_constraint( MCs , "Mut" );
   }
 
  AR |= HasMutual;
 
- }  // end( MultiFlowDCRBlock::generate_abstract_constraints() )
+ } // end( MultiFlowDCRBlock::generate_abstract_constraints() )
 
 /*--------------------------------------------------------------------------*/
-// checks (only) the mutual capacity Constraint MCs for approximate
-// feasibility; \p useabstract is unused, as RowConstraint::is_feasible()
-// always works on the abstract Constraint
+// checks the mutual capacity Constraint MCs, which are the only ones this
+// Block has of its own, and then hands the rest over to the sub-Block, each
+// of which checks the DCR problem of its own commodity; \p useabstract is
+// unused here, as RowConstraint::is_feasible() always works on the abstract
+// Constraint, but it is passed down to the sub-Block
 
-bool MultiFlowDCRBlock::is_feasible( bool useabstract , Configuration *fsbc )
+bool MultiFlowDCRBlock::is_feasible( bool useabstract , Configuration * fsbc )
 {
-
-// Retrieve the tolerance and the type of violation.
- double tol = 1e-6;
+ double tol = 0;
  bool rel_viol = true;
 
- // Try to extract, from "c", the parameters that determine feasibility.
- // If it succeeds, it sets the values of the parameters and returns
- // true. Otherwise, it returns false.
- auto extract_parameters = [ & tol , & rel_viol ]( Configuration * c )
-  -> bool {
+ // try to extract, from "c", the parameters that determine feasibility; if
+ // it succeeds, it sets the values of the parameters and returns true,
+ // otherwise it returns false
+
+ auto extract_parameters = [ &tol , &rel_viol ]( Configuration * c ) -> bool {
   if( auto tc = dynamic_cast< SimpleConfiguration< double > * >( c ) ) {
    tol = tc->f_value;
    return( true );
-  }
-  if( auto tc = dynamic_cast< SimpleConfiguration< std::pair< double , int > > * >( c ) ) {
+   }
+  if( auto tc =
+       dynamic_cast< SimpleConfiguration< std::pair< double , int > > * >(
+        c ) ) {
    tol = tc->f_value.first;
    rel_viol = tc->f_value.second;
    return( true );
-  }
+   }
   return( false );
- };
+  };
 
  if( ( ! extract_parameters( fsbc ) ) && f_BlockConfig )
   // if the given Configuration is not valid, try the one from the BlockConfig
   extract_parameters( f_BlockConfig->f_is_feasible_Configuration );
-  
- return( RowConstraint::is_feasible( MCs , tol , rel_viol ) );
 
- }  // end( MultiFlowDCRBlock::is_feasible )
+ if( ! RowConstraint::is_feasible( MCs , tol , rel_viol ) )
+  return( false );
+
+ // the commodities: Block::is_feasible() checks every sub-Block
+ return( Block::is_feasible( useabstract , fsbc ) );
+
+ } // end( MultiFlowDCRBlock::is_feasible )
 
 /*--------------------------------------------------------------------------*/
 /*-------------------------- PROTECTED METHODS -----------------------------*/
@@ -371,8 +380,8 @@ bool MultiFlowDCRBlock::is_feasible( bool useabstract , Configuration *fsbc )
 void MultiFlowDCRBlock::print( std::ostream & output , char vlvl ) const
 {
  //output << "MultiFlowDCRBlock with " << get_NComm() << " commodities, "
- //	<< get_NNodes() << " nodes and " << get_NArcs() << " arcs"
- //	<< std::endl;
+ //     << get_NNodes() << " nodes and " << get_NArcs() << " arcs"
+ //     << std::endl;
  }
 
 /*--------------------------------------------------------------------------*/
@@ -387,11 +396,12 @@ void MultiFlowDCRBlock::serialize( netCDF::NcGroup & group ) const
 
  Block::serialize( group );
 
- // now the MultiFlowDCRBlock data- - - - - - - - - - - - - - - - - - - - - - - - - -
+ // now the MultiFlowDCRBlock data- - - - - - - - - - - - - - - - - - - - - - -
+ // - - -
  netCDF::NcDim nn = group.addDim( "NNodes" , get_NNodes() );
  netCDF::NcDim na = group.addDim( "NArcs" , get_NArcs() );
  netCDF::NcDim nc = group.addDim( "NComm" , get_NComm() );
- netCDF::NcDim ncnst = group.addDim( "NCnst" , NCnst);
+ netCDF::NcDim ncnst = group.addDim( "NCnst" , NCnst );
 
  ( group.addVar( "SN" , netCDF::NcUint64() , na ) ).putVar( Startn.data() );
 
@@ -399,13 +409,13 @@ void MultiFlowDCRBlock::serialize( netCDF::NcGroup & group ) const
 
  ( group.addVar( "Utot" , netCDF::NcDouble() , na ) ).putVar( UTot.data() );
 
- ::serialize( group, "U", netCDF::NcDouble(), U, {nc,na});
-              
- ::serialize( group, "B", netCDF::NcDouble(), B, {nc,nn});
-              
- ::serialize( group, "C", netCDF::NcDouble(), C, {nc,na});
+ ::serialize( group , "U" , netCDF::NcDouble() , U , { nc , na } );
 
- }  // end( MultiFlowDCRBlock::serialize )
+ ::serialize( group , "B" , netCDF::NcDouble() , B , { nc , nn } );
+
+ ::serialize( group , "C" , netCDF::NcDouble() , C , { nc , na } );
+
+ } // end( MultiFlowDCRBlock::serialize )
 
 /*--------------------------------------------------------------------------*/
 // reads the "coupling" data written by serialize() (see the detailed
@@ -424,7 +434,7 @@ void MultiFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
  // effect whatsoever on the current one
 
  if( NNodes || NComm || get_NArcs() )
-   MultiFlowDCRBlock();
+  MultiFlowDCRBlock();
 
  // read problem data- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -437,18 +447,18 @@ void MultiFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
  if( na.isNull() )
   throw( std::logic_error( "NArcs dimension is required" ) );
  NArcs = na.getSize();
- 
+
  auto nc = group.getDim( "NComm" );
  if( nc.isNull() )
   throw( std::logic_error( "NComm dimension is required" ) );
  NComm = nc.getSize();
- 
+
  Index NCnst = NArcs;
  auto ncnst = group.getDim( "NCnst" );
  if( nc.isNull() )
   throw( std::logic_error( "NCnst dimension is required" ) );
  NCnst = ncnst.getSize();
- 
+
  auto sn = group.getVar( "SN" );
  if( sn.isNull() )
   throw( std::logic_error( "Starting Nodes not found" ) );
@@ -462,7 +472,7 @@ void MultiFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
 
  Endn.resize( NArcs );
  en.getVar( Endn.data() );
- 
+
  auto ut = group.getVar( "Utot" );
  if( ut.isNull() )
   throw( std::logic_error( "Total capacities not found" ) );
@@ -471,20 +481,20 @@ void MultiFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
  ut.getVar( UTot.data() );
 
  U.resize( NComm );
- for( int i = 0 ; i< NComm ; i++ )
+ for( int i = 0 ; i < NComm ; i++ )
   U[ i ].resize( NArcs );
- 
+
  B.resize( NComm );
- for( int i = 0 ; i< NComm ; i++ )
-  B[ i ].resize(NNodes); 
- 
+ for( int i = 0 ; i < NComm ; i++ )
+  B[ i ].resize( NNodes );
+
  C.resize( NComm );
- for( int i = 0 ; i< NComm ; i++)
-  C[ i ].resize( NArcs ); 
- 
+ for( int i = 0 ; i < NComm ; i++ )
+  C[ i ].resize( NArcs );
+
  ::deserialize( group , "U" , U );
  ::deserialize( group , "B" , B );
- ::deserialize( group , "C" , C ); 
+ ::deserialize( group , "C" , C );
 
  // call the method of Block- - - - - - - - - - - - - - - - - - - - - - - - -
  // inside this the NBModification, the "nuclear option",  is issued
@@ -531,11 +541,11 @@ void MultiFlowDCRBlock::guts_of_destructor( void )
  rho.clear();
  MTU.clear();
 
- StrtNme=0;
- NNodes=0;
- NArcs=0;
- NComm=0;
- NCnst=0;
+ StrtNme = 0;
+ NNodes = 0;
+ NArcs = 0;
+ NComm = 0;
+ NCnst = 0;
 
  Constraint::clear( MCs );
 
@@ -557,7 +567,7 @@ void MultiFlowDCRBlock::guts_of_destructor( void )
 
  AR = 0;
 
- }  // end( guts_of_destructor )
+ } // end( guts_of_destructor )
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- End File MultiFlowDCRBlock.cpp ---------------------*/

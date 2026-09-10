@@ -4,7 +4,7 @@
 /** @file
  * Implementation of the SingleFlowDCRBlock class.
  *
-* \author Antonio Frangioni \n
+ * \author Antonio Frangioni \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
  *
@@ -19,9 +19,10 @@
  * \author Enrico Sorbera \n
  *         Dipartimento di Informatica \n
  *         Universita' di Pisa \n
- * 
- * \copyright &copy; by Antonio Frangioni
- */ 
+ *
+ * \copyright &copy; by Antonio Frangioni, Laura Galli, Luca Mencarelli,
+ *                      Enrico Sorbera
+ */
 /*--------------------------------------------------------------------------*/
 /*---------------------------- IMPLEMENTATION ------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -42,8 +43,8 @@
 
 #ifndef NDEBUG
  #define CHECK_DS 0
- /* Perform long and costly checks on the data structures representing the
-  * abstract and the physical representations agree. */
+ /* Perform long and costly checks that the data structures representing the
+  * abstract and the physical representation agree. */
 #else
  #define CHECK_DS 0
  // never change this
@@ -74,14 +75,11 @@ using c_Subset = Block::c_Subset;
 
 static constexpr auto dNAN = std::numeric_limits< double >::quiet_NaN();
 
-static constexpr unsigned char FormMsk = 3;
-// mask for the first three bits, i.e., the formulation
-
+// the "P/C" (Perspective Cuts) formulation of the burst-delay terms
 static constexpr unsigned char PCuts = 1;
-/// the P/C formulation is used
 
+// the "SOCP" (rotated cones) formulation of the burst-delay terms
 static constexpr unsigned char SOCP = 2;
-/// the SOCP formulation is used
 
 /*--------------------------------------------------------------------------*/
 /*-------------------------------- FUNCTIONS -------------------------------*/
@@ -89,13 +87,14 @@ static constexpr unsigned char SOCP = 2;
 
 // in the DIMACS format, comment lines start with 'c'
 
-static std::istream & eatDMXcomments( std::istream& is )
+static std::istream & eatDMXcomments( std::istream & is )
 {
- for(;;) {
-  is >> std::ws;  // skip whitespaces
+ for( ; ; ) {
+  is >> std::ws; // skip whitespaces
   if( is.peek() == is.widen( 'c' ) )
    // a comment: skip the rest of line and move to next
-   is.ignore( std::numeric_limits< std::streamsize >::max() , is.widen( '\n' ) );
+   is.ignore( std::numeric_limits< std::streamsize >::max() ,
+              is.widen( '\n' ) );
   else
    break;
   }
@@ -121,7 +120,7 @@ static double read_UB( std::istream & iStrm )
  int c = iStrm.peek();
  if( ! iStrm )
   throw( std::invalid_argument( "error reading the input stream" ) );
-  
+
  if( ( c != 'I' ) && ( c != 'i' ) ) {
   double res;
   iStrm >> res;
@@ -130,13 +129,14 @@ static double read_UB( std::istream & iStrm )
   return( res );
   }
 
- do { c = iStrm.get(); c = iStrm.peek();
-      if( ! iStrm )
-       throw( std::invalid_argument( "error reading the input stream" ) );
+ do {
+  c = iStrm.get();
+  c = iStrm.peek();
+  if( ! iStrm )
+   throw( std::invalid_argument( "error reading the input stream" ) );
 
-  } while( ( c != iStrm.widen( ' ' ) ) &&
-	   ( c != iStrm.widen( '\n' ) ) &&
-	   ( c != iStrm.widen( '\t' ) ) );
+  } while( ( c != iStrm.widen( ' ' ) ) && ( c != iStrm.widen( '\n' ) ) &&
+          ( c != iStrm.widen( '\t' ) ) );
 
  return( Inf< double >() );
  }
@@ -144,12 +144,11 @@ static double read_UB( std::istream & iStrm )
 /*--------------------------------------------------------------------------*/
 // returns the number of elements where two vectors differ
 
-template< typename T >
-static Index countdiff( T beg , T end , T cmp )
+template < typename T > static Index countdiff( T beg , T end , T cmp )
 {
  Index ndiff = 0;
  for( ; beg != end ; )
-  if( *(beg++) != *(cmp++) )
+  if( *( beg++ ) != *( cmp++ ) )
    ndiff++;
 
  return( ndiff );
@@ -159,15 +158,15 @@ static Index countdiff( T beg , T end , T cmp )
 // returns true if two vectors differ, one of them being given as a base
 // vector and a subset of indices
 
-template< typename T >
+template < typename T >
 static bool is_equal( std::vector< T > & vec , c_Subset & nms ,
-		      typename std::vector< T >::const_iterator cmp ,
-		      Index n_max )
+                      typename std::vector< T >::const_iterator cmp ,
+                      Index n_max )
 {
  for( auto nm : nms ) {
   if( nm >= n_max )
    throw( std::invalid_argument( "invalid name in nms" ) );
-  if( vec[ nm ] != *(cmp++) )
+  if( vec[ nm ] != *( cmp++ ) )
    return( false );
   }
 
@@ -178,16 +177,16 @@ static bool is_equal( std::vector< T > & vec , c_Subset & nms ,
 // returns the number of elements where two vectors differ, one of them
 // being given as a base vector and a subset of indices
 
-template< typename T >
+template < typename T >
 static Index countdiff( std::vector< T > & vec , c_Subset & nms ,
-			typename std::vector< T >::const_iterator cmp ,
-			Index n_max )
+                        typename std::vector< T >::const_iterator cmp ,
+                        Index n_max )
 {
  Index ndiff = 0;
  for( auto nm : nms ) {
   if( nm >= n_max )
    throw( std::invalid_argument( "invalid name in nms" ) );
-  if( vec[ nm ] != *(cmp++) )
+  if( vec[ nm ] != *( cmp++ ) )
    ndiff++;
   }
 
@@ -197,12 +196,12 @@ static Index countdiff( std::vector< T > & vec , c_Subset & nms ,
 /*--------------------------------------------------------------------------*/
 // copys one vector to a given subset of another
 
-template< typename T >
+template < typename T >
 static void copyidx( std::vector< T > & vec , c_Subset & nms ,
-		     typename std::vector< T >::const_iterator cpy )
+                     typename std::vector< T >::const_iterator cpy )
 {
  for( auto nm : nms )
-  vec[ nm ] = *(cpy++);
+  vec[ nm ] = *( cpy++ );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -223,10 +222,12 @@ SMSpp_insert_in_factory_cpp_0( DCRSolution );
 /*-------------------------- OTHER INITIALIZATIONS -------------------------*/
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pEn , c_Subset & pSn ,
-		     c_Vec_double & pU , c_Vec_double & pC ,
-         c_Vec_double & pNodeDelays , c_Vec_double & pLinkDelays , 
-         c_double pFlowBursts , c_double pFlowDeadlines , c_double pMTU , c_double prho )
+void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pSn ,
+                               c_Subset & pEn , c_Vec_double & pU ,
+                               c_Vec_double & pC , c_Vec_double & pNodeDelays ,
+                               c_Vec_double & pLinkDelays ,
+                               c_double pFlowBursts , c_double pFlowDeadlines ,
+                               c_double pMTU , c_double prho )
 {
  // sanity checks - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -242,10 +243,10 @@ void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pEn , c_Subset & p
  if( ( pU.size() > 0 ) && ( pU.size() < m ) )
   throw( std::invalid_argument( "pU nonempty but too small" ) );
 
-/*
+ /*
  if( ( pB.size() > 0 ) && ( pB.size() < n ) )
   throw( std::invalid_argument( "pB nonempty but too small" ) );
-*/
+  */
 
  if( ( pNodeDelays.size() > 0 ) && ( pNodeDelays.size() < n ) )
   throw( std::invalid_argument( "pNodeDelays nonempty but too small" ) );
@@ -257,25 +258,25 @@ void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pEn , c_Subset & p
 
  if( MaxNNodes || get_MaxNArcs() )
   guts_of_destructor();
-		   
+
  // copy over problem data - - - - - - - - - - - - - - - - - - - - - - - - - -
- 
+
  NNodes = n;
  NArcs = m;
  MaxNNodes = NNodes;
  c_Index MaxNArcs = NArcs;
 
  SN.resize( MaxNArcs );
- if( std::any_of( pSn.begin() , pSn.begin() + m ,
-		  [ n ]( c_Index sn ) { return( ( sn < 1 ) || ( sn > n ) ); }
-		  ) )
+ if( std::any_of( pSn.begin() , pSn.begin() + m , [ n ]( c_Index sn ) {
+      return( ( sn < 1 ) || ( sn > n ) );
+     } ) )
   throw( std::invalid_argument( "wrong starting node" ) );
  std::copy( pSn.begin() , pSn.begin() + m , SN.begin() );
 
  EN.resize( MaxNArcs );
- if( std::any_of( pEn.begin() , pEn.begin() + m ,
-		  [ n ]( c_Index en ) { return( ( en < 1 ) || ( en > n ) ); }
-		  ) )
+ if( std::any_of( pEn.begin() , pEn.begin() + m , [ n ]( c_Index en ) {
+      return( ( en < 1 ) || ( en > n ) );
+     } ) )
   throw( std::invalid_argument( "wrong ending node" ) );
  std::copy( pEn.begin() , pEn.begin() + m , EN.begin() );
 
@@ -287,7 +288,7 @@ void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pEn , c_Subset & p
   }
 
  if( std::any_of( pU.begin() , pU.begin() + m ,
-		  []( c_double ui ) { return( ui < Inf< double >() ); } ) ) {
+                  []( c_double ui ) { return( ui < Inf< double >() ); } ) ) {
   U.resize( MaxNArcs );
   std::copy( pU.begin() , pU.begin() + m , U.begin() );
   }
@@ -295,17 +296,23 @@ void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pEn , c_Subset & p
   U.clear();
 
  if( std::any_of( pNodeDelays.begin() , pNodeDelays.begin() + n ,
-		  []( c_double NodeDelaysi ) { return( NodeDelaysi < Inf< double >() ); } ) ) {
+                  []( c_double NodeDelaysi ) {
+                   return( NodeDelaysi < Inf< double >() );
+                  } ) ) {
   NodeDelays.resize( MaxNNodes );
-  std::copy( pNodeDelays.begin() , pNodeDelays.begin() + n , NodeDelays.begin() );
+  std::copy( pNodeDelays.begin() , pNodeDelays.begin() + n ,
+             NodeDelays.begin() );
   }
  else
   NodeDelays.clear();
 
  if( std::any_of( pLinkDelays.begin() , pLinkDelays.begin() + m ,
-		  []( c_double LinkDelaysi ) { return( LinkDelaysi < Inf< double >() ); } ) ) {
+                  []( c_double LinkDelaysi ) {
+                   return( LinkDelaysi < Inf< double >() );
+                  } ) ) {
   LinkDelays.resize( MaxNArcs );
-  std::copy( pLinkDelays.begin() , pLinkDelays.begin() + m , LinkDelays.begin() );
+  std::copy( pLinkDelays.begin() , pLinkDelays.begin() + m ,
+             LinkDelays.begin() );
   }
  else
   LinkDelays.clear();
@@ -326,7 +333,7 @@ void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pEn , c_Subset & p
   if( C[ j ] >= Inf< double >() ) {
    close_arc( j , eNoMod , eNoMod );
    C[ j ] = 0;
-   }
+  }
 
  // throw Modification- - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // note: this is a NBModification, the "nuclear option"
@@ -334,7 +341,7 @@ void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pEn , c_Subset & p
  if( anyone_there() )
   add_Modification( std::make_shared< NBModification >( this ) );
 
- }  // end( SingleFlowDCRBlock::load( memory ) )
+ } // end( SingleFlowDCRBlock::load( memory ) )
 
 /*--------------------------------------------------------------------------*/
 
@@ -355,7 +362,7 @@ void SingleFlowDCRBlock::load( std::istream & input , char frmt )
   throw( std::invalid_argument( "format error in the input stream" ) );
 
  input >> eatDMXcomments;
- input.ignore( 3 , ' ' );  // skip "min"
+ input.ignore( 3 , ' ' ); // skip "min"
 
  if( ! ( input >> eatDMXcomments >> NNodes ) )
   throw( std::invalid_argument( "LoadDMX: error reading number of nodes" ) );
@@ -374,88 +381,88 @@ void SingleFlowDCRBlock::load( std::istream & input , char frmt )
 
  // read problem data - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
- Index i = 0;  // arc counter
+ Index i = 0;      // arc counter
  int jdeficit = 0; // deficit counter
- for(;;) {
-  if( ! ( input >> eatDMXcomments >> c ) )  // read next descriptor
-   break;                                   // if none, end
+ for( ; ; ) {
+  if( ! ( input >> eatDMXcomments >> c ) ) // read next descriptor
+   break;                                 // if none, end
 
   switch( c ) {
-   case( 'n' ):  // description of a node
-    Index j;
-    if( ! ( input >> j ) )
-     throw( std::invalid_argument( "error reading node name" ) );
+  case( 'n' ): // description of a node
+   Index j;
+   if( ! ( input >> j ) )
+    throw( std::invalid_argument( "error reading node name" ) );
 
-    if( ( j < 1 ) || ( j > NNodes ) )
-     throw( std::invalid_argument( "invalid node name" ) );
-    
-    double Dfctj;
-    if( ! ( input >> Dfctj ) )
-     throw( std::invalid_argument( "error reading deficit" ) );
+   if( ( j < 1 ) || ( j > NNodes ) )
+    throw( std::invalid_argument( "invalid node name" ) );
 
-    B[ j - 1 ] = - Dfctj;
+   double Dfctj;
+   if( ! ( input >> Dfctj ) )
+    throw( std::invalid_argument( "error reading deficit" ) );
 
-    if( jdeficit > 1 )
-      throw( std::invalid_argument( "too many deficits" ) );
-    
-    jdeficit++;
-    break;
+   B[ j - 1 ] = -Dfctj;
 
-   case( 'a' ):  // description of an arc
-    if( i == NArcs )
-     throw( std::invalid_argument( "too many arc descriptors" ) );
+   if( jdeficit > 1 )
+    throw( std::invalid_argument( "too many deficits" ) );
 
-    if( ! ( input >> SN[ i ] ) )
-     throw( std::invalid_argument( "error reading start node" ) );
+   jdeficit++;
+   break;
 
-    if( ( SN[ i ] < 1 ) || ( SN[ i ] > NNodes ) )
-     throw( std::invalid_argument( "invalid start node" ) );
+  case( 'a' ): // description of an arc
+   if( i == NArcs )
+    throw( std::invalid_argument( "too many arc descriptors" ) );
 
-    if( ! ( input >> EN[ i ] ) )
-     throw( std::invalid_argument( "error reading end node" ) );
+   if( ! ( input >> SN[ i ] ) )
+    throw( std::invalid_argument( "error reading start node" ) );
 
-    if( ( EN[ i ] < 1 ) || ( EN[ i ] > NNodes ) )
-     throw( std::invalid_argument( "LoadDMX: invalid end node" ) );
+   if( ( SN[ i ] < 1 ) || ( SN[ i ] > NNodes ) )
+    throw( std::invalid_argument( "invalid start node" ) );
 
-    if( SN[ i ] == EN[ i ] )
-     throw( std::invalid_argument( "self-loops not permitted" ) );
+   if( ! ( input >> EN[ i ] ) )
+    throw( std::invalid_argument( "error reading end node" ) );
 
-    double LB;
-    if( ! ( input >> LB ) )
-     throw( std::invalid_argument( "error reading lower bound" ) );
+   if( ( EN[ i ] < 1 ) || ( EN[ i ] > NNodes ) )
+    throw( std::invalid_argument( "LoadDMX: invalid end node" ) );
 
-    U[ i ] = read_UB( input );
+   if( SN[ i ] == EN[ i ] )
+    throw( std::invalid_argument( "self-loops not permitted" ) );
 
-    if( ! ( input >> C[ i ] ) )
-     throw( std::invalid_argument( "error reading arc cost" ) );
+   double LB;
+   if( ! ( input >> LB ) )
+    throw( std::invalid_argument( "error reading lower bound" ) );
 
-    if( U[ i ] < LB )
-     throw( std::invalid_argument( "lower bound > upper bound" ) );
+   U[ i ] = read_UB( input );
 
-    i++;
-    break; 
+   if( ! ( input >> C[ i ] ) )
+    throw( std::invalid_argument( "error reading arc cost" ) );
 
-   default:  // invalid code- - - - - - - - - - - - - - - - - - - - - - - - -
-    throw( std::invalid_argument( "invalid DMX code" ) );
+   if( U[ i ] < LB )
+    throw( std::invalid_argument( "lower bound > upper bound" ) );
 
-   }  // end( switch( c ) )
-  }  // end( for( ever ) )
+   i++;
+   break;
+
+  default: // invalid code- - - - - - - - - - - - - - - - - - - - - - - - -
+   throw( std::invalid_argument( "invalid DMX code" ) );
+
+   } // end( switch( c ) )
+  } // end( for( ever ) )
 
  if( i < NArcs )
   throw( std::invalid_argument( "too few arc descriptors" ) );
 
- f_cond_lower = dNAN;  // reset conditional bounds
+ f_cond_lower = dNAN; // reset conditional bounds
 
  // simplify out the deta structures- - - - - - - - - - - - - - - - - - - - -
 
  if( std::all_of( B.begin() , B.end() ,
-		  []( c_double bi ) { return( bi == 0 ); } ) )
+                  []( c_double bi ) { return( bi == 0 ); } ) )
   B.clear();
 
  if( std::all_of( U.begin() , U.end() ,
-		  []( c_double ui ) { return( ui == Inf< double >() ); } ) )
+                  []( c_double ui ) { return( ui == Inf< double >() ); } ) )
   U.clear();
- 
+
  // allocate flow variables - - - - - - - - - - - - - - - - - - - - - - - - -
 
  generate_abstract_variables();
@@ -467,7 +474,7 @@ void SingleFlowDCRBlock::load( std::istream & input , char frmt )
   if( C[ j ] >= Inf< double >() ) {
    close_arc( j , eNoMod , eNoMod );
    C[ j ] = 0;
-   }
+  }
 
  // issue Modification- - - - - - - - - - - - - - - - - - - - - - - - - - - -
  // note: this is a NBModification, the "nuclear option"
@@ -475,7 +482,7 @@ void SingleFlowDCRBlock::load( std::istream & input , char frmt )
  if( anyone_there() )
   add_Modification( std::make_shared< NBModification >( this ) );
 
- }  // end( SingleFlowDCRBlock::load( istream ) )
+ } // end( SingleFlowDCRBlock::load( istream ) )
 
 /*--------------------------------------------------------------------------*/
 
@@ -483,55 +490,43 @@ void SingleFlowDCRBlock::load( std::istream & input , char frmt )
 // burst, the flow deadline, the MTU and rho, completing an already-loaded
 // "plain MCF" instance with the DCR-specific parameters [see the .h]
 
-void SingleFlowDCRBlock::load_dcr( std::istream & inFile , Index NNodes, Index NArcs )
+void SingleFlowDCRBlock::load_dcr( std::istream & inFile , Index NNodes ,
+                                   Index NArcs )
 {
- // read file .dcr (parameters for DCR part of the problem)
- /*
- int l = strlen( FN );
- char *Name = new char[ l + 5 ];  // temporary string containing the constant
- strcpy( Name , FN );             // part of the pathname + space for `.dcr'
- strcpy( Name + l , ".dcr" );
-
- std::ifstream inFile( Name );
- if( ! inFile.is_open() )
-	throw( std::invalid_argument( "invalid cannot open .dcr file" ) );
- */	
-
  NodeDelays.resize( NNodes );
  LinkDelays.resize( NArcs );
 
- Index i,j;
- //read node delays
- for(i = 0; i < NNodes; i++){
+ Index i , j;
+ // the node delays
+ for( i = 0 ; i < NNodes ; i++ )
   if( ! ( inFile >> NodeDelays[ i ] ) )
-     throw( std::invalid_argument( "error reading node delays" ) );
- }
+   throw( std::invalid_argument( "error reading node delays" ) );
 
- //read link delays
- for(j = 0; j < NArcs; j++){
+ // the link delays
+ for( j = 0 ; j < NArcs ; j++ )
   if( ! ( inFile >> LinkDelays[ j ] ) )
-     throw( std::invalid_argument( "error reading link delays" ) );
- }
- 		
- //read flow burst and deadlines
+   throw( std::invalid_argument( "error reading link delays" ) );
+
+ // the burst and the deadline of the flow
  if( ! ( inFile >> FlowBursts ) )
-     throw( std::invalid_argument( "error reading flow bursts" ) );
+  throw( std::invalid_argument( "error reading flow bursts" ) );
 
  if( ! ( inFile >> FlowDeadlines ) )
-     throw( std::invalid_argument( "error reading flow deadlines" ) ); 
-			
-//read MTU;
- if( ! ( inFile >> MTU ) )
-     throw( std::invalid_argument( "error reading MTU" ) ); 
+  throw( std::invalid_argument( "error reading flow deadlines" ) );
 
-//read rho;
+ //read MTU;
+ if( ! ( inFile >> MTU ) )
+  throw( std::invalid_argument( "error reading MTU" ) );
+
+ //read rho;
  if( ! ( inFile >> rho ) )
-     throw( std::invalid_argument( "error reading rho" ) ); 
+  throw( std::invalid_argument( "error reading rho" ) );
 
  //inFile.close();
  //delete [] Name;
 
-} // end SingleFlowDCRBlock::load_dcr( const char *const FN , int NNodes, int NArcs )
+ } // end SingleFlowDCRBlock::load_dcr( const char *const FN , int NNodes, int
+// NArcs )
 
 /*--------------------------------------------------------------------------*/
 
@@ -541,7 +536,7 @@ void SingleFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
 
  if( MaxNNodes || get_MaxNArcs() )
   guts_of_destructor();
-		   
+
  // read problem data- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  netCDF::NcDim nn = group.getDim( "NNodes" );
@@ -561,7 +556,7 @@ void SingleFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
  ::deserialize( group , FlowDeadlines , "FlowDeadlines" );
  ::deserialize( group , MTU , "MTU" );
  ::deserialize( group , rho , "rho" );
- 
+
  netCDF::NcVar sn = group.getVar( "SN" );
  if( sn.isNull() )
   throw( std::logic_error( "Starting Nodes not found" ) );
@@ -590,7 +585,7 @@ void SingleFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
   U.resize( MaxNArcs );
   cap.getVar( U.data() );
   if( std::all_of( U.begin() , U.begin() + NArcs ,
-		   []( c_double ui ) { return( ui == Inf< double >() ); } ) )
+                   []( c_double ui ) { return( ui == Inf< double >() ); } ) )
    U.clear();
   }
 
@@ -600,7 +595,7 @@ void SingleFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
   std::vector< size_t > countn = { NNodes };
   dfc.getVar( B.data() );
   if( std::all_of( B.begin() , B.begin() + NNodes ,
-		   []( c_double bi ) { return( bi == 0 ); } ) )
+                   []( c_double bi ) { return( bi == 0 ); } ) )
    B.clear();
   }
 
@@ -610,7 +605,7 @@ void SingleFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
   std::vector< size_t > countn = { NArcs };
   ldelays.getVar( LinkDelays.data() );
   if( std::all_of( LinkDelays.begin() , LinkDelays.begin() + NArcs ,
-		   []( c_double ldi ) { return( ldi == 0 ); } ) )
+                   []( c_double ldi ) { return( ldi == 0 ); } ) )
    LinkDelays.clear();
   }
 
@@ -620,11 +615,11 @@ void SingleFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
   std::vector< size_t > countn = { NNodes };
   ndelays.getVar( NodeDelays.data() );
   if( std::all_of( NodeDelays.begin() , NodeDelays.begin() + NNodes ,
-		   []( c_double ndi ) { return( ndi == 0 ); } ) )
+                   []( c_double ndi ) { return( ndi == 0 ); } ) )
    NodeDelays.clear();
   }
 
- f_cond_lower = dNAN;  // reset conditional bounds
+ f_cond_lower = dNAN; // reset conditional bounds
 
  // allocate flow variables - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -637,29 +632,29 @@ void SingleFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
   if( C[ j ] >= Inf< double >() ) {
    close_arc( j , eNoMod , eNoMod );
    C[ j ] = 0;
-   }
+  }
 
  // call the method of Block- - - - - - - - - - - - - - - - - - - - - - - - -
  // inside this the NBModification, the "nuclear option",  is issued
 
  Block::deserialize( group );
 
- }  // end( SingleFlowDCRBlock::deserialize )
+ } // end( SingleFlowDCRBlock::deserialize )
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::generate_abstract_variables( Configuration *stvv )
+void SingleFlowDCRBlock::generate_abstract_variables( Configuration * stvv )
 {
- if( AR & HasVar )  // the variables are there already
-  return;           // nothing to do
+ if( AR & HasVar ) // the variables are there already
+  return;          // nothing to do
 
  if( HasStaticX() ) {
   // the binary routing variables X[ i , j ], one per arc- - - - - - - - - -
   x.resize( get_NArcs() );
-  for( auto & var : x ){
+  for( auto & var : x ) {
    var.set_type( ColVariable::kBinary );
    //var.set_type( ColVariable::kNonNegative );
-  }
+   }
 
   add_static_variable( x );
 
@@ -678,20 +673,20 @@ void SingleFlowDCRBlock::generate_abstract_variables( Configuration *stvv )
   add_static_variable( theta );
   }
 
-  // the aggregate minimum reserved rate r_min and its burst-delay term
-  // theta_min, not indexed over arcs - - - - - - - - - - - - - - - - - - -
+ // the aggregate minimum reserved rate r_min and its burst-delay term
+ // theta_min, not indexed over arcs - - - - - - - - - - - - - - - - - - -
 
-  r_min.set_type( ColVariable::kNonNegative );
+ r_min.set_type( ColVariable::kNonNegative );
 
-  add_static_variable( r_min );
+ add_static_variable( r_min );
 
-  theta_min.set_type( ColVariable::kNonNegative );
+ theta_min.set_type( ColVariable::kNonNegative );
 
-  add_static_variable( theta_min );
+ add_static_variable( theta_min );
 
  AR |= HasVar;
 
- }  // end( SingleFlowDCRBlock::generate_abstract_variables )
+ } // end( SingleFlowDCRBlock::generate_abstract_variables )
 
 /*--------------------------------------------------------------------------*/
 
@@ -709,113 +704,111 @@ void SingleFlowDCRBlock::generate_abstract_variables( Configuration *stvv )
  * scheme on the (cheaper) "P/C" LP relaxation instead of solving the full
  * "SOCP" formulation directly. */
 
-void SingleFlowDCRBlock::generate_dynamic_constraints( Configuration *stcc )
+void SingleFlowDCRBlock::generate_dynamic_constraints( Configuration * stcc )
 {
+ // which of the two alternative formulations (P/C or SOCP) is in use: the
+ // cuts are only actually *added* to the abstract representation if the P/C
+ // one is selected, and the question is asked of the Block rather than of
+ // stcc, which is the Configuration of *these* Constraint and carries the
+ // separation tolerances below- - - - - - - - - - - - - - - - - - - - - - -
+ c_Index form = formulation();
 
- Index FormMsk = 1;  // PCuts formulation
+ double tol = 1e-5; // threshold parameter for P/C separation
+ double eps = 1e-4; // tolerance value to consider a binary variable
 
- // retrieve, from stcc or f_BlockConfig, which of the two alternative
- // formulations (P/C or SOCP) is currently in use: cuts are only actually
- // *added* to the abstract representation if the P/C one is selected- - - -
- if( ( ! stcc ) && f_BlockConfig )
-  stcc = f_BlockConfig->f_static_variables_Configuration;
- if( auto sci = dynamic_cast< SimpleConfiguration< int > * >( stcc ) )
-  FormMsk = sci->f_value;
+ // retrieve tol (the separation tolerance) and eps (the tolerance below
+ // which a routing variable is considered to be "zero", and therefore no
+ // cut is generated for the corresponding arc) from the Configuration - -
+ auto extract_parameters = [ &tol , &eps ]( Configuration * c ) -> bool {
+  if( auto tc = dynamic_cast< SimpleConfiguration< double > * >( c ) ) {
+   tol = tc->f_value;
+   return( true );
+   }
+  if( auto tc =
+       dynamic_cast< SimpleConfiguration< std::pair< double , double > > * >(
+        c ) ) {
+   tol = tc->f_value.first;
+   eps = tc->f_value.second;
+   return( true );
+   }
+  return( false );
+  };
 
-  double tol = 1e-5;  // threshold parameter for P/C separation
-  double eps = 1e-4;  // tolerance value to consider a binary variable
+ if( ( ! extract_parameters( stcc ) ) && f_BlockConfig )
+  // if the given Configuration is not valid, try the one from the
+  // BlockConfig
+  extract_parameters( f_BlockConfig->f_dynamic_constraints_Configuration );
 
-  // retrieve tol (the separation tolerance) and eps (the tolerance below
-  // which a routing variable is considered to be "zero", and therefore no
-  // cut is generated for the corresponding arc) from the Configuration - -
-  auto extract_parameters = [ & tol , & eps ]( Configuration * c )
-    -> bool {
-    if( auto tc = dynamic_cast< SimpleConfiguration< double > * >( c ) ) {
-      tol = tc->f_value;
-      return( true );
+ // per-arc cuts: for every arc j whose routing variable is "active"
+ // (x[j] > eps), check whether the current (x[j], r[j], theta[j]) point
+ // violates theta[j] >= MTU * x[j]^2 / r[j] by more than tol; if so, add
+ // the linearization of the RHS around the current point, i.e.
+ //   theta[j] >= MTU * x[j]^2 / r[j]
+ //             + ( 2 * MTU * x[j] / r[j] ) * ( x - x[j] )
+ //             - ( MTU * x[j]^2 / r[j]^2 ) * ( r - r[j] )
+ // rearranged as a "<=" linear constraint on (theta[j], x[j], r[j]) - - - -
+ for( Index j = 0 ; j < get_NArcs() ; j++ ) {
+  if( x[ j ].get_value() > eps ) {
+   if( theta[ j ].get_value() <
+       MTU * ( std::pow( x[ j ].get_value() , 2 ) / r[ j ].get_value() ) -
+        tol ) {
+    std::list< FRowConstraint > cut( 1 );
+    LinearFunction::v_coeff_pair v_var;
+    v_var.push_back( std::make_pair( &theta[ j ] , -1.0 ) );
+    v_var.push_back( std::make_pair( &x[ j ] , MTU * 2 * x[ j ].get_value() /
+                                               r[ j ].get_value() ) );
+    v_var.push_back( std::make_pair(
+     &r[ j ] , -MTU * ( ( std::pow( x[ j ].get_value() , 2 ) /
+                         std::pow( r[ j ].get_value() , 2 ) ) ) ) );
+    LinearFunction * Funct = new LinearFunction( std::move( v_var ) );
+    cut.front().set_lhs( -Inf< double >() );
+    cut.front().set_rhs( 0 );
+    cut.front().set_function( Funct );
+    add_dynamic_constraints( PC_cuts , cut , eNoBlck );
     }
-    if( auto tc = dynamic_cast<
-      SimpleConfiguration< std::pair< double , double > > * >( c ) ) {
-      tol = tc->f_value.first;
-      eps = tc->f_value.second;
-      return( true );
-    }
-    return( false );
-    };
-
-    if( ( ! extract_parameters( stcc ) ) && f_BlockConfig )
-    // if the given Configuration is not valid, try the one from the BlockConfig
-    extract_parameters( f_BlockConfig->f_dynamic_constraints_Configuration );
-
-  // per-arc cuts: for every arc j whose routing variable is "active"
-  // (x[j] > eps), check whether the current (x[j], r[j], theta[j]) point
-  // violates theta[j] >= MTU * x[j]^2 / r[j] by more than tol; if so, add
-  // the linearization of the RHS around the current point, i.e.
-  //   theta[j] >= MTU * x[j]^2 / r[j]
-  //             + ( 2 * MTU * x[j] / r[j] ) * ( x - x[j] )
-  //             - ( MTU * x[j]^2 / r[j]^2 ) * ( r - r[j] )
-  // rearranged as a "<=" linear constraint on (theta[j], x[j], r[j]) - - - -
-  LinearFunction::v_coeff_pair v_var;
-  for(Index j = 0; j < get_NArcs(); j++){
-    if( x[ j ].get_value() > eps ) {
-      if( theta[ j ].get_value() <
-          MTU * ( std::pow( x[ j ].get_value() , 2 ) /
-            r[j].get_value()) - tol ) {
-              std::list< FRowConstraint > cut( 1 ); 
-              v_var.push_back( std::make_pair( &theta[ j ] , -1.0 ));
-              v_var.push_back( std::make_pair( &x[j] , MTU * 2 * x[ j ].get_value() /  r[ j ].get_value() ));
-              v_var.push_back( std::make_pair( &r[j] , - MTU * ( ( std::pow( x[ j ].get_value() , 2 ) / std::pow( r[ j ].get_value() , 2)))));
-              LinearFunction* Funct = new LinearFunction( std::move( v_var ));
-              cut.front().set_lhs( -Inf< double >() );
-              cut.front().set_rhs( ( 0.0 )); 
-              cut.front().set_function( Funct );
-              add_dynamic_constraints( PC_cuts , cut , eNoBlck );
-    }
-    }
+   }
   }
 
-  // the cuts are only *added* to the abstract representation if the P/C
-  // formulation is selected (otherwise they are just discarded: with the
-  // SOCP formulation the cone is already exactly represented) - - - - - - -
-  if( FormMsk == PCuts )
-    add_dynamic_constraint( PC_cuts , "PC_cuts" );
+ // the cuts are only *added* to the abstract representation if the P/C
+ // formulation is selected (otherwise they are just discarded: with the
+ // SOCP formulation the cone is already exactly represented) - - - - - - -
+ if( form == PCuts )
+  add_dynamic_constraint( PC_cuts , "PC_cuts" );
 
-  // the aggregate cut: same as above, but for the single "source" cone
-  // theta_min >= FlowBursts / r_min, linearized around the current
-  // (theta_min, r_min) point- - - - - - - - - - - - - - - - - - - - - - - -
+ // the aggregate cut: same as above, but for the single "source" cone
+ // theta_min >= FlowBursts / r_min, linearized around the current
+ // (theta_min, r_min) point- - - - - - - - - - - - - - - - - - - - - - - -
+ if( theta_min.get_value() < ( FlowBursts / r_min.get_value() ) - tol ) {
+  std::list< FRowConstraint > cut_min( 1 );
   LinearFunction::v_coeff_pair v_var_min;
-  //if( r_min.get_value() > eps ) {
-      if( theta_min.get_value() <
-          ( FlowBursts /
-            r_min.get_value() ) - tol ) {
-              std::list< FRowConstraint > cut_min( 1 );
-              v_var_min.push_back( std::make_pair( &theta_min , -1.0 ));
-              v_var_min.push_back( std::make_pair( &r_min , -( FlowBursts / std::pow( r_min.get_value() , 2 ))));
-              LinearFunction* Funct_min = new LinearFunction( std::move( v_var_min ));
-              cut_min.front().set_lhs( -Inf< double >() );
-              cut_min.front().set_rhs( -2.0 * FlowBursts / r_min.get_value() ); 
-              cut_min.front().set_function( Funct_min );
-              add_dynamic_constraints( PC_cuts_min , cut_min , eNoBlck );
-    }
-    //}
-    if( FormMsk == PCuts )
-      add_dynamic_constraint( PC_cuts_min , "PC_cuts_min" );
+  v_var_min.push_back( std::make_pair( &theta_min , -1.0 ) );
+  v_var_min.push_back( std::make_pair(
+   &r_min , -( FlowBursts / std::pow( r_min.get_value() , 2 ) ) ) );
+  LinearFunction * Funct_min = new LinearFunction( std::move( v_var_min ) );
+  cut_min.front().set_lhs( -Inf< double >() );
+  cut_min.front().set_rhs( -2.0 * FlowBursts / r_min.get_value() );
+  cut_min.front().set_function( Funct_min );
+  add_dynamic_constraints( PC_cuts_min , cut_min , eNoBlck );
+  }
+ //}
+ if( form == PCuts )
+  add_dynamic_constraint( PC_cuts_min , "PC_cuts_min" );
 
- }// end( SingleFlowDCRBlock::generate_dynamic_constraints )
+ } // end( SingleFlowDCRBlock::generate_dynamic_constraints )
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
+void SingleFlowDCRBlock::generate_abstract_constraints( Configuration * stcc )
 {
 
- if( AR & HasFlw )  // bound constraints there already
-  return;           // nothing to do
+ if( AR & HasFlw ) // bound constraints there already
+  return;          // nothing to do
 
  if( ! ( AR & HasFlw ) ) {
 
   // count number of nonzeroes in each constraint, i.e., #FS( i ) + #BS( i )
   Subset count( get_NNodes() );
- 
+
   for( Index i = 0 ; i < get_NArcs() ; ++i ) {
    count[ SN[ i ] - 1 ]++;
    count[ EN[ i ] - 1 ]++;
@@ -833,9 +826,9 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
   Index i = 0;
   for( ; i < get_NArcs() ; ++i ) {
    coeffs[ SN[ i ] - 1 ][ count[ SN[ i ] - 1 ]++ ] =
-                                    std::make_pair( &x[ i ] , double( -1 ) );
+    std::make_pair( &x[ i ] , double( -1 ) );
    coeffs[ EN[ i ] - 1 ][ count[ EN[ i ] - 1 ]++ ] =
-                                    std::make_pair( &x[ i ] , double( 1 ) );
+    std::make_pair( &x[ i ] , double( 1 ) );
    }
 
   // generate the node-arc incidence matrix - - - - - - - - - - - - - - - - -
@@ -852,9 +845,9 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
 
    add_static_constraint( E );
    }
- }
+  }
 
-  AR |= HasFlw;
+ AR |= HasFlw;
 
  // generate the DCR constraint- - - - - - - - - - - - - - - - - - - - - -
  // the end-to-end delay constraint
@@ -868,81 +861,78 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
 
  LinearFunction::v_coeff_pair v_var;
  for( Index j = 0 ; j < get_NArcs() ; ++j ) {
-   v_var.push_back( std::make_pair( &theta[ j ], 1.0 ));
-   v_var.push_back( std::make_pair( &x[ j ] , MTU / U[ j ] + LinkDelays[ j ] + NodeDelays[ SN[ j ] - 1 ]));
+  v_var.push_back( std::make_pair( &theta[ j ] , 1.0 ) );
+  v_var.push_back( std::make_pair( &x[ j ] , MTU / U[ j ] + LinkDelays[ j ] +
+                                             NodeDelays[ SN[ j ] - 1 ] ) );
   }
-  v_var.push_back( std::make_pair( &theta_min ,  1.0 ));
-  LinearFunction* Funct = new LinearFunction( std::move( v_var ));
-  DCR_cnst.set_rhs( FlowDeadlines );
-  DCR_cnst.set_lhs( -Inf< double >() ); 
-  DCR_cnst.set_function( Funct );
-  add_static_constraint( DCR_cnst );
+ v_var.push_back( std::make_pair( &theta_min , 1.0 ) );
+ LinearFunction * Funct = new LinearFunction( std::move( v_var ) );
+ DCR_cnst.set_rhs( FlowDeadlines );
+ DCR_cnst.set_lhs( -Inf< double >() );
+ DCR_cnst.set_function( Funct );
+ add_static_constraint( DCR_cnst );
 
  // generate the rotated-cone constraints of the "SOCP" formulation- - - - -
  // (constructed unconditionally, but only added to the abstract
- // representation if FormMsk selects the SOCP formulation, i.e., is not
- // overridden to select the "P/C" one, see generate_dynamic_constraints())
+ // representation if the SOCP formulation is selected, see
+ // generate_dynamic_constraints())
 
- Index FormMsk = 2;  // SOCP formulation
- if( ( ! stcc ) && f_BlockConfig )
-  stcc = f_BlockConfig->f_static_variables_Configuration;
- if( auto sci = dynamic_cast< SimpleConfiguration< int > * >( stcc ) )
-  FormMsk = sci->f_value;
+ c_Index form = formulation( stcc );
 
-    // theta_min * r_min >= FlowBursts, encoded as the QuadFunction with only
-    // the (theta_min, r_min) off-diagonal (cross) term active, i.e.
-    //   0 <= theta_min * r_min - FlowBursts <= +Inf
-    DQuadFunction::v_coeff_triple v_vars_q;
-    DQuadFunction::coeff_triple t1( &theta_min , 0.0 , 0.0 );
-    DQuadFunction::coeff_triple t2( &r_min , 0.0 , 0.0 );
-    v_vars_q.reserve( 2 );
-    v_vars_q.push_back( t1 );
-    v_vars_q.push_back( t2 );
-    QuadFunction::v_off_diag_term v_nd_vars;
-    v_nd_vars.reserve( 1 );
-    QuadFunction::off_diag_term term_min( 1 , 0 , 1.0 );
-    v_nd_vars.push_back( term_min );
-    QuadFunction* quad = new QuadFunction( std::move(v_vars_q), std::move(v_nd_vars) );
-    cone_min_cnst.set_rhs( Inf< double >() );
-    cone_min_cnst.set_lhs( FlowBursts ); 
-    cone_min_cnst.set_function( quad );
+ // theta_min * r_min >= FlowBursts, encoded as the QuadFunction with only
+ // the (theta_min, r_min) off-diagonal (cross) term active, i.e.
+ //   0 <= theta_min * r_min - FlowBursts <= +Inf
+ DQuadFunction::v_coeff_triple v_vars_q;
+ DQuadFunction::coeff_triple t1( &theta_min , 0.0 , 0.0 );
+ DQuadFunction::coeff_triple t2( &r_min , 0.0 , 0.0 );
+ v_vars_q.reserve( 2 );
+ v_vars_q.push_back( t1 );
+ v_vars_q.push_back( t2 );
+ QuadFunction::v_off_diag_term v_nd_vars;
+ v_nd_vars.reserve( 1 );
+ QuadFunction::off_diag_term term_min( 1 , 0 , 1.0 );
+ v_nd_vars.push_back( term_min );
+ QuadFunction * quad =
+  new QuadFunction( std::move( v_vars_q ) , std::move( v_nd_vars ) );
+ cone_min_cnst.set_rhs( Inf< double >() );
+ cone_min_cnst.set_lhs( FlowBursts );
+ cone_min_cnst.set_function( quad );
 
-    add_static_constraint( cone_min_cnst );
- 
-    // theta[ j ] * r[ j ] >= MTU * x[ j ]^2 for every arc j, i.e.
-    //   0 <= theta[ j ] * r[ j ] - MTU * x[ j ]^2 <= +Inf
-    cone_cnst.resize( get_NArcs() );
-    for( Index j = 0 ; j < get_NArcs() ; ++j ) {
-      DQuadFunction::v_coeff_triple v_vars_q1;
-      DQuadFunction::coeff_triple t1( &theta[j] , 0.0 , 0.0 );
-      DQuadFunction::coeff_triple t2( &r[j] , 0.0 , 0.0 );
-      DQuadFunction::coeff_triple t3( &x[j] , 0.0, -MTU );
-      v_vars_q1.reserve( 3 );
-      v_vars_q1.push_back( t1 );
-      v_vars_q1.push_back( t2 );
-      v_vars_q1.push_back( t3 );
-      QuadFunction::v_off_diag_term v_nd_vars1;
-      v_nd_vars1.reserve( 1 );
-      QuadFunction::off_diag_term term_min( 1 , 0 , 1.0 );
-      v_nd_vars1.push_back( term_min );
-      QuadFunction* quad1 = new QuadFunction( std::move(v_vars_q1), std::move(v_nd_vars1) );
-      cone_cnst[ j ].set_rhs( Inf< double >() );
-      cone_cnst[ j ].set_lhs( 0.0 ); 
-      cone_cnst[ j ].set_function( quad1 );
+ // theta[ j ] * r[ j ] >= MTU * x[ j ]^2 for every arc j, i.e.
+ //   0 <= theta[ j ] * r[ j ] - MTU * x[ j ]^2 <= +Inf
+ cone_cnst.resize( get_NArcs() );
+ for( Index j = 0 ; j < get_NArcs() ; ++j ) {
+  DQuadFunction::v_coeff_triple v_vars_q1;
+  DQuadFunction::coeff_triple t1( &theta[ j ] , 0.0 , 0.0 );
+  DQuadFunction::coeff_triple t2( &r[ j ] , 0.0 , 0.0 );
+  DQuadFunction::coeff_triple t3( &x[ j ] , 0.0 , -MTU );
+  v_vars_q1.reserve( 3 );
+  v_vars_q1.push_back( t1 );
+  v_vars_q1.push_back( t2 );
+  v_vars_q1.push_back( t3 );
+  QuadFunction::v_off_diag_term v_nd_vars1;
+  v_nd_vars1.reserve( 1 );
+  QuadFunction::off_diag_term term_min( 1 , 0 , 1.0 );
+  v_nd_vars1.push_back( term_min );
+  QuadFunction * quad1 =
+   new QuadFunction( std::move( v_vars_q1 ) , std::move( v_nd_vars1 ) );
+  cone_cnst[ j ].set_rhs( Inf< double >() );
+  cone_cnst[ j ].set_lhs( 0.0 );
+  cone_cnst[ j ].set_function( quad1 );
+  }
 
-    }
-
-   if( FormMsk == SOCP ){
-    add_static_constraint( cone_min_cnst );
-    add_static_constraint( cone_cnst );
+ if( form == SOCP ) {
+  add_static_constraint( cone_min_cnst );
+  add_static_constraint( cone_cnst );
   }
 
  int j;
- double U_max = 0.0 ;
+ double U_max = 0.0;
  for( Index i = 0 ; i < get_NArcs() ; ++i )
-   U_max = std::max( U_max , U[ i ] );
+  U_max = std::max( U_max , U[ i ] );
 
- // generate the indicator constraints- - - - - - - - - - - - - - - - - - - - - -
+ // generate the indicator constraints- - - - - - - - - - - - - - - - - - - - -
+ // -
  // these three families of constraints "link" the reserved-rate variables
  // r[] and r_min to the routing variables x[]
 
@@ -954,16 +944,16 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
 
  Indicator_cnst_rmin.resize( NArcs );
 
- for(j = 0; j < NArcs; j++){
+ for( j = 0 ; j < NArcs ; j++ ) {
   LinearFunction::v_coeff_pair v_var;
-  v_var.push_back( std::make_pair( &r_min , 1.0 ));
-  v_var.push_back( std::make_pair( &x[ j ] , U_max  ));
-  v_var.push_back( std::make_pair( &r[ j ] , -1.0 ));
-  LinearFunction* Funct = new LinearFunction( std::move( v_var ));
+  v_var.push_back( std::make_pair( &r_min , 1.0 ) );
+  v_var.push_back( std::make_pair( &x[ j ] , U_max ) );
+  v_var.push_back( std::make_pair( &r[ j ] , -1.0 ) );
+  LinearFunction * Funct = new LinearFunction( std::move( v_var ) );
   Indicator_cnst_rmin[ j ].set_lhs( -Inf< double >() );
-  Indicator_cnst_rmin[ j ].set_rhs( U_max ); 
+  Indicator_cnst_rmin[ j ].set_rhs( U_max );
   Indicator_cnst_rmin[ j ].set_function( Funct );
- }
+  }
 
  add_static_constraint( Indicator_cnst_rmin );
 
@@ -971,30 +961,30 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
  // positive if the arc is actually selected by the flow (x[ j ] == 1), and
  // is in any case capped by the arc capacity
  Indicator_cnst_r1.resize( NArcs );
- for(j = 0; j < NArcs; j++){
+ for( j = 0 ; j < NArcs ; j++ ) {
   LinearFunction::v_coeff_pair v_var;
-  v_var.push_back( std::make_pair( &x[ j ] , -U[ j ] ));
-  v_var.push_back( std::make_pair( &r[ j ] , 1.0 ));
-  LinearFunction* Funct = new LinearFunction( std::move( v_var ));
+  v_var.push_back( std::make_pair( &x[ j ] , -U[ j ] ) );
+  v_var.push_back( std::make_pair( &r[ j ] , 1.0 ) );
+  LinearFunction * Funct = new LinearFunction( std::move( v_var ) );
   Indicator_cnst_r1[ j ].set_lhs( -Inf< double >() );
-  Indicator_cnst_r1[ j ].set_rhs( 0.0 ); 
+  Indicator_cnst_r1[ j ].set_rhs( 0.0 );
   Indicator_cnst_r1[ j ].set_function( Funct );
- }
+  }
 
  add_static_constraint( Indicator_cnst_r1 );
 
  // r[ j ] >= rho * x[ j ]: if arc j is selected by the flow, the reserved
  // rate on it must be at least rho, the minimum guaranteed rate parameter
  Indicator_cnst_r2.resize( NArcs );
- for(j = 0; j < NArcs; j++){
+ for( j = 0 ; j < NArcs ; j++ ) {
   LinearFunction::v_coeff_pair v_var;
-  v_var.push_back( std::make_pair( &x[ j ] , rho ));
-  v_var.push_back( std::make_pair( &r[ j ] , -1.0 ));
-  LinearFunction* Funct = new LinearFunction( std::move( v_var ));
+  v_var.push_back( std::make_pair( &x[ j ] , rho ) );
+  v_var.push_back( std::make_pair( &r[ j ] , -1.0 ) );
+  LinearFunction * Funct = new LinearFunction( std::move( v_var ) );
   Indicator_cnst_r2[ j ].set_lhs( -Inf< double >() );
-  Indicator_cnst_r2[ j ].set_rhs( 0.0 ); 
+  Indicator_cnst_r2[ j ].set_rhs( 0.0 );
   Indicator_cnst_r2[ j ].set_function( Funct );
- }
+  }
 
  add_static_constraint( Indicator_cnst_r2 );
 
@@ -1004,23 +994,23 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration *stcc )
  // enforced by Indicator_cnst_r1 above); the HasBnd bit is nonetheless set
  // for consistency with the rest of the "abstract representation" logic
 
- if( AR & HasBnd )  // bound constraints there already
-  return;           // nothing to do
+ if( AR & HasBnd ) // bound constraints there already
+  return;          // nothing to do
 
  AR |= HasBnd;
 
- #if CHECK_DS
-  CheckAbsVSPhys();
- #endif
+#if CHECK_DS
+ CheckAbsVSPhys();
+#endif
 
- }  // end( SingleFlowDCRBlock::generate_abstract_constraints )
+ } // end( SingleFlowDCRBlock::generate_abstract_constraints )
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::generate_objective( Configuration *objc )
+void SingleFlowDCRBlock::generate_objective( Configuration * objc )
 {
- if( AR & HasObj )  // the objective is there already
-  return;           // cowardly (and silently) return
+ if( AR & HasObj ) // the objective is there already
+  return;          // cowardly (and silently) return
 
  // initialize objective function - - - - - - - - - - - - - - - - - - - - - -
  // the objective is min sum_j C[ j ] * r[ j ], the cost-weighted sum of the
@@ -1036,266 +1026,503 @@ void SingleFlowDCRBlock::generate_objective( Configuration *objc )
 
  // static part: p[ i ] associates cost C[ i ] to r[ i ]
  for( ; i < get_NArcs() ; ++i ) {
-   p[ i ].first = &r[ i ];
-   auto ci = *(Cit++);
-   p[ i ].second = std::isnan( ci ) ? 0 : ci;
-   }
+  p[ i ].first = &r[ i ];
+  auto ci = *( Cit++ );
+  p[ i ].second = std::isnan( ci ) ? 0 : ci;
+  }
 
- // ensure no Modification is issued: this may happen in case a SingleFlowDCRBlock
+ // ensure no Modification is issued: this may happen in case a
+ // SingleFlowDCRBlock
  // is re-loaded, so that set_objective( c ) had already been called
 
  c.set_function( new LinearFunction( std::move( p ) , 0 ) , eNoMod );
 
- set_objective( & c , eNoMod );
+ set_objective( &c , eNoMod );
 
  AR |= HasObj;
 
- #if CHECK_DS
-  CheckAbsVSPhys();
- #endif
+#if CHECK_DS
+ CheckAbsVSPhys();
+#endif
 
- }  // end( SingleFlowDCRBlock::generate_objective )
+ } // end( SingleFlowDCRBlock::generate_objective )
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- Methods for checking the Block ---------------------*/
 /*--------------------------------------------------------------------------*/
 
+Block::Index SingleFlowDCRBlock::formulation( Configuration * stcc ) const
+{
+ // the Configuration explicitly given, if it says anything
+ if( auto sci = dynamic_cast< SimpleConfiguration< int > * >( stcc ) )
+  return( sci->f_value );
+
+ if( f_BlockConfig ) {
+  // the Configuration of the static Constraint, which is what the
+  // formulation is about
+  if( auto sci = dynamic_cast< SimpleConfiguration< int > * >(
+                   f_BlockConfig->f_static_constraints_Configuration ) )
+   return( sci->f_value );
+
+  // the Configuration of the static Variable: the formulation used to be
+  // asked for there, and the BlockConfig files that do so keep working
+  if( auto sci = dynamic_cast< SimpleConfiguration< int > * >(
+                   f_BlockConfig->f_static_variables_Configuration ) )
+   return( sci->f_value );
+  }
+
+ return( SOCP );  // the exact formulation, by default
+
+ }  // end( SingleFlowDCRBlock::formulation )
+
+/*--------------------------------------------------------------------------*/
+
+void SingleFlowDCRBlock::feps_of( Configuration * fsbc , double & feps ,
+                                  bool & rel_viol ) const
+{
+ feps = 0;
+ rel_viol = true;
+
+ // try to extract the two parameters out of the given Configuration; if it
+ // is not one of the two forms that carry them, try the one of the
+ // BlockConfig
+
+ auto extract = [ &feps , &rel_viol ]( Configuration * c ) -> bool {
+  if( auto tc = dynamic_cast< SimpleConfiguration< double > * >( c ) ) {
+   feps = tc->f_value;
+   return( true );
+   }
+  if( auto tc =
+       dynamic_cast< SimpleConfiguration< std::pair< double , int > > * >(
+        c ) ) {
+   feps = tc->f_value.first;
+   rel_viol = tc->f_value.second;
+   return( true );
+   }
+  return( false );
+  };
+
+ if( ( ! extract( fsbc ) ) && f_BlockConfig )
+  extract( f_BlockConfig->f_is_feasible_Configuration );
+
+ } // end( SingleFlowDCRBlock::feps_of )
+
+/*--------------------------------------------------------------------------*/
+
+void SingleFlowDCRBlock::check_sizes( c_Vec_double & X , c_Vec_double & R ,
+                                      const char * method ) const
+{
+ if( ( X.size() < get_NArcs() ) || ( R.size() < get_NArcs() ) )
+  throw( std::invalid_argument( std::string( "SingleFlowDCRBlock::" ) +
+                                method + ": X or R too small" ) );
+
+ } // end( SingleFlowDCRBlock::check_sizes )
+
+/*--------------------------------------------------------------------------*/
+
+double SingleFlowDCRBlock::min_rate( c_Vec_double & X ,
+                                     c_Vec_double & R ) const
+{
+ double rmin = Inf< double >();
+
+ for( Index i = 0 ; i < get_NArcs() ; ++i )
+  if( ( ! is_deleted( i ) ) && ( X[ i ] > 0 ) )
+   rmin = std::min( rmin , R[ i ] );
+
+ return( rmin < Inf< double >() ? rmin : 0 );
+
+ } // end( SingleFlowDCRBlock::min_rate )
+
+/*--------------------------------------------------------------------------*/
+
 bool SingleFlowDCRBlock::flow_feasible( c_double feps , bool useabstract )
 {
- if( useabstract && ( AR & HasFlw ) ) {
+ if( useabstract && ( AR & HasFlw ) )
   // do it using the abstract representation, if possible - - - - - - - - - -
+  return( RowConstraint::is_feasible( E , feps ) );
 
-  if( ! RowConstraint::is_feasible( E , feps ) )   // static part
+ // do it using the physical representation - - - - - - - - - - - - - - - - -
+ // i.e., read the routing out of the Variable and check that
+
+ Vec_double X( get_NArcs() );
+ get_x( X.begin() );
+
+ return( flow_feasible( feps , X ) );
+
+ } // end( SingleFlowDCRBlock::flow_feasible( bool ) )
+
+/*--------------------------------------------------------------------------*/
+
+bool SingleFlowDCRBlock::flow_feasible( c_double feps , c_Vec_double & X )
+{
+ if( X.size() < get_NArcs() )
+  throw( std::invalid_argument( "SingleFlowDCRBlock::flow_feasible: X too "
+                                "small" ) );
+
+ // B is allowed to be empty, which means "all deficits are 0"
+ Vec_double tB( get_NNodes() , 0 );
+ if( ! B.empty() )
+  std::copy( B.begin() , B.begin() + get_NNodes() , tB.begin() );
+
+ for( Index i = 0 ; i < get_NArcs() ; ++i )
+  if( ! is_deleted( i ) ) {
+   c_double xi = X[ i ];
+   tB[ SN[ i ] - 1 ] += xi;
+   tB[ EN[ i ] - 1 ] -= xi;
+  }
+
+ for( Index i = 0 ; i < get_NNodes() ; ++i ) {
+  c_double Bi = B.empty() ? 0 : B[ i ];
+  c_double slck = Bi == 0 ? std::abs( tB[ i ] ) : std::abs( tB[ i ] / Bi );
+  if( slck > feps )
    return( false );
- }
+  }
 
  return( true );
 
- }  // end( SingleFlowDCRBlock::flow_feasible )
+ } // end( SingleFlowDCRBlock::flow_feasible( X ) )
 
 /*--------------------------------------------------------------------------*/
 
 bool SingleFlowDCRBlock::bound_feasible( c_double feps , bool useabstract )
 {
- if( useabstract && ( AR & ( HasFlw | HasVar ) ) ) {
+ if( useabstract && ( AR & HasVar ) )
   // do it using the abstract representation, if possible - - - - - - - - - -
+  // the bounds of x, r and theta are those of the ColVariable themselves,
+  // the UB Constraint not being constructed [see UB]
+  return( ColVariable::is_feasible( x , feps ) &&
+           ColVariable::is_feasible( r , feps ) &&
+           ColVariable::is_feasible( theta , feps ) );
 
-  // static part
-  if( HasStaticX() ) {
-   if( UB.empty() ) {
-    if( ! ColVariable::is_feasible( x , feps ) )
-     return( false );
-    }
-   else
-    if( ! RowConstraint::is_feasible( UB , feps ) )
-     return( false );
-   }
-  }
- else {
-  // do it using the physical representation- - - - - - - - - - - - - - - - -
-  Index i = 0;
+ // do it using the physical representation - - - - - - - - - - - - - - - - -
 
-  // static part
-  for( ; i < get_NArcs() ; ++i ) {
-   c_double Ui = get_U( i );
-   c_double xi = x[ i ].get_value();
-   if( Ui >= Inf< double >() ) {
-    if( xi < - feps )
-     return( false );
-    }
-   else {
-    c_double slck = Ui == 0 ? std::abs( xi ) :
-                               std::max( - xi , xi - Ui ) / std::abs( Ui );
-    if( slck > feps )
-     return( false );
-    }
+ Vec_double X( get_NArcs() );
+ Vec_double R( get_NArcs() );
+ get_x( X.begin() );
+ get_r( R.begin() );
+
+ return( bound_feasible( feps , X , R ) );
+
+ } // end( SingleFlowDCRBlock::bound_feasible( bool ) )
+
+/*--------------------------------------------------------------------------*/
+
+bool SingleFlowDCRBlock::bound_feasible( c_double feps , c_Vec_double & X ,
+                                         c_Vec_double & R )
+{
+ check_sizes( X , R , "bound_feasible" );
+
+ for( Index i = 0 ; i < get_NArcs() ; ++i ) {
+  if( is_deleted( i ) )
+   continue;
+
+  // 0 <= x[ i ] <= 1, with the upper bound being 0 for a closed arc; being
+  // a 0/1 variable, x is checked with an absolute tolerance
+  c_double xi = X[ i ];
+  c_double xub = ( ( AR & HasVar ) && is_closed( i ) ) ? 0 : 1;
+  if( ( xi < -feps ) || ( xi > xub + feps ) )
+   return( false );
+
+  // 0 <= r[ i ] <= U[ i ]
+  c_double ri = R[ i ];
+  if( ri < -feps )
+   return( false );
+
+  c_double Ui = get_U( i );
+  if( Ui < Inf< double >() ) {
+   c_double slck = Ui == 0 ? std::abs( ri ) : ( ri - Ui ) / std::abs( Ui );
+   if( slck > feps )
+    return( false );
    }
   }
 
  return( true );
 
- }  // end( SingleFlowDCRBlock::bound_feasible )
+ } // end( SingleFlowDCRBlock::bound_feasible( X , R ) )
 
 /*--------------------------------------------------------------------------*/
 
-bool SingleFlowDCRBlock::is_feasible( bool useabstract , Configuration *fsbc )
+bool SingleFlowDCRBlock::link_feasible( c_double feps , bool useabstract )
 {
- // Retrieve the tolerance and the type of violation.
- double tol = 1e-4;
- bool rel_viol = true;
+ if( useabstract && ( AR & HasFlw ) )
+  // do it using the abstract representation, if possible - - - - - - - - - -
+  return( RowConstraint::is_feasible( Indicator_cnst_rmin , feps ) &&
+           RowConstraint::is_feasible( Indicator_cnst_r1 , feps ) &&
+           RowConstraint::is_feasible( Indicator_cnst_r2 , feps ) );
 
- // Try to extract, from "c", the parameters that determine feasibility.
- // If it succeeds, it sets the values of the parameters and returns
- // true. Otherwise, it returns false.
- auto extract_parameters = [ & tol , & rel_viol ]( Configuration * c )
-  -> bool {
-  if( auto tc = dynamic_cast< SimpleConfiguration< double > * >( c ) ) {
-   tol = tc->f_value;
-   return( true );
-  }
-  if( auto tc = dynamic_cast< SimpleConfiguration< std::pair< double , int > > * >( c ) ) {
-   tol = tc->f_value.first;
-   rel_viol = tc->f_value.second;
-   return( true );
-  }
-  return( false );
- };
+ // do it using the physical representation - - - - - - - - - - - - - - - - -
 
- if( ( ! extract_parameters( fsbc ) ) && f_BlockConfig )
-  // if the given Configuration is not valid, try the one from the BlockConfig
-  extract_parameters( f_BlockConfig->f_is_feasible_Configuration );
+ Vec_double X( get_NArcs() );
+ Vec_double R( get_NArcs() );
+ get_x( X.begin() );
+ get_r( R.begin() );
 
-  return(
-  // Constraints: notice that the ZOConstraints are not checked, since the
-  // corresponding check is made on the ColVariable
-  RowConstraint::is_feasible( E , tol , rel_viol )
-  && RowConstraint::is_feasible( DCR_cnst , tol , rel_viol )
-  && RowConstraint::is_feasible( Indicator_cnst_rmin , tol , rel_viol )
-  && RowConstraint::is_feasible( Indicator_cnst_r1 , tol , rel_viol )
-  && RowConstraint::is_feasible( Indicator_cnst_r2 , tol , rel_viol )
-  //&& RowConstraint::is_feasible( cone_min_cnst , tol , rel_viol )
-  //&& RowConstraint::is_feasible( cone_cnst , tol , rel_viol )
-  );
+ return( link_feasible( feps , X , R ) );
 
- }  // end( SingleFlowDCRBlock::is_feasible )
+ } // end( SingleFlowDCRBlock::link_feasible( bool ) )
 
 /*--------------------------------------------------------------------------*/
 
-/* Checks instance-level (as opposed to current-solution-level, see
- * is_feasible() and is_feasible_flow()) feasibility of the DCR instance by
- * translating the SingleFlowDCRBlock data into the DCR::DCRFlow / DCRLink /
- * DCRNode format [see DCR.h] and handing it to a DCR_SPT heuristic solver
- * (the "ERA-I" Single-Flow Single-Path heuristic), using the Strictly-
- * Rate-Proportional delay formula. Returns false if and only if the
- * heuristic reports the instance as infeasible. */
-
-bool SingleFlowDCRBlock::is_feasible_instance()
+bool SingleFlowDCRBlock::link_feasible( c_double feps , c_Vec_double & X ,
+                                        c_Vec_double & R )
 {
-  DCR_SPT erai;
+ check_sizes( X , R , "link_feasible" );
 
-  vector<double> B = get_B();
-  int source, sink;
+ // note that the "big-M" constraints linking r_min to r[] are not checked:
+ // r_min is not part of ( X , R ) and the value it is given here is the
+ // largest feasible one, which satisfies them by construction [see
+ // min_rate()]
 
-  int nnodes = get_NNodes();
-  int narcs = get_NArcs();
+ for( Index i = 0 ; i < get_NArcs() ; ++i ) {
+  if( is_deleted( i ) )
+   continue;
 
-  // identify the (unique) source and sink of the flow from the sign of the
-  // node deficits: negative deficit == source, positive deficit == sink
-  for (int i = 0; i < nnodes; i++) {
-    if (B[i] < 0 )
-      source = i;
-    if (B[i] > 0 )
-      sink = i;
-  }
+  c_double xi = X[ i ];
+  c_double ri = R[ i ];
 
-  // fill in the DCRFlow descriptor of the (single) flow to be routed
-  DCR::DCRFlow flows;
-  flows = {};
-  flows.sourcenode = source;
-  flows.sinknode = sink;
-  flows.burst = get_FlowBurst();
-  flows.rate = get_rho();        
-  flows.deadline = get_FlowDeadline();   
-
-  vector<double> u = get_U(); 
-  vector<double> c = get_C();
-
-  flows.caps = u.data();
-  flows.costs = c.data();
-
-  // fill in one DCRLink descriptor per arc (node names shifted by -1 since
-  // SN[]/EN[] are 1-based while DCRLink::startnode/endnode are 0-based)
-  vector<Index> sn = get_SN();
-  vector<Index> en = get_EN();
-  vector<double> link_delay = get_LinkDelays();
-  vector<DCR::DCRLink> links(narcs);
-
-  for (int i = 0; i < narcs; i++) {
-    links[i] = {};
-    links[i].startnode = sn[i]-1;
-    links[i].endnode = en[i]-1;
-    links[i].speed = u[i];
-    links[i].capacity = u[i];
-    links[i].delay = link_delay[i];
-    links[i].cost = c[i];
-  }
-
-  // fill in one DCRNode descriptor per node
-  vector<double> node_delay = get_NodeDelays();
-
-  vector<DCR::DCRNode> nodes(nnodes);
-  for (int i = 0; i < nnodes; i++) {
-    nodes[i] = {};
-    nodes[i].delay = node_delay[i];
-  }
-
-  double mtu = get_MTU();
-
-  // load the instance into the heuristic solver (single flow, hence the
-  // "1"), select the Strictly-Rate-Proportional delay formula and the
-  // "ERA-I" heuristic, and solve
-  erai.DCRloadProblem( get_NNodes(), get_NArcs(), 1, &flows, links.data(), nodes.data(), get_MTU(), DCR::SRP );
-  erai.DCRsetHeur('1');
-	DCR::DCRStatus status = erai.DCRsolve();
-
-  if( status == DCR::Infeasible )
+  // r[ i ] <= U[ i ] x[ i ], which for an arc of infinite capacity only
+  // says that an arc the flow does not use reserves nothing
+  c_double Ui = get_U( i );
+  if( Ui < Inf< double >() ) {
+   if( violated( ri , Ui * xi , feps ) )
     return( false );
-  else 
-	  return( true );
-} // end( SingleFlowDCRBlock::is_feasible_instance )
+   }
+  else
+   if( ( xi <= 0 ) && violated( ri , 0 , feps ) )
+    return( false );
+
+  // rho x[ i ] <= r[ i ]
+  if( violated( rho * xi , ri , feps ) )
+   return( false );
+  }
+
+ return( true );
+
+ } // end( SingleFlowDCRBlock::link_feasible( X , R ) )
 
 /*--------------------------------------------------------------------------*/
 
-bool SingleFlowDCRBlock::is_feasible_flow( bool useabstract , Configuration *fsbc )
+bool SingleFlowDCRBlock::delay_feasible( c_double feps , bool useabstract )
 {
- // Retrieve the tolerance and the type of violation.
- double tol = 1e-4;
- bool rel_viol = true;
+ if( useabstract && ( AR & HasFlw ) )
+  // do it using the abstract representation, if possible - - - - - - - - - -
+  return( RowConstraint::is_feasible( DCR_cnst , feps ) );
 
- // Try to extract, from "c", the parameters that determine feasibility.
- // If it succeeds, it sets the values of the parameters and returns
- // true. Otherwise, it returns false.
- auto extract_parameters = [ & tol , & rel_viol ]( Configuration * c )
-  -> bool {
-  if( auto tc = dynamic_cast< SimpleConfiguration< double > * >( c ) ) {
-   tol = tc->f_value;
-   return( true );
+ // do it using the physical representation - - - - - - - - - - - - - - - - -
+
+ Vec_double X( get_NArcs() );
+ Vec_double R( get_NArcs() );
+ get_x( X.begin() );
+ get_r( R.begin() );
+
+ return( delay_feasible( feps , X , R ) );
+
+ } // end( SingleFlowDCRBlock::delay_feasible( bool ) )
+
+/*--------------------------------------------------------------------------*/
+
+bool SingleFlowDCRBlock::delay_feasible( c_double feps , c_Vec_double & X ,
+                                         c_Vec_double & R )
+{
+ check_sizes( X , R , "delay_feasible" );
+
+ double delay = 0;
+
+ for( Index i = 0 ; i < get_NArcs() ; ++i ) {
+  if( is_deleted( i ) )
+   continue;
+
+  c_double xi = X[ i ];
+  if( xi <= 0 ) // an arc that the flow does not use contributes nothing
+   continue;
+
+  // the per-hop packetization, propagation and node processing delays
+  c_double Ui = get_U( i );
+  delay += xi * ( ( Ui < Inf< double >() ? MTU / Ui : 0 ) +
+                  ( LinkDelays.empty() ? 0 : LinkDelays[ i ] ) +
+                  ( NodeDelays.empty() ? 0 : NodeDelays[ SN[ i ] - 1 ] ) );
+
+  // the burst-delay term theta[ i ], taken as the smallest value the cone
+  // constraint theta[ i ] r[ i ] >= MTU x[ i ]^2 allows: an arc used with
+  // no reserved rate at all has an unbounded delay
+  if( R[ i ] <= 0 )
+   return( false );
+
+  delay += MTU * xi * xi / R[ i ];
   }
-  if( auto tc = dynamic_cast< SimpleConfiguration< std::pair< double , int > > * >( c ) ) {
-   tol = tc->f_value.first;
-   rel_viol = tc->f_value.second;
-   return( true );
-  }
+
+ // the burst-delay term theta_min, taken as the smallest value the cone
+ // constraint theta_min r_min >= FlowBursts allows
+ c_double rmin = min_rate( X , R );
+ if( rmin > 0 )
+  delay += FlowBursts / rmin;
+ else if( FlowBursts > 0 )
   return( false );
- };
 
- if( ( ! extract_parameters( fsbc ) ) && f_BlockConfig )
-  // if the given Configuration is not valid, try the one from the BlockConfig
-  extract_parameters( f_BlockConfig->f_is_feasible_Configuration );
+ return( ! violated( delay , FlowDeadlines , feps ) );
 
+ } // end( SingleFlowDCRBlock::delay_feasible( X , R ) )
+
+/*--------------------------------------------------------------------------*/
+
+bool SingleFlowDCRBlock::is_feasible( bool useabstract , Configuration * fsbc )
+{
+ double feps;
+ bool rel_viol;
+ feps_of( fsbc , feps , rel_viol );
+
+ if( useabstract && ( AR & HasVar ) && ( AR & HasFlw ) )
+  // do it using the abstract representation, if possible - - - - - - - - - -
+  // note that the ZOConstraint are not checked, the corresponding check
+  // being made on the ColVariable
   return(
-  // Constraints: notice that the ZOConstraints are not checked, since the
-  // corresponding check is made on the ColVariable
-  RowConstraint::is_feasible( E , tol , rel_viol )
-  && RowConstraint::is_feasible( DCR_cnst , tol , rel_viol )
-  && RowConstraint::is_feasible( Indicator_cnst_rmin , tol , rel_viol )
-  && RowConstraint::is_feasible( Indicator_cnst_r1 , tol , rel_viol )
-  && RowConstraint::is_feasible( Indicator_cnst_r2 , tol , rel_viol )
-  );
+   ColVariable::is_feasible( x , feps ) &&
+   ColVariable::is_feasible( r , feps ) &&
+   ColVariable::is_feasible( theta , feps ) &&
+   RowConstraint::is_feasible( E , feps , rel_viol ) &&
+   RowConstraint::is_feasible( DCR_cnst , feps , rel_viol ) &&
+   RowConstraint::is_feasible( Indicator_cnst_rmin , feps , rel_viol ) &&
+   RowConstraint::is_feasible( Indicator_cnst_r1 , feps , rel_viol ) &&
+   RowConstraint::is_feasible( Indicator_cnst_r2 , feps , rel_viol ) &&
+   RowConstraint::is_feasible( cone_min_cnst , feps , rel_viol ) &&
+   RowConstraint::is_feasible( cone_cnst , feps , rel_viol ) );
 
- }  // end( SingleFlowDCRBlock::is_feasible )
+ // do it using the physical representation - - - - - - - - - - - - - - - - -
+
+ Vec_double X( get_NArcs() );
+ Vec_double R( get_NArcs() );
+ get_x( X.begin() );
+ get_r( R.begin() );
+
+ return( flow_feasible( feps , X ) && bound_feasible( feps , X , R ) &&
+          link_feasible( feps , X , R ) && delay_feasible( feps , X , R ) );
+
+ } // end( SingleFlowDCRBlock::is_feasible )
+
+/*--------------------------------------------------------------------------*/
+
+bool SingleFlowDCRBlock::is_sol_feasible( Solution * sol ,
+                                          Configuration * fsbc )
+{
+ auto dsol = dynamic_cast< DCRSolution * >( sol );
+ if( ! dsol )
+  throw( std::invalid_argument( "SingleFlowDCRBlock::is_sol_feasible: the "
+                                "Solution is not a DCRSolution" ) );
+
+ auto & X = dsol->get_x();
+ auto & R = dsol->get_r();
+ // both the routing and the reserved rates are needed: with either of the
+ // two missing nothing can be said
+ if( ( X.size() < get_NArcs() ) || ( R.size() < get_NArcs() ) )
+  return( false );
+
+ double feps;
+ bool rel_viol;
+ feps_of( fsbc , feps , rel_viol );
+
+ return( flow_feasible( feps , X ) && bound_feasible( feps , X , R ) &&
+          link_feasible( feps , X , R ) && delay_feasible( feps , X , R ) );
+
+ } // end( SingleFlowDCRBlock::is_sol_feasible )
+
+/*--------------------------------------------------------------------------*/
+
+/* Checks instance-level (as opposed to solution-level, see is_feasible())
+ * feasibility of the DCR instance by translating the SingleFlowDCRBlock
+ * data into the DCR::DCRFlow / DCRLink / DCRNode format [see DCR.h] and
+ * handing it to a DCR_SPT heuristic solver (the "ERA-I" Single-Flow
+ * Single-Path heuristic), using the Strictly-Rate-Proportional delay
+ * formula. Returns false if and only if the heuristic reports the instance
+ * as infeasible. */
+
+bool SingleFlowDCRBlock::is_feasible_instance( void )
+{
+ // identify the (unique) source and sink of the flow from the sign of the
+ // node deficits: negative deficit == source, positive deficit == sink; if
+ // there is no source or no sink there is nothing to route, which is
+ // trivially feasible
+
+ int source = -1;
+ int sink = -1;
+ for( Index i = 0 ; i < get_NNodes() ; ++i ) {
+  c_double Bi = get_B( i );
+  if( Bi < 0 )
+   source = i;
+  else if( Bi > 0 )
+   sink = i;
+  }
+
+ if( ( source < 0 ) || ( sink < 0 ) )
+  return( true );
+
+ // fill in the DCRFlow descriptor of the (single) flow to be routed; the
+ // per-arc capacities and costs are copied because DCR wants them in
+ // arrays of its own, which are non-const and have to be there even when
+ // the SingleFlowDCRBlock leaves them implicit (no capacity == infinite
+ // capacity, no cost == zero cost)
+
+ Vec_double u( get_NArcs() );
+ Vec_double c( get_NArcs() );
+ for( Index i = 0 ; i < get_NArcs() ; ++i ) {
+  u[ i ] = get_U( i );
+  c[ i ] = is_deleted( i ) ? 0 : get_C( i );
+  }
+
+ DCR::DCRFlow flow = {};
+ flow.sourcenode = source;
+ flow.sinknode = sink;
+ flow.burst = get_FlowBurst();
+ flow.rate = get_rho();
+ flow.deadline = get_FlowDeadline();
+ flow.caps = u.data();
+ flow.costs = c.data();
+
+ // fill in one DCRLink descriptor per arc (node names shifted by -1 since
+ // SN[]/EN[] are 1-based while DCRLink::startnode/endnode are 0-based)
+
+ std::vector< DCR::DCRLink > links( get_NArcs() );
+ for( Index i = 0 ; i < get_NArcs() ; ++i ) {
+  links[ i ] = {};
+  links[ i ].startnode = get_SN( i ) - 1;
+  links[ i ].endnode = get_EN( i ) - 1;
+  links[ i ].speed = u[ i ];
+  links[ i ].capacity = u[ i ];
+  links[ i ].delay = LinkDelays.empty() ? 0 : LinkDelays[ i ];
+  links[ i ].cost = c[ i ];
+  }
+
+ // fill in one DCRNode descriptor per node
+
+ std::vector< DCR::DCRNode > nodes( get_NNodes() );
+ for( Index i = 0 ; i < get_NNodes() ; ++i ) {
+  nodes[ i ] = {};
+  nodes[ i ].delay = NodeDelays.empty() ? 0 : NodeDelays[ i ];
+  }
+
+ // load the instance into the heuristic solver (single flow, hence the
+ // "1"), select the Strictly-Rate-Proportional delay formula and the
+ // "ERA-I" heuristic, and solve
+
+ DCR_SPT erai;
+ erai.DCRloadProblem( get_NNodes() , get_NArcs() , 1 , &flow , links.data() ,
+                      nodes.data() , get_MTU() , DCR::SRP );
+ erai.DCRsetHeur( '1' );
+
+ return( erai.DCRsolve() != DCR::Infeasible );
+
+ } // end( SingleFlowDCRBlock::is_feasible_instance )
 
 /*--------------------------------------------------------------------------*/
 /*------------------------- Methods for R3 Blocks --------------------------*/
 /*--------------------------------------------------------------------------*/
 
-Block * SingleFlowDCRBlock::get_R3_Block( Configuration *r3bc , Block * base  ,
-				Block * father )
+Block * SingleFlowDCRBlock::get_R3_Block( Configuration * r3bc , Block * base ,
+                                          Block * father )
 {
  if( r3bc != nullptr )
   throw( std::invalid_argument( "non-nullptr R3B Configuration" ) );
 
- SingleFlowDCRBlock *DCRB;
+ SingleFlowDCRBlock * DCRB;
  if( base ) {
   DCRB = dynamic_cast< SingleFlowDCRBlock * >( base );
   if( ! DCRB )
@@ -1304,56 +1531,18 @@ Block * SingleFlowDCRBlock::get_R3_Block( Configuration *r3bc , Block * base  ,
  else
   DCRB = new SingleFlowDCRBlock( father );
 
- DCRB->load( get_NNodes() , get_NArcs() , EN , SN , U , C ,
-       NodeDelays , LinkDelays , FlowBursts , FlowDeadlines );
- 
+ DCRB->load( get_NNodes() , get_NArcs() , SN , EN , U , C , NodeDelays ,
+             LinkDelays , FlowBursts , FlowDeadlines , MTU , rho );
+
  return( DCRB );
 
- }  // end( SingleFlowDCRBlock::get_R3_Block )
+ } // end( SingleFlowDCRBlock::get_R3_Block )
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::map_back_solution( Block *R3B , Configuration *r3bc ,
-				               Configuration *solc )
-{
- // process Configuration - - - - - - - - - - - - - - - - - - - - - - - - - -
- // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
- auto DCRB = dynamic_cast< SingleFlowDCRBlock * >( R3B );
- if( ! DCRB )
-  throw( std::invalid_argument( "R3B is not a SingleFlowDCRBlock" ) );
- if( r3bc != nullptr )
-  throw( std::invalid_argument( "non-nullptr R3B Configuration" ) );
-
- int wsol = 0;
- auto tsolc = dynamic_cast< SimpleConfiguration< int > * >( solc );
-
- if( ( ! tsolc ) && f_BlockConfig && f_BlockConfig->f_solution_Configuration )
-   tsolc = dynamic_cast< SimpleConfiguration< int > * >(
-                                    f_BlockConfig->f_solution_Configuration );
- if( tsolc )
-  wsol = tsolc->f_value;
-
- // if required, map back primal solution - - - - - - - - - - - - - - - - - -
- // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
- if( ( wsol != 2 ) && ( AR & HasVar ) ) {  // ... if any
-  if( DCRB->get_NArcs() != get_NArcs() )
-   throw( std::invalid_argument( "incompatible static flow size" ) );
-
-  // static part
-  if( HasStaticX() )
-   for( auto xi = x.begin() , r3bxi = DCRB->x.begin() ; xi != x.end() ;
-	++xi , ++r3bxi )
-    if( ! xi->is_fixed() )
-     xi->set_value( r3bxi->get_value() );
-  }
- }  // end( SingleFlowDCRBlock::map_back_solution )
-
-/*--------------------------------------------------------------------------*/
-
-void SingleFlowDCRBlock::map_forward_solution( Block *R3B , Configuration *r3bc ,
-				                  Configuration *solc )
+void SingleFlowDCRBlock::map_back_solution( Block * R3B ,
+                                            Configuration * r3bc ,
+                                            Configuration * solc )
 {
  // process Configuration - - - - - - - - - - - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1369,36 +1558,76 @@ void SingleFlowDCRBlock::map_forward_solution( Block *R3B , Configuration *r3bc 
 
  if( ( ! tsolc ) && f_BlockConfig && f_BlockConfig->f_solution_Configuration )
   tsolc = dynamic_cast< SimpleConfiguration< int > * >(
-                                    f_BlockConfig->f_solution_Configuration );
+   f_BlockConfig->f_solution_Configuration );
+ if( tsolc )
+  wsol = tsolc->f_value;
+
+ // if required, map back primal solution - - - - - - - - - - - - - - - - - -
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+ if( ( wsol != 2 ) && ( AR & HasVar ) ) { // ... if any
+  if( DCRB->get_NArcs() != get_NArcs() )
+   throw( std::invalid_argument( "incompatible static flow size" ) );
+
+  // static part
+  if( HasStaticX() )
+   for( auto xi = x.begin() , r3bxi = DCRB->x.begin() ; xi != x.end() ;
+        ++xi , ++r3bxi )
+    if( ! xi->is_fixed() )
+     xi->set_value( r3bxi->get_value() );
+  }
+ } // end( SingleFlowDCRBlock::map_back_solution )
+
+/*--------------------------------------------------------------------------*/
+
+void SingleFlowDCRBlock::map_forward_solution( Block * R3B ,
+                                               Configuration * r3bc ,
+                                               Configuration * solc )
+{
+ // process Configuration - - - - - - - - - - - - - - - - - - - - - - - - - -
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+ auto DCRB = dynamic_cast< SingleFlowDCRBlock * >( R3B );
+ if( ! DCRB )
+  throw( std::invalid_argument( "R3B is not a SingleFlowDCRBlock" ) );
+ if( r3bc != nullptr )
+  throw( std::invalid_argument( "non-nullptr R3B Configuration" ) );
+
+ int wsol = 0;
+ auto tsolc = dynamic_cast< SimpleConfiguration< int > * >( solc );
+
+ if( ( ! tsolc ) && f_BlockConfig && f_BlockConfig->f_solution_Configuration )
+  tsolc = dynamic_cast< SimpleConfiguration< int > * >(
+   f_BlockConfig->f_solution_Configuration );
  if( tsolc )
   wsol = tsolc->f_value;
 
  // if required, map forward primal solution- - - - - - - - - - - - - - - - -
  // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
- if( ( wsol != 1 ) && ( AR & HasFlw ) ) {  // ... if any
+ if( ( wsol != 1 ) && ( AR & HasFlw ) ) { // ... if any
   if( DCRB->get_NArcs() != get_NArcs() )
    throw( std::invalid_argument( "incompatible static flow size" ) );
 
   // static part
   if( DCRB->HasStaticX() )
    for( auto xi = x.begin() , r3bxi = DCRB->x.begin() ; xi != x.end() ;
-	++xi , ++r3bxi )
+        ++xi , ++r3bxi )
     if( ! r3bxi->is_fixed() )
      r3bxi->set_value( xi->get_value() );
   }
- }  // end( SingleFlowDCRBlock::map_forward_solution )
+ } // end( SingleFlowDCRBlock::map_forward_solution )
 
 /*--------------------------------------------------------------------------*/
 
 bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
-					 Configuration * r3bc ,
-					 ModParam issuePMod ,
-					 ModParam issueAMod )
+                                                   Configuration * r3bc ,
+                                                   ModParam issuePMod ,
+                                                   ModParam issueAMod )
 {
- if( mod->concerns_Block() )  // an abstract Modification
-  return( false );            // none of my business
- 
+ if( mod->concerns_Block() ) // an abstract Modification
+  return( false );          // none of my business
+
  auto DCRB = dynamic_cast< SingleFlowDCRBlock * >( R3B );
  if( ! DCRB )
   throw( std::invalid_argument( "R3B is not a SingleFlowDCRBlock" ) );
@@ -1415,8 +1644,7 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
     "this" to use fields/methods of the class. */
 
  std::function< bool( c_p_Mod ) > guts_of_mfM;
- guts_of_mfM = [ this , & guts_of_mfM , & DCRB , & iPM , & iPA ]( c_p_Mod mod
-								  ) {
+ guts_of_mfM = [ this , &guts_of_mfM , &DCRB , &iPM , &iPA ]( c_p_Mod mod ) {
   // process Modification- - - - - - - - - - - - - - - - - - - - - - - - - - -
   // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   /* This requires to patiently sift through the possible Modification types
@@ -1425,7 +1653,7 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
      representation" of DCRB for an "abstract Modification". */
 
   //!! std::cout << *mod << std::endl;
-  
+
   // GroupModification - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   if( auto tmod = dynamic_cast< const GroupModification * >( mod ) ) {
    // open or nest the two channels
@@ -1444,7 +1672,8 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
    return( ok );
    }
 
-  // SingleFlowDCRBlockRngdMod - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  // SingleFlowDCRBlockRngdMod - - - - - - - - - - - - - - - - - - - - - - - -
+  // - - - - -
   /* Note: in the following we can assume that C, B and U are nonempty. This
      is because they can be empty only if they are so when the object is
      loaded. But if a Modification has been issued they are no longer empty
@@ -1452,99 +1681,98 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
 
   if( auto tmod = dynamic_cast< const SingleFlowDCRBlockRngdMod * >( mod ) ) {
    switch( tmod->type() ) {
-    case( SingleFlowDCRBlockMod::eChgCost ):
-     #ifndef NDEBUG
-      if( ( tmod->rng().second > get_NArcs() ) ||
-	  ( tmod->rng().second > DCRB->get_NArcs() ) )
-       throw( std::logic_error(
-		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
-     #endif
-     if( tmod->rng().second == tmod->rng().first + 1 )
-      DCRB->chg_cost( C[ tmod->rng().first ] , tmod->rng().first ,
-		      iPM , iPA );
-     else
-      DCRB->chg_costs( C.begin() + tmod->rng().first , tmod->rng() ,
-		       iPM , iPA );
-     break;
-    case( SingleFlowDCRBlockMod::eChgCaps ):
-     #ifndef NDEBUG
-      if( ( tmod->rng().second > get_NArcs() ) ||
-	  ( tmod->rng().second > DCRB->get_NArcs() ) )
-       throw( std::logic_error(
-		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
-     #endif
-     if( tmod->rng().second == tmod->rng().first + 1 )
-      DCRB->chg_ucap( U.empty() ? Inf< double >() : U[ tmod->rng().first ] ,
-		      tmod->rng().first , iPM , iPA );
-     else
-      if( U.empty() ) {
-       Vec_double NCap( tmod->rng().second - tmod->rng().first );
-       auto NCit = NCap.begin();
-       for( Index i = tmod->rng().first ; i < tmod->rng().second ; ++i )
-	*(NCit++) = U[ i ];
+   case( SingleFlowDCRBlockMod::eChgCost ):
+#ifndef NDEBUG
+    if( ( tmod->rng().second > get_NArcs() ) ||
+        ( tmod->rng().second > DCRB->get_NArcs() ) )
+     throw( std::logic_error( "SingleFlowDCRBlock::map_forward_"
+                              "Modification: incompatible Block" ) );
+#endif
+    if( tmod->rng().second == tmod->rng().first + 1 )
+     DCRB->chg_cost( C[ tmod->rng().first ] , tmod->rng().first , iPM , iPA );
+    else
+     DCRB->chg_costs( C.begin() + tmod->rng().first , tmod->rng() ,
+                      iPM , iPA );
+    break;
+   case( SingleFlowDCRBlockMod::eChgCaps ):
+#ifndef NDEBUG
+    if( ( tmod->rng().second > get_NArcs() ) ||
+        ( tmod->rng().second > DCRB->get_NArcs() ) )
+     throw( std::logic_error( "SingleFlowDCRBlock::map_forward_"
+                              "Modification: incompatible Block" ) );
+#endif
+    if( tmod->rng().second == tmod->rng().first + 1 )
+     DCRB->chg_ucap( U.empty() ? Inf< double >() : U[ tmod->rng().first ] ,
+                     tmod->rng().first , iPM , iPA );
+    else if( U.empty() ) {
+     Vec_double NCap( tmod->rng().second - tmod->rng().first );
+     auto NCit = NCap.begin();
+     for( Index i = tmod->rng().first ; i < tmod->rng().second ; ++i )
+      *( NCit++ ) = U[ i ];
 
-       DCRB->chg_ucaps( NCap.begin() , tmod->rng() , iPM , iPA );
-       }
-      else
-       DCRB->chg_ucaps( U.begin() + tmod->rng().first , tmod->rng() ,
-			iPM , iPA );
-     break;
+     DCRB->chg_ucaps( NCap.begin() , tmod->rng() , iPM , iPA );
+     }
+    else
+     DCRB->chg_ucaps( U.begin() + tmod->rng().first , tmod->rng() ,
+                      iPM , iPA );
+    break;
 
-    case( SingleFlowDCRBlockMod::eChgDfct ):
-     #ifndef NDEBUG
-      if( ( tmod->rng().second > get_NNodes() ) ||
-	  ( tmod->rng().second > DCRB->get_NNodes() ) )
-       throw( std::logic_error(
-		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
-     #endif
-     if( tmod->rng().second == tmod->rng().first + 1 )
-      DCRB->chg_dfct( B.empty() ? 0 : B[ tmod->rng().first ] ,
-		      tmod->rng().first , iPM , iPA );
-     else
-      if( B.empty() ) {
-       Vec_double NDfct( tmod->rng().second - tmod->rng().first );
-       auto NDit = NDfct.begin();
-       for( Index i = tmod->rng().first ; i < tmod->rng().second ; ++i )
-	*(NDit++) = B[ i ];
+   case( SingleFlowDCRBlockMod::eChgDfct ):
+#ifndef NDEBUG
+    if( ( tmod->rng().second > get_NNodes() ) ||
+        ( tmod->rng().second > DCRB->get_NNodes() ) )
+     throw( std::logic_error( "SingleFlowDCRBlock::map_forward_"
+                              "Modification: incompatible Block" ) );
+#endif
+    if( tmod->rng().second == tmod->rng().first + 1 )
+     DCRB->chg_dfct( B.empty() ? 0 : B[ tmod->rng().first ] ,
+                     tmod->rng().first , iPM , iPA );
+    else if( B.empty() ) {
+     Vec_double NDfct( tmod->rng().second - tmod->rng().first );
+     auto NDit = NDfct.begin();
+     for( Index i = tmod->rng().first ; i < tmod->rng().second ; ++i )
+      *( NDit++ ) = B[ i ];
 
-       DCRB->chg_ucaps( NDfct.begin() , tmod->rng() , iPM , iPA );
-       }
-      else
-       DCRB->chg_dfcts( B.begin() + tmod->rng().first , tmod->rng() ,
-			iPM , iPA );
-     break;
+     DCRB->chg_ucaps( NDfct.begin() , tmod->rng() , iPM , iPA );
+     }
+    else
+     DCRB->chg_dfcts( B.begin() + tmod->rng().first , tmod->rng() ,
+                      iPM , iPA );
+    break;
 
-    case( SingleFlowDCRBlockMod::eOpenArc ):
-     #ifndef NDEBUG
-      if( ( tmod->rng().second > get_NArcs() ) ||
-	  ( tmod->rng().second > DCRB->get_NArcs() ) )
-       throw( std::logic_error(
-		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
-     #endif
-     if( tmod->rng().second == tmod->rng().first + 1 )
-      DCRB->open_arc( tmod->rng().first , iPM , iPA );
-     else
-      DCRB->open_arcs( tmod->rng() , iPM , iPA );
-     break;
-    case( SingleFlowDCRBlockMod::eCloseArc ):
-     #ifndef NDEBUG
-      if( ( tmod->rng().second > get_NArcs() ) ||
-	  ( tmod->rng().second > DCRB->get_NArcs() ) )
-       throw( std::logic_error(
-		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
-     #endif
-     if( tmod->rng().second == tmod->rng().first + 1 )
-      DCRB->close_arc( tmod->rng().first , iPM , iPA );
-     else
-      DCRB->close_arcs( tmod->rng() , iPM , iPA );
-     break;
-    default:
-     throw( std::invalid_argument( "unknown SingleFlowDCRBlockRngdMod type" ) );
+   case( SingleFlowDCRBlockMod::eOpenArc ):
+#ifndef NDEBUG
+    if( ( tmod->rng().second > get_NArcs() ) ||
+        ( tmod->rng().second > DCRB->get_NArcs() ) )
+     throw( std::logic_error( "SingleFlowDCRBlock::map_forward_"
+                              "Modification: incompatible Block" ) );
+#endif
+    if( tmod->rng().second == tmod->rng().first + 1 )
+     DCRB->open_arc( tmod->rng().first , iPM , iPA );
+    else
+     DCRB->open_arcs( tmod->rng() , iPM , iPA );
+    break;
+   case( SingleFlowDCRBlockMod::eCloseArc ):
+#ifndef NDEBUG
+    if( ( tmod->rng().second > get_NArcs() ) ||
+        ( tmod->rng().second > DCRB->get_NArcs() ) )
+     throw( std::logic_error( "SingleFlowDCRBlock::map_forward_"
+                              "Modification: incompatible Block" ) );
+#endif
+    if( tmod->rng().second == tmod->rng().first + 1 )
+     DCRB->close_arc( tmod->rng().first , iPM , iPA );
+    else
+     DCRB->close_arcs( tmod->rng() , iPM , iPA );
+    break;
+   default:
+    throw(
+     std::invalid_argument( "unknown SingleFlowDCRBlockRngdMod type" ) );
     }
    return( true );
    }
 
-  // SingleFlowDCRBlockSbstMod - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  // SingleFlowDCRBlockSbstMod - - - - - - - - - - - - - - - - - - - - - - - -
+  // - - - - -
   /* Note that tmod->nms() need be copied, since the chg_*() methods
    * *in principle* "consume" the names vector. This is actually not true
    * if DCRB will *not* issue a physical modification, which one may
@@ -1554,75 +1782,75 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
 
   if( auto tmod = dynamic_cast< const SingleFlowDCRBlockSbstMod * >( mod ) ) {
    switch( tmod->type() ) {
-    case( SingleFlowDCRBlockMod::eChgCost ): {
-     #ifndef NDEBUG
-      if( ( tmod->nms().back() >= get_NArcs() ) ||
-	  ( tmod->nms().back() >= DCRB->get_NArcs() ) )
-       throw( std::logic_error(
-		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
-     #endif
-     Vec_double NCost( tmod->nms().size() );
-     for( Index i = 0 ; i < NCost.size() ; i++ )
-      NCost[ i ] = C[ tmod->nms()[ i ] ];
+   case( SingleFlowDCRBlockMod::eChgCost ): {
+#ifndef NDEBUG
+    if( ( tmod->nms().back() >= get_NArcs() ) ||
+        ( tmod->nms().back() >= DCRB->get_NArcs() ) )
+     throw( std::logic_error( "SingleFlowDCRBlock::map_forward_"
+                              "Modification: incompatible Block" ) );
+#endif
+    Vec_double NCost( tmod->nms().size() );
+    for( Index i = 0 ; i < NCost.size() ; i++ )
+     NCost[ i ] = C[ tmod->nms()[ i ] ];
 
-     DCRB->chg_costs( NCost.begin() , Subset( tmod->nms() ) , true ,
-		      iPM , iPA );
-     break;
-     }
-    case( SingleFlowDCRBlockMod::eChgCaps ): {
-     #ifndef NDEBUG
-      if( ( tmod->nms().back() >= get_NArcs() ) ||
-	  ( tmod->nms().back() >= DCRB->get_NArcs() ) )
-       throw( std::logic_error(
-		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
-     #endif
-     Vec_double NCap( tmod->nms().size() , Inf< double >() );
-     if( ! U.empty() )
-      for( Index i = 0 ; i < NCap.size() ; i++ )
-       NCap[ i ] = U[ tmod->nms()[ i ] ];
+    DCRB->chg_costs( NCost.begin() , Subset( tmod->nms() ) , true ,
+                     iPM , iPA );
+    break;
+    }
+   case( SingleFlowDCRBlockMod::eChgCaps ): {
+#ifndef NDEBUG
+    if( ( tmod->nms().back() >= get_NArcs() ) ||
+        ( tmod->nms().back() >= DCRB->get_NArcs() ) )
+     throw( std::logic_error( "SingleFlowDCRBlock::map_forward_"
+                              "Modification: incompatible Block" ) );
+#endif
+    Vec_double NCap( tmod->nms().size() , Inf< double >() );
+    if( ! U.empty() )
+     for( Index i = 0 ; i < NCap.size() ; i++ )
+      NCap[ i ] = U[ tmod->nms()[ i ] ];
 
-     DCRB->chg_ucaps( NCap.begin() , Subset( tmod->nms() ) , true ,
-		      iPM , iPA );
-     break;
-     }
+    DCRB->chg_ucaps( NCap.begin() , Subset( tmod->nms() ) , true , iPM , iPA );
+    break;
+    }
 
-    case( SingleFlowDCRBlockMod::eChgDfct ): {
-     #ifndef NDEBUG
-      if( ( tmod->nms().back() >= get_NNodes() ) ||
-	  ( tmod->nms().back() >= DCRB->get_NNodes() ) )
-       throw( std::logic_error(
-		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
-     #endif
-     Vec_double NDfct( tmod->nms().size() , 0 );
-     if( ! B.empty() )
-      for( Index i = 0 ; i < NDfct.size() ; i++ )
-       NDfct[ i ] = B[ tmod->nms()[ i ] ];
+   case( SingleFlowDCRBlockMod::eChgDfct ): {
+#ifndef NDEBUG
+    if( ( tmod->nms().back() >= get_NNodes() ) ||
+        ( tmod->nms().back() >= DCRB->get_NNodes() ) )
+     throw( std::logic_error( "SingleFlowDCRBlock::map_forward_"
+                              "Modification: incompatible Block" ) );
+#endif
+    Vec_double NDfct( tmod->nms().size() , 0 );
+    if( ! B.empty() )
+     for( Index i = 0 ; i < NDfct.size() ; i++ )
+      NDfct[ i ] = B[ tmod->nms()[ i ] ];
 
-     DCRB->chg_dfcts( NDfct.begin() , Subset( tmod->nms() ) , true ,
-		      iPM , iPA );
-     break;
-     }
+    DCRB->chg_dfcts( NDfct.begin() , Subset( tmod->nms() ) , true ,
+                     iPM , iPA );
+    break;
+    }
 
-    case( SingleFlowDCRBlockMod::eOpenArc ):
-     #ifndef NDEBUG
-      if( ( tmod->nms().back() >= get_NArcs() ) ||
-	  ( tmod->nms().back() >= DCRB->get_NArcs() ) )
-       throw( std::logic_error(
-		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
-     #endif
+   case( SingleFlowDCRBlockMod::eOpenArc ):
+#ifndef NDEBUG
+    if( ( tmod->nms().back() >= get_NArcs() ) ||
+        ( tmod->nms().back() >= DCRB->get_NArcs() ) )
+     throw( std::logic_error( "SingleFlowDCRBlock::map_forward_"
+                              "Modification: incompatible Block" ) );
+#endif
     DCRB->open_arcs( Subset( tmod->nms() ) , true , iPM , iPA );
-     break;
-    case( SingleFlowDCRBlockMod::eCloseArc ):
-     #ifndef NDEBUG
-      if( ( tmod->nms().back() >= get_NArcs() ) ||
-	  ( tmod->nms().back() >= DCRB->get_NArcs() ) )
-       throw( std::logic_error(
-		     "map_forward_Modification:: incompatible SingleFlowDCRBlock" ) );
-     #endif
+    break;
+   case( SingleFlowDCRBlockMod::eCloseArc ):
+#ifndef NDEBUG
+    if( ( tmod->nms().back() >= get_NArcs() ) ||
+        ( tmod->nms().back() >= DCRB->get_NArcs() ) )
+     throw( std::logic_error( "SingleFlowDCRBlock::map_forward_"
+                              "Modification: incompatible Block" ) );
+#endif
     DCRB->close_arcs( Subset( tmod->nms() ) , true , iPM , iPA );
-     break;
-    default:
-     throw( std::invalid_argument( "unknown SingleFlowDCRBlockSbstMod type" ) );
+    break;
+   default:
+    throw(
+     std::invalid_argument( "unknown SingleFlowDCRBlockSbstMod type" ) );
     }
    return( true );
    }
@@ -1633,27 +1861,26 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
   // be otherwise, can it?
 
   if( auto tmod = dynamic_cast< const NBModification * >( mod ) ) {
-   DCRB->load( get_NNodes() , get_NArcs() , EN , SN , U , C ,
-         NodeDelays , LinkDelays , FlowBursts , FlowDeadlines );
+   DCRB->load( get_NNodes() , get_NArcs() , EN , SN , U , C , NodeDelays ,
+               LinkDelays , FlowBursts , FlowDeadlines );
    return( true );
    }
 
   return( false );
-
-  };  // end( guts_of_mfM )- - - - - - - - - - - - - - - - - - - - - - - - - -
-      // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  }; // end( guts_of_mfM )- - - - - - - - - - - - - - - - - - - - - - - - - -
+ // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  // finally, call the "guts of"- - - - - - - - - - - - - - - - - - - - - - - -
  return( guts_of_mfM( mod ) );
 
- }  // end( SingleFlowDCRBlock::map_forward_Modification )
+ } // end( SingleFlowDCRBlock::map_forward_Modification )
 
 /*--------------------------------------------------------------------------*/
 
-bool SingleFlowDCRBlock::map_back_Modification( Block *R3B , c_p_Mod mod ,
-				      Configuration *r3bc ,
-				      ModParam issuePMod ,
-				      ModParam issueAMod )
+bool SingleFlowDCRBlock::map_back_Modification( Block * R3B , c_p_Mod mod ,
+                                                Configuration * r3bc ,
+                                                ModParam issuePMod ,
+                                                ModParam issueAMod )
 {
  /* Fantastically dirty trick: because the two objects are copies, mapping
   * back a Modification to this from R3B is the same as mapping forward a
@@ -1663,16 +1890,18 @@ bool SingleFlowDCRBlock::map_back_Modification( Block *R3B , c_p_Mod mod ,
  if( ! DCRB )
   throw( std::invalid_argument( "R3B is not a SingleFlowDCRBlock" ) );
 
- return( DCRB->map_forward_Modification( this , mod , r3bc , issuePMod ,
-					 issueAMod ) );
+ return(
+  DCRB->map_forward_Modification( this , mod , r3bc , issuePMod ,
+                                  issueAMod ) );
 
- }  // end( SingleFlowDCRBlock::map_back_Modification )
+ } // end( SingleFlowDCRBlock::map_back_Modification )
 
 /*--------------------------------------------------------------------------*/
 /*----------------------- Methods for handling Solution --------------------*/
 /*--------------------------------------------------------------------------*/
 
-Solution * SingleFlowDCRBlock::get_Solution( Configuration * solc , bool emptys )
+Solution * SingleFlowDCRBlock::get_Solution( Configuration * solc ,
+                                             bool emptys )
 {
  int wsol = 0;
  if( ( ! solc ) && f_BlockConfig )
@@ -1681,7 +1910,7 @@ Solution * SingleFlowDCRBlock::get_Solution( Configuration * solc , bool emptys 
  if( auto tsolc = dynamic_cast< SimpleConfiguration< int > * >( solc ) )
   wsol = tsolc->f_value;
 
- auto *sol = new DCRSolution();
+ auto * sol = new DCRSolution();
 
  if( wsol != 2 )
   sol->v_x.resize( get_NArcs() );
@@ -1694,16 +1923,19 @@ Solution * SingleFlowDCRBlock::get_Solution( Configuration * solc , bool emptys 
 
  return( sol );
 
- }  // end( SingleFlowDCRBlock::get_Solution )
+ } // end( SingleFlowDCRBlock::get_Solution )
 
 /*--------------------------------------------------------------------------*/
 
 void SingleFlowDCRBlock::get_x( Vec_double_it FSol , Range rng ) const
 {
- for( ; rng.first < std::min( rng.second , get_NArcs() ) ; )
-  *(FSol++) = x[ rng.first++ ].get_value();
+ if( ! ( AR & HasVar ) )
+  throw( std::logic_error( "flow Variable not available" ) );
 
- }  // end( SingleFlowDCRBlock::get_x( range ) )
+ for( ; rng.first < std::min( rng.second , get_NArcs() ) ; )
+  *( FSol++ ) = x[ rng.first++ ].get_value();
+
+ } // end( SingleFlowDCRBlock::get_x( range ) )
 
 /*--------------------------------------------------------------------------*/
 
@@ -1714,19 +1946,22 @@ void SingleFlowDCRBlock::get_x( Vec_double_it FSol , c_Subset & nms ) const
 
  auto nmsi = nms.begin();
 
-  while( nmsi != nms.end() ) 
-   *(FSol++) = x[ *(nmsi++) ].get_value();
+ while( nmsi != nms.end() )
+  *( FSol++ ) = x[ *( nmsi++ ) ].get_value();
 
- }  // end( SingleFlowDCRBlock::get_x( subset ) )
+ } // end( SingleFlowDCRBlock::get_x( subset ) )
 
 /*--------------------------------------------------------------------------*/
 
 void SingleFlowDCRBlock::get_r( Vec_double_it FSol , Range rng ) const
 {
- for( ; rng.first < std::min( rng.second , get_NArcs() ) ; )
-  *(FSol++) = r[ rng.first++ ].get_value();
+ if( ! ( AR & HasVar ) )
+  throw( std::logic_error( "reserved-rate Variable not available" ) );
 
- }  // end( SingleFlowDCRBlock::get_r( range ) )
+ for( ; rng.first < std::min( rng.second , get_NArcs() ) ; )
+  *( FSol++ ) = r[ rng.first++ ].get_value();
+
+ } // end( SingleFlowDCRBlock::get_r( range ) )
 
 /*--------------------------------------------------------------------------*/
 
@@ -1737,17 +1972,17 @@ void SingleFlowDCRBlock::get_r( Vec_double_it FSol , c_Subset & nms ) const
 
  auto nmsi = nms.begin();
 
-  while( nmsi != nms.end() ) 
-   *(FSol++) = r[ *(nmsi++) ].get_value();
+ while( nmsi != nms.end() )
+  *( FSol++ ) = r[ *( nmsi++ ) ].get_value();
 
- }  // end( SingleFlowDCRBlock::get_r( subset ) )
+ } // end( SingleFlowDCRBlock::get_r( subset ) )
 
 /*--------------------------------------------------------------------------*/
 
 void SingleFlowDCRBlock::set_x( c_Vec_double_it fstrt , Range rng )
 {
- if( ! ( AR & HasVar ) )  // nowhere to put the value in
-  return;                 // cowardly (and silently) return
+ if( ! ( AR & HasVar ) ) // nowhere to put the value in
+  return;               // cowardly (and silently) return
 
  if( rng.second > get_NArcs() )
   rng.second = get_NArcs();
@@ -1757,33 +1992,33 @@ void SingleFlowDCRBlock::set_x( c_Vec_double_it fstrt , Range rng )
  if( HasStaticX() )
   for( auto xi = x.begin() + i ;
        i < std::min( rng.second , get_NArcs() ) ; ++i )
-   (xi++)->set_value( *(fstrt++) );
+   ( xi++ )->set_value( *( fstrt++ ) );
 
- }  // end( SingleFlowDCRBlock::set_x( range ) )
+ } // end( SingleFlowDCRBlock::set_x( range ) )
 
 /*--------------------------------------------------------------------------*/
 
 void SingleFlowDCRBlock::set_x( c_Vec_double_it fstrt , c_Subset sbst )
 {
- if( ! ( AR & HasVar ) )  // nowhere to put the value in
-  return;                 // cowardly (and silently) return
+ if( ! ( AR & HasVar ) ) // nowhere to put the value in
+  return;               // cowardly (and silently) return
 
  auto it = sbst.begin();
 
  if( HasStaticX() )
   while( ( it != sbst.end() ) && ( *it < get_NArcs() ) )
-   x[ *(it++) ].set_value( *(fstrt++) );
+   x[ *( it++ ) ].set_value( *( fstrt++ ) );
 
  return;
 
- }  // end( SingleFlowDCRBlock::set_x( subset ) )
+ } // end( SingleFlowDCRBlock::set_x( subset ) )
 
 /*--------------------------------------------------------------------------*/
 
 void SingleFlowDCRBlock::set_r( c_Vec_double_it fstrt , Range rng )
 {
- if( ! ( AR & HasVar ) )  // nowhere to put the value in
-  return;                 // cowardly (and silently) return
+ if( ! ( AR & HasVar ) ) // nowhere to put the value in
+  return;               // cowardly (and silently) return
 
  if( rng.second > get_NArcs() )
   rng.second = get_NArcs();
@@ -1793,28 +2028,28 @@ void SingleFlowDCRBlock::set_r( c_Vec_double_it fstrt , Range rng )
  if( HasStaticX() )
   for( auto xi = r.begin() + i ;
        i < std::min( rng.second , get_NArcs() ) ; ++i )
-   (xi++)->set_value( *(fstrt++) );
+   ( xi++ )->set_value( *( fstrt++ ) );
 
  return;
 
- }  // end( SingleFlowDCRBlock::set_r( range ) )
+ } // end( SingleFlowDCRBlock::set_r( range ) )
 
 /*--------------------------------------------------------------------------*/
 
 void SingleFlowDCRBlock::set_r( c_Vec_double_it fstrt , c_Subset sbst )
 {
- if( ! ( AR & HasVar ) )  // nowhere to put the value in
-  return;                 // cowardly (and silently) return
+ if( ! ( AR & HasVar ) ) // nowhere to put the value in
+  return;               // cowardly (and silently) return
 
  auto it = sbst.begin();
 
  if( HasStaticX() )
   while( ( it != sbst.end() ) && ( *it < get_NArcs() ) )
-   r[ *(it++) ].set_value( *(fstrt++) );
+   r[ *( it++ ) ].set_value( *( fstrt++ ) );
 
  return;
 
- }  // end( SingleFlowDCRBlock::set_x( subset ) )
+ } // end( SingleFlowDCRBlock::set_x( subset ) )
 
 /*--------------------------------------------------------------------------*/
 /*-------------------- Methods for handling Modification -------------------*/
@@ -1836,14 +2071,14 @@ void SingleFlowDCRBlock::add_Modification( sp_Mod mod , ChnlName chnl )
 /*------------ METHODS FOR LOADING, PRINTING & SAVING THE SingleFlowDCRBlock*/
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::print( std::ostream  & output , char vlvl ) const
+void SingleFlowDCRBlock::print( std::ostream & output , char vlvl ) const
 {
- if( vlvl != 'C' ) {  // non-complete version
-  // only basic information 
-  output << "SingleFlowDCRBlock with: " << NNodes << " nodes and " << SN.size()
-	 << " arcs" << std::endl;
+ if( vlvl != 'C' ) { // non-complete version
+  // only basic information
+  output << "SingleFlowDCRBlock with: " << NNodes << " nodes and "
+         << SN.size() << " arcs" << std::endl;
 
-  if( ! vlvl ) {     // print the graph
+  if( ! vlvl ) { // print the graph
 
    if( ! B.empty() )
     for( Index i = 0 ; i < get_NNodes() ; ++i )
@@ -1866,7 +2101,7 @@ void SingleFlowDCRBlock::print( std::ostream  & output , char vlvl ) const
     }
    }
   }
- else  {
+ else {
   // print header in DIMACS standard format
   output << "p min " << get_NNodes() << " " << get_NArcs() << std::endl;
   output << std::setprecision( 16 );
@@ -1875,8 +2110,8 @@ void SingleFlowDCRBlock::print( std::ostream  & output , char vlvl ) const
   if( ! B.empty() )
    for( Index i = 0 ; i < get_NNodes() ; ++i )
     if( B[ i ] != 0 )
-     output << "n\t" << i + 1 << "\t" << - B[ i ] << std::endl;
-  
+     output << "n\t" << i + 1 << "\t" << -B[ i ] << std::endl;
+
   // print arc descriptors in DIMACS standard format
   for( Index i = 0 ; i < get_NArcs() ; ++i ) {
    output << "a\t" << SN[ i ] << "\t" << EN[ i ] << "\t0\t";
@@ -1898,7 +2133,7 @@ void SingleFlowDCRBlock::print( std::ostream  & output , char vlvl ) const
    output << std::endl;
    }
   }
- }  // end( SingleFlowDCRBlock::print )
+ } // end( SingleFlowDCRBlock::print )
 
 /*--------------------------------------------------------------------------*/
 
@@ -1908,7 +2143,7 @@ void SingleFlowDCRBlock::serialize( netCDF::NcGroup & group ) const
 
  Block::serialize( group );
 
- // now the SingleFlowDCRBlock data - - - - - - - - - - - - - - - - - - - - - - - - - -
+ // now the SingleFlowDCRBlock data- - - - - - - - - - - - - - - - - - - - -
 
  // Serialize scalar variables
 
@@ -1935,45 +2170,47 @@ void SingleFlowDCRBlock::serialize( netCDF::NcGroup & group ) const
   ( group.addVar( "B" , netCDF::NcDouble() , nn ) ).putVar( B.data() );
 
  if( ! LinkDelays.empty() )
-  ( group.addVar( "LinkDelays" , netCDF::NcDouble() , na ) ).putVar( LinkDelays.data() );
+  ( group.addVar( "LinkDelays" , netCDF::NcDouble() , na ) )
+   .putVar( LinkDelays.data() );
 
  if( ! NodeDelays.empty() )
-  ( group.addVar( "NodeDelays" , netCDF::NcDouble() , nn ) ).putVar( NodeDelays.data() );
+  ( group.addVar( "NodeDelays" , netCDF::NcDouble() , nn ) )
+   .putVar( NodeDelays.data() );
 
- }  // end( SingleFlowDCRBlock::serialize )
+ } // end( SingleFlowDCRBlock::serialize )
 
 /*--------------------------------------------------------------------------*/
 /*------------- METHODS FOR ADDING / REMOVING / CHANGING DATA --------------*/
 /*--------------------------------------------------------------------------*/
 
 void SingleFlowDCRBlock::chg_costs( c_Vec_double_it NCost , Range rng ,
-			  ModParam issueMod , ModParam issueAMod )
+                                    ModParam issueMod , ModParam issueAMod )
 {
  rng.second = std::min( rng.second , get_NArcs() );
- if( rng.second <= rng.first )  // nothing to change
-  return;                       // cowardly (and silently) return
+ if( rng.second <= rng.first ) // nothing to change
+  return;                      // cowardly (and silently) return
 
  // check to see how many of the initial arcs are either deleted or not
  // really changing the costs
- while( ( std::isnan( C[ rng.first ] ) || ( *NCost == C[ rng.first ] ) )
-	&& ( rng.first < rng.second ) ) {
+ while( ( std::isnan( C[ rng.first ] ) || ( *NCost == C[ rng.first ] ) ) &&
+        ( rng.first < rng.second ) ) {
   ++rng.first;
   ++NCost;
   }
 
- if( rng.second <= rng.first )  // nothing left to change
-  return;                       // cowardly (and silently) return
+ if( rng.second <= rng.first ) // nothing left to change
+  return;                      // cowardly (and silently) return
 
  // check to see how many of the final arcs are either deleted or not
  // really changing the costs
  auto NCEit = NCost + ( rng.second - rng.first );
  while( ( ( std::isnan( C[ rng.second - 1 ] ) ) ||
-	  ( *(--NCEit) == C[ rng.second - 1 ] ) )
-	&& ( rng.first < rng.second ) )
+          ( *( --NCEit ) == C[ rng.second - 1 ] ) ) &&
+        ( rng.first < rng.second ) )
   --rng.second;
 
- if( rng.second <= rng.first )  // nothing left to change
-  return;                       // cowardly (and silently) return
+ if( rng.second <= rng.first ) // nothing left to change
+  return;                      // cowardly (and silently) return
 
  if( not_dry_run( issueAMod ) && ( AR & HasObj ) ) {
   // change abstract and physical representation together - - - - - - - - - -
@@ -1982,13 +2219,13 @@ void SingleFlowDCRBlock::chg_costs( c_Vec_double_it NCost , Range rng ,
   auto NCit = NC.begin();
 
   for( Index i = rng.first ; i < rng.second ; ++i , ++NCost )
-   if( std::isnan( C[ i ] ) )  // arc is deleted
-    *(NCit++) = 0;             // give it an "harmless" coefficient
-   else                        // arc is there    
-    *(NCit++) = C[ i ] = *NCost;
+   if( std::isnan( C[ i ] ) ) // arc is deleted
+    *( NCit++ ) = 0;          // give it an "harmless" coefficient
+   else                       // arc is there
+    *( NCit++ ) = C[ i ] = *NCost;
 
   get_lfo()->modify_coefficients( std::move( NC ) , rng ,
-				  un_ModBlock( issueAMod ) );
+                                  un_ModBlock( issueAMod ) );
   }
  else
   // only change the physical representation- - - - - - - - - - - - - - - - -
@@ -1997,26 +2234,26 @@ void SingleFlowDCRBlock::chg_costs( c_Vec_double_it NCost , Range rng ,
     if( ! std::isnan( C[ i ] ) )
      C[ i ] = *NCost;
 
- f_cond_lower = dNAN;  // reset conditional bounds
+ f_cond_lower = dNAN; // reset conditional bounds
 
- if( issue_pmod( issueMod ) )  // issue "physical Modification" - - - - - - -
-  Block::add_Modification( std::make_shared< SingleFlowDCRBlockRngdMod >( this ,
-					      SingleFlowDCRBlockMod::eChgCost , rng ) ,
-			   Observer::par2chnl( issueMod ) );
- #if CHECK_DS
-  CheckAbsVSPhys();
- #endif
+ if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+  Block::add_Modification( std::make_shared< SingleFlowDCRBlockRngdMod >(
+                            this , SingleFlowDCRBlockMod::eChgCost , rng ) ,
+                           Observer::par2chnl( issueMod ) );
+#if CHECK_DS
+ CheckAbsVSPhys();
+#endif
 
- }  // end( SingleFlowDCRBlock::chg_costs( range ) )
+ } // end( SingleFlowDCRBlock::chg_costs( range ) )
 
 /*--------------------------------------------------------------------------*/
 
 void SingleFlowDCRBlock::chg_costs( c_Vec_double_it NCost , Subset && nms ,
-			  bool ordered  ,
-			  ModParam issueMod , ModParam issueAMod )
+                                    bool ordered , ModParam issueMod ,
+                                    ModParam issueAMod )
 {
- if( nms.empty() )  // nothing to change
-  return;           // cowardly (and silently) return
+ if( nms.empty() ) // nothing to change
+  return;          // cowardly (and silently) return
 
  // eliminate from NCost and nms the entries corresponding to either
  // deleted arcs or arcs whose cost actually does not change; meanwhile,
@@ -2027,10 +2264,10 @@ void SingleFlowDCRBlock::chg_costs( c_Vec_double_it NCost , Subset && nms ,
   auto NCit = NC.begin();
   auto nmsit = nms.begin();
   for( auto i : nms ) {
-   auto nci = *(NCost++);
+   auto nci = *( NCost++ );
    if( ( ! std::isnan( C[ i ] ) ) && ( nci != C[ i ] ) ) {
-    *(nmsit++) = i;
-    *(NCit++) = nci;
+    *( nmsit++ ) = i;
+    *( NCit++ ) = nci;
     }
    }
   nms.resize( std::distance( nms.begin() , nmsit ) );
@@ -2041,24 +2278,24 @@ void SingleFlowDCRBlock::chg_costs( c_Vec_double_it NCost , Subset && nms ,
   std::vector< TP > pairs;
   pairs.reserve( nms.size() );
   for( auto i : nms ) {
-   auto nci = *(NCost++);
+   auto nci = *( NCost++ );
    if( ( ! std::isnan( C[ i ] ) ) && ( nci != C[ i ] ) )
     pairs.push_back( std::make_pair( i , nci ) );
    }
   std::sort( pairs.begin() , pairs.end() ,
-	     []( auto & a , auto & b ) { return( a.first < b.first ); } );
+             []( auto & a , auto & b ) { return( a.first < b.first ); } );
   NC.resize( pairs.size() );
   auto NCit = NC.begin();
   auto nmsit = nms.begin();
   for( auto & el : pairs ) {
-   *(nmsit++) = el.first;
-   *(NCit++) = el.second;
+   *( nmsit++ ) = el.first;
+   *( NCit++ ) = el.second;
    }
   nms.resize( pairs.size() );
   }
 
- if( nms.empty() )  // nothing left to change
-  return;           // cowardly (and silently) return
+ if( nms.empty() ) // nothing left to change
+  return;          // cowardly (and silently) return
 
  if( not_dry_run( issueAMod ) && ( AR & HasObj ) ) {
   // change abstract and physical representation together - - - - - - - - - -
@@ -2068,75 +2305,78 @@ void SingleFlowDCRBlock::chg_costs( c_Vec_double_it NCost , Subset && nms ,
   // note that modify_coefficients owns both vectors, so two copies have
   // to be made
   get_lfo()->modify_coefficients( std::move( NC ) , Subset( nms ) , true ,
-				  un_ModBlock( issueAMod ) );
+                                  un_ModBlock( issueAMod ) );
   }
  else
   // only change the physical representation- - - - - - - - - - - - - - - - -
   if( not_dry_run( issueMod ) )
    copyidx( C , nms , NC.begin() );
 
- f_cond_lower = dNAN;  // reset conditional bounds
+ f_cond_lower = dNAN; // reset conditional bounds
 
- if( issue_pmod( issueMod ) )  // issue "physical Modification" - - - - - - -
-  Block::add_Modification( std::make_shared< SingleFlowDCRBlockSbstMod >( this ,
-                                  SingleFlowDCRBlockMod::eChgCost , std::move( nms ) ) ,
-			   Observer::par2chnl( issueMod ) );
- #if CHECK_DS
-  CheckAbsVSPhys();
- #endif
+ if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+  Block::add_Modification(
+   std::make_shared< SingleFlowDCRBlockSbstMod >(
+    this , SingleFlowDCRBlockMod::eChgCost , std::move( nms ) ) ,
+   Observer::par2chnl( issueMod ) );
+#if CHECK_DS
+ CheckAbsVSPhys();
+#endif
 
- }  // end( SingleFlowDCRBlock::chg_costs( subset ) )
+ } // end( SingleFlowDCRBlock::chg_costs( subset ) )
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::chg_cost( double NCost , Index arc , 
-			 ModParam issueMod , ModParam issueAMod )
+void SingleFlowDCRBlock::chg_cost( double NCost , Index arc ,
+                                   ModParam issueMod ,
+                                   ModParam issueAMod )
 {
  //if( arc >= get_NArcs() )
-  //throw( std::invalid_argument( "invalid arc name" ) );
+ //throw( std::invalid_argument( "invalid arc name" ) );
 
- if( arc < get_NArcs() ){
- if( std::isnan( C[ arc ] ) || ( C[ arc ] == NCost ) )
-  return;  // if the arc is deleted or the cost does not change, all done
+ if( arc < get_NArcs() ) {
+  if( std::isnan( C[ arc ] ) || ( C[ arc ] == NCost ) )
+   return; // if the arc is deleted or the cost does not change, all done
 
- f_cond_lower = dNAN;  // reset conditional bounds
+  f_cond_lower = dNAN; // reset conditional bounds
 
- if( not_dry_run( issueAMod ) && ( AR & HasObj ) ) {
-  // change abstract and physical representation together - - - - - - - - - -
-  // in the meantime, if so instructed also issue abstract Modification
-  C[ arc ] = NCost;
-
-  get_lfo()->modify_coefficient( arc , NCost , un_ModBlock( issueAMod ) );
-  }
- else
-  // only change the physical representation- - - - - - - - - - - - - - - - -
-  if( not_dry_run( issueMod ) )
+  if( not_dry_run( issueAMod ) && ( AR & HasObj ) ) {
+   // change abstract and physical representation together - - - - - - - - - -
+   // in the meantime, if so instructed also issue abstract Modification
    C[ arc ] = NCost;
 
- if( issue_pmod( issueMod ) )  // issue "physical Modification" - - - - - - -
-  Block::add_Modification( std::make_shared< SingleFlowDCRBlockRngdMod >( this ,
-			   SingleFlowDCRBlockMod::eChgCost , Range( arc , arc + 1 ) ) ,
-			   Observer::par2chnl( issueMod ) );
- #if CHECK_DS
+   get_lfo()->modify_coefficient( arc , NCost , un_ModBlock( issueAMod ) );
+   }
+  else
+   // only change the physical representation- - - - - - - - - - - - - - - - -
+   if( not_dry_run( issueMod ) )
+    C[ arc ] = NCost;
+
+  if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+   Block::add_Modification(
+    std::make_shared< SingleFlowDCRBlockRngdMod >(
+     this , SingleFlowDCRBlockMod::eChgCost , Range( arc , arc + 1 ) ) ,
+    Observer::par2chnl( issueMod ) );
+#if CHECK_DS
   CheckAbsVSPhys();
- #endif
+#endif
   }
 
- }  // end( SingleFlowDCRBlock::chg_cost )
+ } // end( SingleFlowDCRBlock::chg_cost )
 
 /*--------------------------------------------------------------------------*/
 
 void SingleFlowDCRBlock::chg_ucaps( c_Vec_double_it NCap , Range rng ,
-			  ModParam issueMod , ModParam issueAMod )
+                                    ModParam issueMod , ModParam issueAMod )
 {
  rng.second = std::min( rng.second , get_NArcs() );
- if( rng.second <= rng.first )  // nothing to change
-  return;                       // cowardly (and silently) return
+ if( rng.second <= rng.first ) // nothing to change
+  return;                      // cowardly (and silently) return
 
  if( U.empty() ) {
-  if( std::all_of( NCap , NCap + ( rng.second - rng.first ) ,
-		   []( c_double cap ) { return( cap >= Inf< double >() ); }
-		   ) )
+  if( std::all_of(
+       NCap , NCap + ( rng.second - rng.first ) ,
+       []( c_double cap ) { return( cap >= Inf< double >() ); } ) )
    return;
 
   U.assign( get_MaxNArcs() , Inf< double >() );
@@ -2144,27 +2384,27 @@ void SingleFlowDCRBlock::chg_ucaps( c_Vec_double_it NCap , Range rng ,
 
  // check to see how many of the initial arcs are either deleted or not
  // really changing the capacity
- while( ( std::isnan( C[ rng.first ] ) || ( *NCap == U[ rng.first ] ) )
-	&& ( rng.first < rng.second ) ) {
+ while( ( std::isnan( C[ rng.first ] ) || ( *NCap == U[ rng.first ] ) ) &&
+        ( rng.first < rng.second ) ) {
   ++rng.first;
   ++NCap;
   }
 
- if( rng.second <= rng.first )  // nothing left to change
-  return;                       // cowardly (and silently) return
+ if( rng.second <= rng.first ) // nothing left to change
+  return;                      // cowardly (and silently) return
 
  // check to see how many of the final arcs are either deleted or not
  // really changing the capacity
  auto NCEit = NCap + ( rng.second - rng.first );
  while( ( ( std::isnan( C[ rng.second - 1 ] ) ) ||
-	  ( *(--NCEit) == U[ rng.second - 1 ] ) )
-	&& ( rng.first < rng.second ) )
+          ( *( --NCEit ) == U[ rng.second - 1 ] ) ) &&
+        ( rng.first < rng.second ) )
   --rng.second;
 
- if( rng.second <= rng.first )  // nothing left to change
-  return;                       // cowardly (and silently) return
+ if( rng.second <= rng.first ) // nothing left to change
+  return;                      // cowardly (and silently) return
 
- f_cond_lower = dNAN;  // reset conditional bounds
+ f_cond_lower = dNAN; // reset conditional bounds
 
  if( not_dry_run( issueAMod ) && ( AR & HasFlw ) ) {
   // change abstract and physical representation together - - - - - - - - - -
@@ -2172,7 +2412,7 @@ void SingleFlowDCRBlock::chg_ucaps( c_Vec_double_it NCap , Range rng ,
 
   if( ! ( AR & HasBnd ) )
    throw( std::logic_error(
-		"bound constraints not defined, cannot change capacity" ) );
+    "bound constraints not defined, cannot change capacity" ) );
 
   not_ModBlock( issueAMod );
   auto ampar = open_if_needed( issueAMod , rng.second - rng.first );
@@ -2180,11 +2420,11 @@ void SingleFlowDCRBlock::chg_ucaps( c_Vec_double_it NCap , Range rng ,
   Index i = rng.first;
 
   // static part
-  for( ; i < std::min( rng.second , get_NArcs() ) ;  ++i , ++NCap )
+  for( ; i < std::min( rng.second , get_NArcs() ) ; ++i , ++NCap )
    if( ( ! std::isnan( C[ i ] ) ) && ( U[ i ] != *NCap ) ) {
     U[ i ] = *NCap;
     UB[ i ].set_rhs( *NCap , ampar );
-    }
+   }
 
   close_if_needed( ampar , rng.second - rng.first );
   }
@@ -2194,28 +2434,28 @@ void SingleFlowDCRBlock::chg_ucaps( c_Vec_double_it NCap , Range rng ,
   // is never really used, it does not matter
   if( not_dry_run( issueMod ) )
    std::copy( NCap , NCap + ( rng.second - rng.first ) ,
-	      U.begin() + rng.first );
+              U.begin() + rng.first );
 
- if( issue_pmod( issueMod ) )  // issue "physical Modification" - - - - - - -
-  Block::add_Modification( std::make_shared< SingleFlowDCRBlockRngdMod >( this ,
-				              SingleFlowDCRBlockMod::eChgCaps , rng ) ,
-			   Observer::par2chnl( issueMod ) );
- #if CHECK_DS
-  CheckAbsVSPhys();
- #endif
+ if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+  Block::add_Modification( std::make_shared< SingleFlowDCRBlockRngdMod >(
+                            this , SingleFlowDCRBlockMod::eChgCaps , rng ) ,
+                           Observer::par2chnl( issueMod ) );
+#if CHECK_DS
+ CheckAbsVSPhys();
+#endif
 
- }  // end( SingleFlowDCRBlock::chg_ucaps( range ) )
+ } // end( SingleFlowDCRBlock::chg_ucaps( range ) )
 
 /*--------------------------------------------------------------------------*/
 
 void SingleFlowDCRBlock::chg_ucaps( c_Vec_double_it NCap , Subset && nms ,
-			  bool ordered  ,
-			  ModParam issueMod , ModParam issueAMod )
+                                    bool ordered , ModParam issueMod ,
+                                    ModParam issueAMod )
 {
  if( U.empty() ) {
-  if( std::all_of( NCap , NCap + nms.size() ,
-		   []( c_double cap ) { return( cap >= Inf< double >() ); }
-		   ) )
+  if( std::all_of( NCap , NCap + nms.size() , []( c_double cap ) {
+       return( cap >= Inf< double >() );
+      } ) )
    return;
 
   U.assign( get_MaxNArcs() , Inf< double >() );
@@ -2230,10 +2470,10 @@ void SingleFlowDCRBlock::chg_ucaps( c_Vec_double_it NCap , Subset && nms ,
   auto NCit = NC.begin();
   auto nmsit = nms.begin();
   for( auto i : nms ) {
-   auto nci = *(NCap++);
+   auto nci = *( NCap++ );
    if( ( ! std::isnan( C[ i ] ) ) && ( nci != U[ i ] ) ) {
-    *(nmsit++) = i;
-    *(NCit++) = nci;
+    *( nmsit++ ) = i;
+    *( NCit++ ) = nci;
     }
    }
   nms.resize( std::distance( nms.begin() , nmsit ) );
@@ -2243,26 +2483,26 @@ void SingleFlowDCRBlock::chg_ucaps( c_Vec_double_it NCap , Subset && nms ,
   std::vector< TP > pairs;
   pairs.reserve( nms.size() );
   for( auto i : nms ) {
-   auto nci = *(NCap++);
+   auto nci = *( NCap++ );
    if( ( ! std::isnan( C[ i ] ) ) && ( nci != U[ i ] ) )
     pairs.push_back( std::make_pair( i , nci ) );
    }
   std::sort( pairs.begin() , pairs.end() ,
-	     []( auto & a , auto & b ) { return( a.first < b.first ); } );
+             []( auto & a , auto & b ) { return( a.first < b.first ); } );
   NC.resize( pairs.size() );
   auto NCit = NC.begin();
   auto nmsit = nms.begin();
   for( auto & el : pairs ) {
-   *(nmsit++) = el.first;
-   *(NCit++) = el.second;
+   *( nmsit++ ) = el.first;
+   *( NCit++ ) = el.second;
    }
   nms.resize( pairs.size() );
   }
 
- if( nms.empty() )  // nothing left to change
-  return;           // cowardly (and silently) return
+ if( nms.empty() ) // nothing left to change
+  return;          // cowardly (and silently) return
 
- f_cond_lower = dNAN;  // reset conditional bounds
+ f_cond_lower = dNAN; // reset conditional bounds
 
  if( not_dry_run( issueAMod ) && ( AR & HasFlw ) ) {
   // change abstract and physical representation together - - - - - - - - - -
@@ -2270,7 +2510,7 @@ void SingleFlowDCRBlock::chg_ucaps( c_Vec_double_it NCap , Subset && nms ,
 
   if( ! ( AR & HasBnd ) )
    throw( std::logic_error(
-		"bound constraints not defined, cannot change capacity" ) );
+    "bound constraints not defined, cannot change capacity" ) );
 
   not_ModBlock( issueAMod );
   auto ampar = open_if_needed( issueAMod , nms.size() );
@@ -2278,8 +2518,7 @@ void SingleFlowDCRBlock::chg_ucaps( c_Vec_double_it NCap , Subset && nms ,
   // static part
   auto nit = nms.begin();
   auto NCit = NC.begin();
-  for( ; ( nit != nms.end() ) && ( *nit < get_NArcs() ) ;
-       ++NCit , ++nit ) {
+  for( ; ( nit != nms.end() ) && ( *nit < get_NArcs() ) ; ++NCit , ++nit ) {
    if( ( ! std::isnan( C[ *nit ] ) ) && ( U[ *nit ] != *NCit ) ) {
     U[ *nit ] = *NCit;
     UB[ *nit ].set_rhs( *NCit , ampar );
@@ -2295,20 +2534,22 @@ void SingleFlowDCRBlock::chg_ucaps( c_Vec_double_it NCap , Subset && nms ,
   if( not_dry_run( issueMod ) )
    copyidx( U , nms , NC.begin() );
 
- if( issue_pmod( issueMod ) )  // issue "physical Modification" - - - - - - -
-  Block::add_Modification( std::make_shared< SingleFlowDCRBlockSbstMod >( this ,
-                                  SingleFlowDCRBlockMod::eChgCaps , std::move( nms ) ) ,
-			   Observer::par2chnl( issueMod ) );
- #if CHECK_DS
-  CheckAbsVSPhys();
- #endif
+ if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+  Block::add_Modification(
+   std::make_shared< SingleFlowDCRBlockSbstMod >(
+    this , SingleFlowDCRBlockMod::eChgCaps , std::move( nms ) ) ,
+   Observer::par2chnl( issueMod ) );
+#if CHECK_DS
+ CheckAbsVSPhys();
+#endif
 
- }  // end( SingleFlowDCRBlock::chg_ucaps( subset ) )
+ } // end( SingleFlowDCRBlock::chg_ucaps( subset ) )
 
 /*--------------------------------------------------------------------------*/
 
 void SingleFlowDCRBlock::chg_ucap( double NCap , Index arc ,
-			 ModParam issueMod , ModParam issueAMod )
+                                   ModParam issueMod ,
+                                   ModParam issueAMod )
 {
  if( arc >= get_NArcs() )
   throw( std::invalid_argument( "invalid arc name" ) );
@@ -2323,10 +2564,10 @@ void SingleFlowDCRBlock::chg_ucap( double NCap , Index arc ,
  if( U[ arc ] == NCap )
   return;
 
- f_cond_lower = dNAN;  // reset conditional bounds
+ f_cond_lower = dNAN; // reset conditional bounds
 
  if( not_dry_run( issueMod ) )
-  U[ arc ] = NCap;  // only change the physical representation - - - - - - -
+  U[ arc ] = NCap; // only change the physical representation - - - - - - -
 
  if( not_dry_run( issueAMod ) && ( AR & HasFlw ) ) {
   // change the abstract representation - - - - - - - - - - - - - - - - - - -
@@ -2334,41 +2575,42 @@ void SingleFlowDCRBlock::chg_ucap( double NCap , Index arc ,
 
   if( ! ( AR & HasBnd ) )
    throw( std::logic_error(
-		"bound constraints not defined, cannot change capacity" ) );
+    "bound constraints not defined, cannot change capacity" ) );
 
-   UB[ arc ].set_rhs( NCap , issueAMod );
+  UB[ arc ].set_rhs( NCap , issueAMod );
   }
 
- if( issue_pmod( issueMod ) )  // issue "physical Modification" - - - - - - -
-  Block::add_Modification( std::make_shared< SingleFlowDCRBlockRngdMod >( this ,
-			   SingleFlowDCRBlockMod::eChgCaps , Range( arc , arc + 1 )  ) ,
-			   Observer::par2chnl( issueMod ) );
- #if CHECK_DS
-  CheckAbsVSPhys();
- #endif
+ if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+  Block::add_Modification(
+   std::make_shared< SingleFlowDCRBlockRngdMod >(
+    this , SingleFlowDCRBlockMod::eChgCaps , Range( arc , arc + 1 ) ) ,
+   Observer::par2chnl( issueMod ) );
+#if CHECK_DS
+ CheckAbsVSPhys();
+#endif
 
- }  // end( SingleFlowDCRBlock::chg_ucap )
+ } // end( SingleFlowDCRBlock::chg_ucap )
 
 /*--------------------------------------------------------------------------*/
 
 
 void SingleFlowDCRBlock::chg_dfcts( c_Vec_double_it NDfct , Range rng ,
-			  ModParam issueMod , ModParam issueAMod )
+                                    ModParam issueMod , ModParam issueAMod )
 {
  rng.second = std::min( rng.second , get_NNodes() );
- if( rng.second <= rng.first )  // nothing to change
-  return;                 // cowardly (and silently) return
+ if( rng.second <= rng.first ) // nothing to change
+  return;                      // cowardly (and silently) return
 
  if( B.empty() ) {
   if( std::all_of( NDfct , NDfct + ( rng.second - rng.first ) ,
-		   []( c_double dfct ) { return( dfct == 0 ); } ) )
+                   []( c_double dfct ) { return( dfct == 0 ); } ) )
    return;
 
   B.assign( get_MaxNNodes() , 0 );
   }
 
  c_Index ndiff = countdiff( NDfct , NDfct + ( rng.second - rng.first ) ,
-			    B.cbegin() + rng.first );
+                            B.cbegin() + rng.first );
  if( ! ndiff )
   return;
 
@@ -2382,11 +2624,11 @@ void SingleFlowDCRBlock::chg_dfcts( c_Vec_double_it NDfct , Range rng ,
   Index i = rng.first;
 
   // static part
-  for( ; i < std::min( rng.second , get_NNodes() ) ;  ++i , ++NDfct )
+  for( ; i < std::min( rng.second , get_NNodes() ) ; ++i , ++NDfct )
    if( B[ i ] != *NDfct ) {
     B[ i ] = *NDfct;
     E[ i ].set_both( *NDfct , ampar );
-    }
+   }
 
   close_if_needed( ampar , ndiff );
   }
@@ -2394,29 +2636,29 @@ void SingleFlowDCRBlock::chg_dfcts( c_Vec_double_it NDfct , Range rng ,
   // only change the physical representation- - - - - - - - - - - - - - - - -
   if( not_dry_run( issueMod ) )
    std::copy( NDfct , NDfct + ( rng.second - rng.first ) ,
-	      B.begin() + rng.first );
+              B.begin() + rng.first );
 
  // TODO: if some changes are "fake", restrict the range
 
- if( issue_pmod( issueMod ) )  // issue "physical Modification" - - - - - - -
-  Block::add_Modification( std::make_shared< SingleFlowDCRBlockRngdMod >( this ,
-				              SingleFlowDCRBlockMod::eChgDfct , rng ) ,
-			   Observer::par2chnl( issueMod ) );
- #if CHECK_DS
-  CheckAbsVSPhys();
- #endif
+ if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+  Block::add_Modification( std::make_shared< SingleFlowDCRBlockRngdMod >(
+                            this , SingleFlowDCRBlockMod::eChgDfct , rng ) ,
+                           Observer::par2chnl( issueMod ) );
+#if CHECK_DS
+ CheckAbsVSPhys();
+#endif
 
- }  // end( SingleFlowDCRBlock::chg_dfcts( range ) )
+ } // end( SingleFlowDCRBlock::chg_dfcts( range ) )
 
 /*--------------------------------------------------------------------------*/
 
 void SingleFlowDCRBlock::chg_dfcts( c_Vec_double_it NDfct , Subset && nms ,
-			  bool ordered ,
-			  ModParam issueMod , ModParam issueAMod )
+                                    bool ordered , ModParam issueMod ,
+                                    ModParam issueAMod )
 {
  if( B.empty() ) {
   if( std::all_of( NDfct , NDfct + nms.size() ,
-		   []( c_double dfct ) { return( dfct == 0 ); } ) )
+                   []( c_double dfct ) { return( dfct == 0 ); } ) )
    return;
 
   B.assign( get_MaxNNodes() , 0 );
@@ -2440,26 +2682,28 @@ void SingleFlowDCRBlock::chg_dfcts( c_Vec_double_it NDfct , Subset && nms ,
 
  // TODO: eliminate from nms the "fake" changes
 
- if( issue_pmod( issueMod ) ) {  // issue "physical Modification" - - - - - -
+ if( issue_pmod( issueMod ) ) { // issue "physical Modification" - - - - - -
   // ensure the names are ordered even if they were not so originally
   if( ! ordered )
    std::sort( nms.begin() , nms.end() );
 
-  Block::add_Modification( std::make_shared< SingleFlowDCRBlockSbstMod >( this ,
-                                 SingleFlowDCRBlockMod::eChgDfct , std::move( nms ) ) ,
-			   Observer::par2chnl( issueMod ) );
+  Block::add_Modification(
+   std::make_shared< SingleFlowDCRBlockSbstMod >(
+    this , SingleFlowDCRBlockMod::eChgDfct , std::move( nms ) ) ,
+   Observer::par2chnl( issueMod ) );
   }
 
- #if CHECK_DS
-  CheckAbsVSPhys();
- #endif
+#if CHECK_DS
+ CheckAbsVSPhys();
+#endif
 
- }  // end( SingleFlowDCRBlock::chg_dfcts( subset ) )
+ } // end( SingleFlowDCRBlock::chg_dfcts( subset ) )
 
 /*--------------------------------------------------------------------------*/
 
 void SingleFlowDCRBlock::chg_dfct( double NDfct , Index nde ,
-			 ModParam issueMod , ModParam issueAMod )
+                                   ModParam issueMod ,
+                                   ModParam issueAMod )
 {
  if( nde >= get_NNodes() )
   throw( std::invalid_argument( "invalid node name" ) );
@@ -2475,28 +2719,29 @@ void SingleFlowDCRBlock::chg_dfct( double NDfct , Index nde ,
   return;
 
  if( not_dry_run( issueMod ) )
-  B[ nde ] = NDfct;  // change the physical representation- - - - - - - - - -
+  B[ nde ] = NDfct; // change the physical representation- - - - - - - - - -
 
  if( not_dry_run( issueAMod ) && ( AR & HasFlw ) ) {
   // change the abstract representation - - - - - - - - - - - - - - - - - - -
   // in the meantime, if so instructed also issue abstract Modification
   E[ nde ].set_both( NDfct , issueAMod );
   }
- 
- if( issue_pmod( issueMod ) )  // issue "physical Modification" - - - - - - -
-  Block::add_Modification( std::make_shared< SingleFlowDCRBlockRngdMod >( this ,
-			   SingleFlowDCRBlockMod::eChgDfct , Range( nde , nde + 1 ) ) ,
-			   Observer::par2chnl( issueMod ) );
- #if CHECK_DS
-  CheckAbsVSPhys();
- #endif
 
- }  // end( SingleFlowDCRBlock::chg_dfct )
+ if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+  Block::add_Modification(
+   std::make_shared< SingleFlowDCRBlockRngdMod >(
+    this , SingleFlowDCRBlockMod::eChgDfct , Range( nde , nde + 1 ) ) ,
+   Observer::par2chnl( issueMod ) );
+#if CHECK_DS
+ CheckAbsVSPhys();
+#endif
 
- /*--------------------------------------------------------------------------*/
+ } // end( SingleFlowDCRBlock::chg_dfct )
 
-void SingleFlowDCRBlock::chg_st( Index ns , Index nt , ModParam issueMod , 
-        ModParam issueAMod )
+/*--------------------------------------------------------------------------*/
+
+void SingleFlowDCRBlock::chg_st( Index ns , Index nt , ModParam issueMod ,
+                                 ModParam issueAMod )
 {
  if( ns >= get_NNodes() || nt >= get_NNodes() )
   throw( std::invalid_argument( "invalid node name" ) );
@@ -2505,21 +2750,21 @@ void SingleFlowDCRBlock::chg_st( Index ns , Index nt , ModParam issueMod ,
  // (deficit -1) and node nt as the (unique) sink (deficit +1); each change
  // is done via chg_dfct(), and therefore issues its own Modification
  for( Index i = 0 ; i < get_NNodes() ; ++i )
-  chg_dfct( 0 , i , issueMod, issueAMod );
+  chg_dfct( 0 , i , issueMod , issueAMod );
 
- chg_dfct( -1 , ns , issueMod, issueAMod );
- chg_dfct( 1 , nt , issueMod, issueAMod );
+ chg_dfct( -1 , ns , issueMod , issueAMod );
+ chg_dfct( 1 , nt , issueMod , issueAMod );
 
- }  // end( SingleFlowDCRBlock::chg_st )
+ } // end( SingleFlowDCRBlock::chg_st )
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::close_arcs( Range rng ,
-			   ModParam issueMod , ModParam issueAMod )
+void SingleFlowDCRBlock::close_arcs( Range rng , ModParam issueMod ,
+                                     ModParam issueAMod )
 {
  rng.second = std::min( rng.second , get_NArcs() );
- if( rng.second <= rng.first )  // nothing to change
-  return;                       // cowardly (and silently) return
+ if( rng.second <= rng.first ) // nothing to change
+  return;                      // cowardly (and silently) return
 
  // since the physical and abstract representation are the same, anything
  // that has to do with the abstract representation is skipped in the
@@ -2533,7 +2778,7 @@ void SingleFlowDCRBlock::close_arcs( Range rng ,
   // static part
   for( ; i < std::min( rng.second , get_NArcs() ) ; ++i )
    if( ! x[ i ].is_fixed() )
-    toclose.push_back( & x[ i ] );
+    toclose.push_back( &x[ i ] );
 
   if( toclose.empty() )
    return;
@@ -2552,24 +2797,24 @@ void SingleFlowDCRBlock::close_arcs( Range rng ,
   close_if_needed( ampar , toclose.size() );
   }
 
- f_cond_lower = dNAN;  // reset conditional bounds
+ f_cond_lower = dNAN; // reset conditional bounds
 
  // TODO: if some changes are "fake", restrict the range
 
- if( issue_pmod( issueMod ) )  // issue "physical Modification" - - - - - - -
-  Block::add_Modification( std::make_shared< SingleFlowDCRBlockRngdMod >( this ,
-				             SingleFlowDCRBlockMod::eCloseArc , rng ) ,
-			   Observer::par2chnl( issueMod ) );
- #if CHECK_DS
-  CheckAbsVSPhys();
- #endif
+ if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+  Block::add_Modification( std::make_shared< SingleFlowDCRBlockRngdMod >(
+                            this , SingleFlowDCRBlockMod::eCloseArc , rng ) ,
+                           Observer::par2chnl( issueMod ) );
+#if CHECK_DS
+ CheckAbsVSPhys();
+#endif
 
- }  // end( SingleFlowDCRBlock::close_arcs( range ) )
+ } // end( SingleFlowDCRBlock::close_arcs( range ) )
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::close_arcs( Subset && nms , bool ordered  ,
-			   ModParam issueMod , ModParam issueAMod )
+void SingleFlowDCRBlock::close_arcs( Subset && nms , bool ordered ,
+                                     ModParam issueMod , ModParam issueAMod )
 {
  if( nms.empty() )
   return;
@@ -2593,7 +2838,7 @@ void SingleFlowDCRBlock::close_arcs( Subset && nms , bool ordered  ,
   auto nit = nms.begin();
   for( ; ( nit != nms.end() ) && ( *nit < get_NArcs() ) ; ++nit )
    if( ! x[ *nit ].is_fixed() )
-    toclose.push_back( & x[ *nit ] );
+    toclose.push_back( &x[ *nit ] );
 
   if( toclose.empty() )
    return;
@@ -2612,22 +2857,23 @@ void SingleFlowDCRBlock::close_arcs( Subset && nms , bool ordered  ,
   close_if_needed( ampar , toclose.size() );
   }
 
- f_cond_lower = dNAN;  // reset conditional bounds
+ f_cond_lower = dNAN; // reset conditional bounds
 
- if( issue_pmod( issueMod ) )  // issue "physical Modification" - - - - - - -
-  Block::add_Modification( std::make_shared< SingleFlowDCRBlockSbstMod >( this ,
-                                 SingleFlowDCRBlockMod::eCloseArc , std::move( nms ) ) ,
-			   Observer::par2chnl( issueMod ) );
- #if CHECK_DS
-  CheckAbsVSPhys();
- #endif
+ if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+  Block::add_Modification(
+   std::make_shared< SingleFlowDCRBlockSbstMod >(
+    this , SingleFlowDCRBlockMod::eCloseArc , std::move( nms ) ) ,
+   Observer::par2chnl( issueMod ) );
+#if CHECK_DS
+ CheckAbsVSPhys();
+#endif
 
- }  // end( SingleFlowDCRBlock::close_arcs( subset ) )
+ } // end( SingleFlowDCRBlock::close_arcs( subset ) )
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::close_arc( Index arc ,
-			  ModParam issueMod , ModParam issueAMod )
+void SingleFlowDCRBlock::close_arc( Index arc , ModParam issueMod ,
+                                    ModParam issueAMod )
 {
  if( arc >= get_NArcs() )
   throw( std::invalid_argument( "invalid arc name" ) );
@@ -2650,26 +2896,27 @@ void SingleFlowDCRBlock::close_arc( Index arc ,
   xa->is_fixed( true , un_ModBlock( issueAMod ) );
   }
 
- f_cond_lower = dNAN;  // reset conditional bounds
+ f_cond_lower = dNAN; // reset conditional bounds
 
- if( issue_pmod( issueMod ) )  // issue "physical Modification" - - - - - - -
-  Block::add_Modification( std::make_shared< SingleFlowDCRBlockRngdMod >( this ,
-			   SingleFlowDCRBlockMod::eCloseArc , Range( arc , arc + 1 ) ) ,
-			   Observer::par2chnl( issueMod ) );
- #if CHECK_DS
-  CheckAbsVSPhys();
- #endif
+ if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+  Block::add_Modification(
+   std::make_shared< SingleFlowDCRBlockRngdMod >(
+    this , SingleFlowDCRBlockMod::eCloseArc , Range( arc , arc + 1 ) ) ,
+   Observer::par2chnl( issueMod ) );
+#if CHECK_DS
+ CheckAbsVSPhys();
+#endif
 
- }  // end( SingleFlowDCRBlock::close_arc )
+ } // end( SingleFlowDCRBlock::close_arc )
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::open_arcs( Range rng ,
-			  ModParam issueMod , ModParam issueAMod )
+void SingleFlowDCRBlock::open_arcs( Range rng , ModParam issueMod ,
+                                    ModParam issueAMod )
 {
  rng.second = std::min( rng.second , get_NArcs() );
- if( rng.second <= rng.first )  // nothing to change
-  return;                       // cowardly (and silently) return
+ if( rng.second <= rng.first ) // nothing to change
+  return;                      // cowardly (and silently) return
 
  // since the physical and abstract representation are the same, anything
  // that has to do with the abstract representation is skipped in the
@@ -2680,10 +2927,10 @@ void SingleFlowDCRBlock::open_arcs( Range rng ,
   toopen.reserve( rng.second - rng.first );
   Index i = rng.first;
 
-   // static part
+  // static part
   for( ; i < std::min( rng.second , get_NArcs() ) ; ++i )
    if( x[ i ].is_fixed() && ( ! std::isnan( C[ i ] ) ) )
-    toopen.push_back( & x[ i ] );
+    toopen.push_back( &x[ i ] );
 
   if( toopen.empty() )
    return;
@@ -2700,24 +2947,24 @@ void SingleFlowDCRBlock::open_arcs( Range rng ,
   close_if_needed( ampar , toopen.size() );
   }
 
- f_cond_lower = dNAN;  // reset conditional bounds
+ f_cond_lower = dNAN; // reset conditional bounds
 
  // TODO: if some changes are "fake", restrict the range
 
- if( issue_pmod( issueMod ) )  // issue "physical Modification" - - - - - - -
-  Block::add_Modification( std::make_shared< SingleFlowDCRBlockRngdMod >( this ,
-				             SingleFlowDCRBlockMod::eOpenArc , rng ) ,
-			   Observer::par2chnl( issueMod ) );
- #if CHECK_DS
-  CheckAbsVSPhys();
- #endif
+ if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+  Block::add_Modification( std::make_shared< SingleFlowDCRBlockRngdMod >(
+                            this , SingleFlowDCRBlockMod::eOpenArc , rng ) ,
+                           Observer::par2chnl( issueMod ) );
+#if CHECK_DS
+ CheckAbsVSPhys();
+#endif
 
- }  // end( SingleFlowDCRBlock::open_arcs( range ) )
+ } // end( SingleFlowDCRBlock::open_arcs( range ) )
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::open_arcs( Subset && nms , bool ordered  ,
-			  ModParam issueMod , ModParam issueAMod )
+void SingleFlowDCRBlock::open_arcs( Subset && nms , bool ordered ,
+                                    ModParam issueMod , ModParam issueAMod )
 {
  if( nms.empty() )
   return;
@@ -2741,7 +2988,7 @@ void SingleFlowDCRBlock::open_arcs( Subset && nms , bool ordered  ,
   auto nit = nms.begin();
   for( ; ( nit != nms.end() ) && ( *nit < get_NArcs() ) ; ++nit )
    if( x[ *nit ].is_fixed() && ( ! std::isnan( C[ *nit ] ) ) )
-    toopen.push_back( & x[ *nit ] );
+    toopen.push_back( &x[ *nit ] );
 
   if( toopen.empty() )
    return;
@@ -2758,22 +3005,23 @@ void SingleFlowDCRBlock::open_arcs( Subset && nms , bool ordered  ,
   close_if_needed( ampar , toopen.size() );
   }
 
- f_cond_lower = dNAN;  // reset conditional bounds
+ f_cond_lower = dNAN; // reset conditional bounds
 
- if( issue_pmod( issueMod ) )  // issue "physical Modification" - - - - - - -
-  Block::add_Modification( std::make_shared< SingleFlowDCRBlockSbstMod >( this ,
-                                  SingleFlowDCRBlockMod::eOpenArc , std::move( nms ) ) ,
-			   Observer::par2chnl( issueMod ) );
- #if CHECK_DS
-  CheckAbsVSPhys();
- #endif
+ if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+  Block::add_Modification(
+   std::make_shared< SingleFlowDCRBlockSbstMod >(
+    this , SingleFlowDCRBlockMod::eOpenArc , std::move( nms ) ) ,
+   Observer::par2chnl( issueMod ) );
+#if CHECK_DS
+ CheckAbsVSPhys();
+#endif
 
- }  // end( SingleFlowDCRBlock::open_arcs( subset ) )
+ } // end( SingleFlowDCRBlock::open_arcs( subset ) )
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::open_arc( Index arc ,
-			 ModParam issueMod , ModParam issueAMod )
+void SingleFlowDCRBlock::open_arc( Index arc , ModParam issueMod ,
+                                   ModParam issueAMod )
 {
  if( arc >= get_NArcs() )
   throw( std::invalid_argument( "invalid arc name" ) );
@@ -2794,17 +3042,18 @@ void SingleFlowDCRBlock::open_arc( Index arc ,
   xa->is_fixed( false , un_ModBlock( issueAMod ) );
   }
 
- f_cond_lower = dNAN;  // reset conditional bounds
+ f_cond_lower = dNAN; // reset conditional bounds
 
- if( issue_pmod( issueMod ) )  // issue "physical Modification" - - - - - - -
-  Block::add_Modification( std::make_shared< SingleFlowDCRBlockRngdMod >( this ,
-			   SingleFlowDCRBlockMod::eOpenArc , Range( arc , arc + 1 ) ) ,
-			   Observer::par2chnl( issueMod ) );
- #if CHECK_DS
-  CheckAbsVSPhys();
- #endif
+ if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+  Block::add_Modification(
+   std::make_shared< SingleFlowDCRBlockRngdMod >(
+    this , SingleFlowDCRBlockMod::eOpenArc , Range( arc , arc + 1 ) ) ,
+   Observer::par2chnl( issueMod ) );
+#if CHECK_DS
+ CheckAbsVSPhys();
+#endif
 
- }  // end( SingleFlowDCRBlock::open_arc )
+ } // end( SingleFlowDCRBlock::open_arc )
 
 /*--------------------------------------------------------------------------*/
 /*-------------------------- PRIVATE METHODS -------------------------------*/
@@ -2816,25 +3065,25 @@ void SingleFlowDCRBlock::guts_of_destructor( void )
  // themselves from Variable that are going to be deleted anyway
 
  // clear the bound constraints
- Constraint::clear( UB );   // static
+ Constraint::clear( UB ); // static
 
  // clear the flow conservation constraints
- Constraint::clear( E );   // static
+ Constraint::clear( E ); // static
 
  DCR_cnst.clear();
- Constraint::clear( Indicator_cnst_rmin ); 
+ Constraint::clear( Indicator_cnst_rmin );
  Constraint::clear( Indicator_cnst_r1 );
  Constraint::clear( Indicator_cnst_r2 );
  Constraint::clear( PC_cuts );
  Constraint::clear( PC_cuts_min );
- 
+
  cone_min_cnst.clear();
  Constraint::clear( cone_cnst );
 
- c.clear();  // clear the Objective
+ c.clear(); // clear the Objective
 
  // delete all Variable
- x.clear();   // static
+ x.clear(); // static
  r.clear();
  theta.clear();
 
@@ -2855,7 +3104,7 @@ void SingleFlowDCRBlock::guts_of_destructor( void )
 
  AR = 0;
 
- }  // end( SingleFlowDCRBlock::guts_of_destructor )
+ } // end( SingleFlowDCRBlock::guts_of_destructor )
 
 /*--------------------------------------------------------------------------*/
 
@@ -2866,7 +3115,8 @@ void SingleFlowDCRBlock::guts_of_add_Modification( p_Mod mod , ChnlName chnl )
   * to find what this Modification exactly is and appropriately mirror the
   * changes to the "abstract representation" to the "physical one".
   *
-  * Note that since SingleFlowDCRBlock is a "leaf" Block (has no sub-Block), this
+  * Note that since SingleFlowDCRBlock is a "leaf" Block (has no sub-Block),
+  * this
   * method does not have to deal with GroupModification since these are
   * produced by Block::add_Modification(), but this method is called
   * *before* that one is.
@@ -2884,26 +3134,26 @@ void SingleFlowDCRBlock::guts_of_add_Modification( p_Mod mod , ChnlName chnl )
  // NOTE: the loop below (meant to recompute/re-issue the coefficients of
  // the newly-added Variable in the Objective) is currently an empty stub
  // ("///!"); handling of this Modification is therefore incomplete.
-   if( const auto tmod = dynamic_cast< C05FunctionModVarsAddd * >( mod ) ) {
-    if( ! ( AR & HasObj ) )
-      throw( std::invalid_argument( "Modification to non-constructed Objective"
-            ) );
+ if( const auto tmod = dynamic_cast< C05FunctionModVarsAddd * >( mod ) ) {
+  if( ! ( AR & HasObj ) )
+   throw(
+    std::invalid_argument( "Modification to non-constructed Objective" ) );
 
-    auto lfo = static_cast< LinearFunction * const >( tmod->function() );
+  auto lfo = static_cast< LinearFunction * const >( tmod->function() );
 
-    if( static_cast< LinearFunction * const >( c.get_function() ) != lfo ){
-      throw( std::invalid_argument( "Modification to non-Objective" ) );
-      return;
+  if( static_cast< LinearFunction * const >( c.get_function() ) != lfo ) {
+   throw( std::invalid_argument( "Modification to non-Objective" ) );
+   return;
+   }
+
+  if( AR & HasObj ) {
+   // add the new coefficient in the objective
+   const auto mp = Observer::make_par( eNoBlck , chnl );
+   LinearFunction::v_coeff_pair p( get_NArcs() );
+   for( Index i = 0 ; i < get_NArcs() ; ++i ) {
+    ///!
     }
-
-    if( AR & HasObj){    
-    // add the new coefficient in the objective
-      const auto mp = Observer::make_par( eNoBlck , chnl );
-      LinearFunction::v_coeff_pair p( get_NArcs() );
-      for( Index i = 0 ; i < get_NArcs() ; ++i ) {
-        ///!
-      }
-    }
+   }
 
   return;
   }
@@ -2911,8 +3161,8 @@ void SingleFlowDCRBlock::guts_of_add_Modification( p_Mod mod , ChnlName chnl )
  // C05FunctionModLinRngd - - - - - - - - - - - - - - - - - - - - - - - - - -
  if( const auto tmod = dynamic_cast< C05FunctionModLinRngd * >( mod ) ) {
   if( ! ( AR & HasObj ) )
-   throw( std::invalid_argument( "Modification to non-constructed Objective"
-				 ) );
+   throw(
+    std::invalid_argument( "Modification to non-constructed Objective" ) );
 
   auto lfo = static_cast< LinearFunction * const >( tmod->function() );
   if( static_cast< LinearFunction * const >( c.get_function() ) != lfo )
@@ -2925,16 +3175,17 @@ void SingleFlowDCRBlock::guts_of_add_Modification( p_Mod mod , ChnlName chnl )
   if( tmod->range().second == tmod->range().first + 1 )
    // changing one cost only
    chg_cost( lfo->get_coefficient( tmod->range().first ) ,
-	     tmod->range().first , make_par( eNoBlck , chnl ) , eDryRun );
-  else {                            // changing many costs at once
+             tmod->range().first ,
+             make_par( eNoBlck , chnl ) , eDryRun );
+  else { // changing many costs at once
    Vec_double NC( tmod->range().second - tmod->range().first );
    auto NCit = NC.begin();
-   for( Index i = tmod->range().first ; i < tmod->range().second ; ){
-    *(NCit++) = lfo->get_coefficient( i++ );
-   }
+   for( Index i = tmod->range().first ; i < tmod->range().second ; ) {
+    *( NCit++ ) = lfo->get_coefficient( i++ );
+    }
 
-   chg_costs( NC.begin() , tmod->range() ,
-	      make_par( eNoBlck , chnl ) , eDryRun );
+   chg_costs( NC.begin() , tmod->range() , make_par( eNoBlck , chnl ) ,
+              eDryRun );
    }
 
   return;
@@ -2943,8 +3194,8 @@ void SingleFlowDCRBlock::guts_of_add_Modification( p_Mod mod , ChnlName chnl )
  // C05FunctionModLinSbst - - - - - - - - - - - - - - - - - - - - - - - - - -
  if( const auto tmod = dynamic_cast< C05FunctionModLinSbst * >( mod ) ) {
   if( ! ( AR & HasObj ) )
-   throw( std::invalid_argument( "Modification to non-constructed Objective"
-				 ) );
+   throw(
+    std::invalid_argument( "Modification to non-constructed Objective" ) );
 
   auto lfo = static_cast< LinearFunction * const >( tmod->function() );
   if( static_cast< LinearFunction * const >( c.get_function() ) != lfo )
@@ -2958,26 +3209,26 @@ void SingleFlowDCRBlock::guts_of_add_Modification( p_Mod mod , ChnlName chnl )
   Vec_double NC( tmod->subset().size() );
   auto NCit = NC.begin();
   for( auto i : tmod->subset() )
-   *(NCit++) = lfo->get_coefficient( i++ );
+   *( NCit++ ) = lfo->get_coefficient( i++ );
 
   chg_costs( NC.begin() , Subset( tmod->subset() ) , true ,
-	     make_par( eNoBlck , chnl ) , eDryRun );
+             make_par( eNoBlck , chnl ) , eDryRun );
   return;
   }
 
  // RowConstraintMod- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  if( const auto tmod = dynamic_cast< RowConstraintMod * >( mod ) ) {
   if( ! ( AR & HasFlw ) )
-   throw( std::invalid_argument(
-			    "Modification to non-constructed Constraint" ) );
+   throw(
+    std::invalid_argument( "Modification to non-constructed Constraint" ) );
 
   if( tmod->type() == RowConstraintMod::eChgRHS ) {
    auto cp = dynamic_cast< LB0Constraint * const >( tmod->constraint() );
    if( ! cp )
     throw( std::invalid_argument( "invalid Modification to Constraint" ) );
 
-   chg_ucap( cp->get_rhs() , p2i_ub( cp ) ,
-	     make_par( eNoBlck , chnl ) , eDryRun );
+   chg_ucap( cp->get_rhs() , p2i_ub( cp ) , make_par( eNoBlck , chnl ) ,
+             eDryRun );
    return;
    }
 
@@ -2986,8 +3237,8 @@ void SingleFlowDCRBlock::guts_of_add_Modification( p_Mod mod , ChnlName chnl )
    if( ! cp )
     throw( std::invalid_argument( "invalid Modification to Constraint" ) );
 
-   chg_dfct( cp->get_rhs() , p2i_e( cp ) ,
-	     make_par( eNoBlck , chnl ) , eDryRun );
+   chg_dfct( cp->get_rhs() , p2i_e( cp ) , make_par( eNoBlck , chnl ) ,
+             eDryRun );
    return;
    }
 
@@ -2997,7 +3248,7 @@ void SingleFlowDCRBlock::guts_of_add_Modification( p_Mod mod , ChnlName chnl )
    }
 
   if( tmod->type() == RowConstraintMod::eChgBTS ) {
-   std::cout << "BTS";  
+   std::cout << "BTS";
    return;
    }
 
@@ -3017,8 +3268,8 @@ void SingleFlowDCRBlock::guts_of_add_Modification( p_Mod mod , ChnlName chnl )
   if( ( xi->get_type() != ColVariable::kNonNegative ) &&
       ( xi->get_type() != ColVariable::kNatural ) )
    throw( std::logic_error( "changing type of flow Variable not allowed" ) );
-  */
-   
+   */
+
   auto i = p2i_x( xi );
   if( std::isnan( C[ i ] ) )
    throw( std::logic_error( "[un]fixing deleted arc not allowed" ) );
@@ -3030,9 +3281,10 @@ void SingleFlowDCRBlock::guts_of_add_Modification( p_Mod mod , ChnlName chnl )
   return;
   }
 
- //////////////throw( std::invalid_argument( "unsupported Modification to SingleFlowDCRBlock" ) );
+ ///  ///////////throw( std::invalid_argument( "unsupported Modification to
+ /// SingleFlowDCRBlock" ) );
 
- }  // end( SingleFlowDCRBlock::guts_of_add_Modification )
+ } // end( SingleFlowDCRBlock::guts_of_add_Modification )
 
 /*--------------------------------------------------------------------------*/
 
@@ -3053,16 +3305,15 @@ void SingleFlowDCRBlock::compute_conditional_bounds( void )
     break;
     }
    else
-    f_cond_lower += *tC * (*tU);
+    f_cond_lower += *tC * ( *tU );
+   }
+  else if( *tU == Inf< double >() ) {
+   f_cond_upper = Inf< double >();
+   break;
    }
   else
-   if( *tU == Inf< double >() ) {
-    f_cond_upper = Inf< double >();
-    break;
-    }
-   else
-    f_cond_upper += *tC * (*tU);
-   }
+   f_cond_upper += *tC * ( *tU );
+  }
 
  if( f_cond_lower > -Inf< double >() ) {
   for( ; tC < C.end() ; ++tC , ++tU )
@@ -3072,8 +3323,8 @@ void SingleFlowDCRBlock::compute_conditional_bounds( void )
      break;
      }
     else
-     f_cond_lower += *tC * (*tU);
-    }
+     f_cond_lower += *tC * ( *tU );
+   }
   }
 
  if( f_cond_upper < Inf< double >() ) {
@@ -3084,10 +3335,10 @@ void SingleFlowDCRBlock::compute_conditional_bounds( void )
      break;
      }
     else
-     f_cond_upper += *tC * (*tU);
-    }
+     f_cond_upper += *tC * ( *tU );
+   }
   }
- }  // end( SingleFlowDCRBlock::compute_conditional_bounds )
+ } // end( SingleFlowDCRBlock::compute_conditional_bounds )
 
 /*--------------------------------------------------------------------------*/
 
@@ -3103,18 +3354,18 @@ void SingleFlowDCRBlock::CheckAbsVSPhys( void )
   std::cerr << "x.size() != NArcs" << std::endl;
 
  // check flow constraints- - - - - - - - - - - - - - - - - - - - - - - - - -
- if( AR & HasFlw ) { 
+ if( AR & HasFlw ) {
   if( E.size() != get_NNodes() )
    std::cerr << "E.size() != NNodes" << std::endl;
-  
+
   Subset NRIncid( get_NNodes() , 0 );
 
-  Index objbnd = 0;          // number of actives between obj and bound
+  Index objbnd = 0; // number of actives between obj and bound
   if( AR & HasBnd )
    ++objbnd;
   if( AR & HasObj )
    ++objbnd;
-  Index expnc = 2 + objbnd;  // total number of active stuff per variable
+  Index expnc = 2 + objbnd; // total number of active stuff per variable
 
   // static arcs
   Index a = 0;
@@ -3123,10 +3374,10 @@ void SingleFlowDCRBlock::CheckAbsVSPhys( void )
     std::cerr << "static arc " << a << " deleted" << std::endl;
     continue;
     }
-   
+
    if( xi->get_num_active() != expnc )
     std::cerr << "arc " << a << " active in " << xi->get_num_active()
-	      << " constraints" << std::endl;
+              << " constraints" << std::endl;
 
    Index sna = SN[ a ];
    if( ! sna )
@@ -3139,13 +3390,13 @@ void SingleFlowDCRBlock::CheckAbsVSPhys( void )
    if( ( SN[ a ] > 0 ) && ( sna < get_NArcs() ) ) {
     ++NRIncid[ sna ];
     auto snc = get_lfc( i2p_e( sna ) );
-    auto sni = snc->is_active( &(*xi) );
+    auto sni = snc->is_active( &( *xi ) );
     if( sni >= snc->get_num_active_var() )
      std::cerr << "static arc " << a
-	       << " absent in flow constraint for SN[ a ] == "
-	       << sna << std::endl;
+               << " absent in flow constraint for SN[ a ] == " << sna
+               << std::endl;
     }
-    
+
    Index ena = EN[ a ];
    if( ! ena )
     std::cerr << "EN[ " << a << " ] == 0" << std::endl;
@@ -3157,25 +3408,25 @@ void SingleFlowDCRBlock::CheckAbsVSPhys( void )
    if( ( EN[ a ] > 0 ) && ( ena < get_NArcs() ) ) {
     ++NRIncid[ ena ];
     auto enc = get_lfc( i2p_e( ena ) );
-    auto eni = enc->is_active( &(*xi) );
+    auto eni = enc->is_active( &( *xi ) );
     if( eni >= enc->get_num_active_var() )
      std::cerr << "static arc " << a
-	       << " absent in flow constraint for EN[ a ] == "
-	       << ena << std::endl;
+               << " absent in flow constraint for EN[ a ] == " << ena
+               << std::endl;
     }
    }
 
   // static nodes
   Index n = 0;
   for( auto ni = E.begin() ; n < get_NNodes() ; ++n , ++ni ) {
-   auto lni = get_lfc( &(*ni) );
+   auto lni = get_lfc( &( *ni ) );
    if( lni->get_num_active_var() != NRIncid[ n ] )
     std::cerr << "active variables in static flow constraint " << n
-	      << " == " << lni->get_num_active_var()
-	      << " do not match with incident arcs " << NRIncid[ n ]
-	      << std::endl;
+              << " == " << lni->get_num_active_var()
+              << " do not match with incident arcs " << NRIncid[ n ]
+              << std::endl;
    }
-  }  // end( if( AR & HasFlw ) )
+  } // end( if( AR & HasFlw ) )
 
  // check bound constraints - - - - - - - - - - - - - - - - - - - - - - - - -
  if( AR & HasBnd ) {
@@ -3183,28 +3434,28 @@ void SingleFlowDCRBlock::CheckAbsVSPhys( void )
   Index a = 0;
   auto UBi = UB.begin();
   for( auto xi = x.begin() ; xi != x.end() ; ++a , ++xi , ++UBi ) {
-   if( UBi->is_active( &(*xi) ) >= UBi->get_num_active_var() )
+   if( UBi->is_active( &( *xi ) ) >= UBi->get_num_active_var() )
     std::cerr << "static arc " << a << " absent in bound constraint"
-	      << std::endl;
+              << std::endl;
    }
-  }  // end( if( AR & HasBnd ) )
+  } // end( if( AR & HasBnd ) )
 
  // check objective - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
  if( AR & HasObj ) {
   auto lfo = get_lfo();
   if( lfo->get_num_active_var() != get_NArcs() )
    std::cerr << "objective has " << lfo->get_num_active_var()
-	     << " variables while |A| = " << get_NArcs() << std::endl;
+             << " variables while |A| = " << get_NArcs() << std::endl;
 
   Index a = 0;
   for( auto & xi : x ) {
-   if( lfo->is_active( & xi ) >= get_NArcs() )
+   if( lfo->is_active( &xi ) >= get_NArcs() )
     std::cerr << "static arc " << a << " absent from objective " << std::endl;
    ++a;
    }
 
-  }  // end( if( AR & HasObj ) )
- }  // end( SingleFlowDCRBlock::CheckAbsVSPhys )
+  } // end( if( AR & HasObj ) )
+ } // end( SingleFlowDCRBlock::CheckAbsVSPhys )
 
 #endif
 
@@ -3238,7 +3489,7 @@ void DCRSolution::deserialize( const netCDF::NcGroup & group )
    fs.getVar( v_r.data() );
    }
   }
- }  // end( DCRSolution::deserialize )
+ } // end( DCRSolution::deserialize )
 
 /*--------------------------------------------------------------------------*/
 
@@ -3263,11 +3514,11 @@ void DCRSolution::read( const Block * block )
 
   DCRB->get_r( v_r.begin() );
   }
- }  // end( DCRSolution::read )
+ } // end( DCRSolution::read )
 
 /*--------------------------------------------------------------------------*/
 
-void DCRSolution::write( Block * block ) 
+void DCRSolution::write( Block * block )
 {
  auto DCRB = dynamic_cast< SingleFlowDCRBlock * >( block );
  if( ! DCRB )
@@ -3287,7 +3538,7 @@ void DCRSolution::write( Block * block )
 
   DCRB->set_r( v_r.begin() );
   }
- }  // end( DCRSolution::write )
+ } // end( DCRSolution::write )
 
 /*--------------------------------------------------------------------------*/
 
@@ -3303,8 +3554,8 @@ void DCRSolution::serialize( netCDF::NcGroup & group ) const
 
   std::vector< size_t > countpa = { v_x.size() };
 
-  ( group.addVar( "ArcSolution" , netCDF::NcDouble() , na ) ).putVar(
-					      startp , countpa , v_x.data() );
+  ( group.addVar( "ArcSolution" , netCDF::NcDouble() , na ) )
+   .putVar( startp , countpa , v_x.data() );
   }
 
  if( ! v_r.empty() ) {
@@ -3312,11 +3563,11 @@ void DCRSolution::serialize( netCDF::NcGroup & group ) const
 
   std::vector< size_t > countpa = { v_r.size() };
 
-  ( group.addVar( "FlowSolution" , netCDF::NcDouble() , na ) ).putVar(
-					      startp , countpa , v_r.data() );
+  ( group.addVar( "FlowSolution" , netCDF::NcDouble() , na ) )
+   .putVar( startp , countpa , v_r.data() );
   }
- 
- }  // end( DCRSolution::serialize )
+
+ } // end( DCRSolution::serialize )
 
 /*--------------------------------------------------------------------------*/
 
@@ -3334,7 +3585,7 @@ DCRSolution * DCRSolution::scale( double factor ) const
 
  return( sol );
 
- }  // end( DCRSolution::scale )
+ } // end( DCRSolution::scale )
 
 /*--------------------------------------------------------------------------*/
 
@@ -3349,23 +3600,23 @@ void DCRSolution::sum( const Solution * solution , double multiplier )
    throw( std::invalid_argument( "incompatible flow size" ) );
 
   for( SingleFlowDCRBlock::Index i = 0 ; i < v_x.size() ; ++i )
-   v_x[ i ] = std::max( v_x[ i ], DCRS->v_x[ i ] );
+   v_x[ i ] = std::max( v_x[ i ] , DCRS->v_x[ i ] );
   }
 
  if( ! v_r.empty() ) {
-  if( v_r.size() != DCRS->v_r.size()  )
+  if( v_r.size() != DCRS->v_r.size() )
    throw( std::invalid_argument( "incompatible reserve size" ) );
 
   for( SingleFlowDCRBlock::Index i = 0 ; i < v_r.size() ; ++i )
    v_r[ i ] += DCRS->v_r[ i ] * multiplier;
   }
- }  // end( DCRSolution::sum )
+ } // end( DCRSolution::sum )
 
 /*--------------------------------------------------------------------------*/
 
 DCRSolution * DCRSolution::clone( bool empty ) const
 {
- auto *sol = new DCRSolution();
+ auto * sol = new DCRSolution();
 
  if( empty ) {
   if( ! v_x.empty() )
@@ -3381,7 +3632,7 @@ DCRSolution * DCRSolution::clone( bool empty ) const
 
  return( sol );
 
- }  // end( DCRSolution::clone )
+ } // end( DCRSolution::clone )
 
 /*--------------------------------------------------------------------------*/
 /*------------------- End File SingleFlowDCRBlock.cpp ----------------------*/
