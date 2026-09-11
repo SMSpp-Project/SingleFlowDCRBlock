@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.1.0] - 2026-09-12
+
+### Added
+
 - the standard SMS++ module build system: the CMake project (with the
   package configuration files and the version derived from the git tag),
   the CI for both GitLab and GitHub, and the `makefile` / `makefile-c` /
@@ -78,6 +86,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - the timer of the DCR solvers is the `std::chrono`-based `DCRtimer`,
   which builds everywhere, in place of the POSIX-only `OPTtimers`
 
+- the version of the module is the git tag of its repository, or the
+  VERSION.txt of a release tarball, and the shared library carries it: its
+  SONAME is major.minor while the major is 0, and it is installed with an
+  RPATH relative to itself, so that an installed tree keeps working wherever
+  it is moved
+
 ### Removed
 
 - the local copies of `OPTUtils.h`, `OPTtypes.h` and `OPTvect.h`, some
@@ -111,3 +125,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reserve less than the sustained rate of the flow, and hand back a point
   that is not a solution together with a value below the optimum. The
   point is now moved towards that endpoint, and stops there
+
+[Unreleased]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.1.0...develop
+[0.1.0]: https://gitlab.com/smspp/singleflowdcrblock/-/tags/0.1.0
