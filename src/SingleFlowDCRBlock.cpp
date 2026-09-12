@@ -749,17 +749,31 @@ void SingleFlowDCRBlock::generate_dynamic_constraints( Configuration * stcc )
  // rearranged as a "<=" linear constraint on (theta[j], x[j], r[j]) - - - -
  for( Index j = 0 ; j < get_NArcs() ; j++ ) {
   if( x[ j ].get_value() > eps ) {
-   if( theta[ j ].get_value() <
-       MTU * ( std::pow( x[ j ].get_value() , 2 ) / r[ j ].get_value() ) -
-        tol ) {
+   c_double xj = x[ j ].get_value();
+   c_double rj = r[ j ].get_value();
+
+   // a (near-)zero reserved rate on an arc the relaxation already deems
+   // active is always a violation: Indicator_cnst_r2 (r[ j ] >= rho *
+   // x[ j ]) guarantees a genuinely positive rate on every arc the flow
+   // truly uses, so r[ j ] landing at (near) zero here means the cone is
+   // violated by an unbounded amount, not that there is nothing to do.
+   // Detect the violation on the true rj (so this case is never missed),
+   // but linearize the cut around a safe reference point r0 instead of
+   // dividing by (near) zero: MTU * x^2 / r is convex in ( x , r ) for
+   // r > 0, so its tangent plane at ANY point with r0 > 0 -- not only at
+   // the current one -- is still a valid global underestimator, hence a
+   // valid cut, just possibly not as tight as it would be exactly at rj
+   const bool violated = ( rj <= 1e-9 ) ||
+    ( theta[ j ].get_value() < MTU * ( std::pow( xj , 2 ) / rj ) - tol );
+
+   if( violated ) {
+    c_double r0 = std::max( rj , rho );
     std::list< FRowConstraint > cut( 1 );
     LinearFunction::v_coeff_pair v_var;
     v_var.push_back( std::make_pair( &theta[ j ] , -1.0 ) );
-    v_var.push_back( std::make_pair( &x[ j ] , MTU * 2 * x[ j ].get_value() /
-                                               r[ j ].get_value() ) );
+    v_var.push_back( std::make_pair( &x[ j ] , MTU * 2 * xj / r0 ) );
     v_var.push_back( std::make_pair(
-     &r[ j ] , -MTU * ( ( std::pow( x[ j ].get_value() , 2 ) /
-                         std::pow( r[ j ].get_value() , 2 ) ) ) ) );
+     &r[ j ] , -MTU * ( std::pow( xj , 2 ) / std::pow( r0 , 2 ) ) ) );
     LinearFunction * Funct = new LinearFunction( std::move( v_var ) );
     cut.front().set_lhs( -Inf< double >() );
     cut.front().set_rhs( 0 );
@@ -778,17 +792,34 @@ void SingleFlowDCRBlock::generate_dynamic_constraints( Configuration * stcc )
  // the aggregate cut: same as above, but for the single "source" cone
  // theta_min >= FlowBursts / r_min, linearized around the current
  // (theta_min, r_min) point- - - - - - - - - - - - - - - - - - - - - - - -
- if( theta_min.get_value() < ( FlowBursts / r_min.get_value() ) - tol ) {
-  std::list< FRowConstraint > cut_min( 1 );
-  LinearFunction::v_coeff_pair v_var_min;
-  v_var_min.push_back( std::make_pair( &theta_min , -1.0 ) );
-  v_var_min.push_back( std::make_pair(
-   &r_min , -( FlowBursts / std::pow( r_min.get_value() , 2 ) ) ) );
-  LinearFunction * Funct_min = new LinearFunction( std::move( v_var_min ) );
-  cut_min.front().set_lhs( -Inf< double >() );
-  cut_min.front().set_rhs( -2.0 * FlowBursts / r_min.get_value() );
-  cut_min.front().set_function( Funct_min );
-  add_dynamic_constraints( PC_cuts_min , cut_min , eNoBlck );
+ // r_min defaults to its lower bound of 0 and is *never* pushed away from
+ // it by anything other than this very cut (the only other constraint on
+ // it, Indicator_cnst_rmin, is one-sided: r_min <= r[ j ] for the arcs the
+ // flow uses); hence a (near-)zero r_min must always be treated as a
+ // violation, on pain of theta_min -- and with it the whole FlowBursts /
+ // r_min burst-delay term -- staying at 0 for the rest of the solve. As
+ // for the per-arc cut above, detect the violation on the true value but
+ // linearize around a safe reference point r0 (rho, the model's own
+ // minimum guaranteed rate, which a genuinely active flow already
+ // respects on every arc it uses) instead of dividing by (near) zero
+ {
+  c_double r_min_val = r_min.get_value();
+  const bool violated = ( r_min_val <= 1e-9 ) ||
+   ( theta_min.get_value() < ( FlowBursts / r_min_val ) - tol );
+
+  if( violated ) {
+   c_double r0 = std::max( r_min_val , rho );
+   std::list< FRowConstraint > cut_min( 1 );
+   LinearFunction::v_coeff_pair v_var_min;
+   v_var_min.push_back( std::make_pair( &theta_min , -1.0 ) );
+   v_var_min.push_back( std::make_pair(
+    &r_min , -( FlowBursts / std::pow( r0 , 2 ) ) ) );
+   LinearFunction * Funct_min = new LinearFunction( std::move( v_var_min ) );
+   cut_min.front().set_lhs( -Inf< double >() );
+   cut_min.front().set_rhs( -2.0 * FlowBursts / r0 );
+   cut_min.front().set_function( Funct_min );
+   add_dynamic_constraints( PC_cuts_min , cut_min , eNoBlck );
+   }
   }
  //}
  if( form == PCuts )
@@ -1125,8 +1156,16 @@ double SingleFlowDCRBlock::min_rate( c_Vec_double & X ,
 {
  double rmin = Inf< double >();
 
+ // X[ i ] > 0, rather than > some small tolerance, would let a MIP solver's
+ // numerical noise in on an arc that is not really used: a MILP solve can
+ // (and does) leave arcs of a degenerate alternate path at a X[ i ] on the
+ // order of 1e-9 rather than exactly 0, paired with R[ i ] == 0 (correctly,
+ // since no rate need be reserved on an arc nobody uses); treating that as
+ // "used" would drag rmin down to 0 and, from there, blow up the burst-delay
+ // term FlowBursts / rmin in delay_feasible() into a bogus infeasibility.
+ // 1e-6 matches the threshold used there, for the same reason
  for( Index i = 0 ; i < get_NArcs() ; ++i )
-  if( ( ! is_deleted( i ) ) && ( X[ i ] > 0 ) )
+  if( ( ! is_deleted( i ) ) && ( X[ i ] > 1e-6 ) )
    rmin = std::min( rmin , R[ i ] );
 
  return( rmin < Inf< double >() ? rmin : 0 );
@@ -1333,7 +1372,16 @@ bool SingleFlowDCRBlock::delay_feasible( c_double feps , c_Vec_double & X ,
    continue;
 
   c_double xi = X[ i ];
-  if( xi <= 0 ) // an arc that the flow does not use contributes nothing
+  // xi <= 0 (exact zero only) would leave in an arc that a MIP solver's
+  // numerical noise put at, say, xi == 1.24e-9 rather than exactly 0 --
+  // not really used by the flow, but paired with R[ i ] == 0 (correctly,
+  // since no rate need be reserved on an arc nobody uses), which the
+  // R[ i ] <= 0 guard below would then read as "an arc the flow uses,
+  // with no reserved rate", reporting a bogus infeasibility instead of
+  // silently skipping an arc that is not, in any meaningful sense, used.
+  // 1e-6 comfortably covers such noise (observed at ~1e-9) while staying
+  // far below any genuinely fractional x[ i ], let alone x[ i ] == 1
+  if( xi <= 1e-6 ) // an arc that the flow does not use contributes nothing
    continue;
 
   // the per-hop packetization, propagation and node processing delays

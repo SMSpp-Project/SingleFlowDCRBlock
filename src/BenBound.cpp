@@ -44,6 +44,8 @@
 #include <ctime>
 #include <cstdlib>
 
+#include <unistd.h>
+
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- IMPLEMENTATION OF BenBound--------------------------*/
@@ -105,6 +107,7 @@ void BenBound::LoadProblem( int nnodes , int nlinks , DCR::DCRFlow flow ,
  ObjVal = Inf< double >();
  HeurVal = Inf< double >();
  BestUB = Inf< double >();
+ BestUBrmin = -1;
  BestLB = -Inf< double >();
  ApproxVal = -Inf< double >();
  solvedflag = 0;
@@ -117,6 +120,7 @@ void BenBound::LoadProblem( int nnodes , int nlinks , DCR::DCRFlow flow ,
  copyDataArray( flow , links , nodes );
 
  SOLUTION.resize( numLinks );
+ HeurSOLUTION.assign( numLinks , 0.0 );
 
  lagSol.LoadProblem( numNodes , numLinks , Flow , Links , Nodes , MTU , 1 );
  }
@@ -137,7 +141,9 @@ void BenBound::LoadProblem( DCR::DCRFlow flow )
 
  ObjVal = Inf< double >();
  HeurVal = Inf< double >();
+ HeurSOLUTION.assign( numLinks , 0.0 );
  BestUB = Inf< double >();
+ BestUBrmin = -1;
  BestLB = -Inf< double >();
  ApproxVal = -Inf< double >();
  solvedflag = 0;
@@ -231,6 +237,16 @@ double BenBound::getHeurVal()
 double BenBound::getSolution( int i )
 {
  return( SOLUTION[ i ] );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+/// returns the reserved rate for link i in the best verified
+/// delay-feasible solution found (see getHeurVal())
+
+double BenBound::getHeurSolution( int i )
+{
+ return( HeurSOLUTION.empty() ? 0.0 : HeurSOLUTION[ i ] );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -506,7 +522,7 @@ void BenBound::Solve()
     // cout<<"LB = "<<BestLB<<" UB = "<< BestUB<<endl;
 
     double BLB = BestLB;
-    double BUB = BestUB;
+    double HUB = HeurVal;
 
     bool is_feas;
     double Qnew;
@@ -622,8 +638,15 @@ void BenBound::Solve()
      HeurApprox = lagSol.getHeurVal();
 
      if( HeurApprox <
-         HeurVal ) //if we found a better feasible solution, we save it
+         HeurVal ) { //if we found a better feasible solution, we save it
       HeurVal = HeurApprox;
+      // lagSol's own HeurVal (and hence the routing behind it) is reset
+      // on every updrmin() call, so getHeurRSOLS() here is guaranteed to
+      // be the routing that attains *this* HeurApprox, from the solve
+      // just performed at Q[ p ].inter above -- not a stale one from a
+      // different candidate rmin
+      HeurSOLUTION = lagSol.getHeurRSOLS();
+      }
 
      SPLabels = lagSol.getSPLabels();
 
@@ -850,8 +873,10 @@ void BenBound::Solve()
 
       ObjVal = Q[ p ].Val;
 
-      if( Q[ p ].Val < BestUB )
+      if( Q[ p ].Val < BestUB ) {
        BestUB = Q[ p ].Val;
+       BestUBrmin = Q[ p ].inter;
+       }
 
       /*<convexity holds when lc.m <= rc.m; now rc.m is negative and lc.m
         is obtained by summing positive terms, so in fact the only case in
@@ -981,13 +1006,31 @@ void BenBound::Solve()
      releps = 1;
 
     // stopping criteria: either this iteration made no progress at all on
-    // both bounds (BUB/BLB are the bounds at loop entry), or the relative
-    // gap between the best upper and lower bound has closed to within eps
-    if( BestUB == BUB && BestLB == BLB ) {
+    // both bounds (HUB/BLB are the bounds at loop entry), or the
+    // relative gap between the best upper and lower bound has closed to
+    // within eps.
+    //
+    // The upper bound used here is HeurVal, *not* BestUB: BestUB is
+    // Q[ p ].Val, a Lagrangian-relaxation value alpha + lambda * beta for
+    // whatever candidate attained it, which equals the candidate's actual
+    // (achievable) cost alpha only when beta == 0 there. Whenever the line
+    // search lands on a "convex case" point (a single, exact supporting
+    // line, no further subdivision needed), Q[ p ].interVal trivially
+    // equals Q[ p ].Val in that very same iteration, so BestUB and BestLB
+    // coincide immediately regardless of whether lambda is anywhere near
+    // the true dual-maximizing multiplier for that r_min -- e.g. a
+    // candidate with beta strictly negative (feasible, but with slack, so
+    // its lambda has NOT yet been pushed down to the point of exact
+    // complementary slackness) can trigger this "gap closed" check while
+    // its real cost is nowhere near BestLB. HeurVal cannot suffer from
+    // this: it is only ever updated from a candidate DCRLagrangianSolver
+    // itself verified delay-feasible (beta < 0), so it is always alpha,
+    // the genuine achievable cost, never a dual value in disguise
+    if( HeurVal == HUB && BestLB == BLB ) {
      solvedflag = 1;
      }
 
-    if( ( BestUB - BestLB ) / BestUB < eps ) {
+    if( ( HeurVal - BestLB ) / HeurVal < eps ) {
      solvedflag = 1;
      }
 
@@ -1008,6 +1051,19 @@ void BenBound::Solve()
     ObjVal = approx; //in any case we must return an LB!
 
    rmin = Q[ p ].inter;
+
+   // Q[ p ] here is simply wherever the last LineSearch() call landed,
+   // which is *not* necessarily the point that attained BestUB: the
+   // stopping criteria above can (and on some instances do) fire while
+   // the line search is sitting on a different, worse-or-infeasible-
+   // looking subinterval than the one that produced the best primal
+   // value seen so far. Reporting rmin (and hence extracting SOLUTION
+   // below) from the wrong point makes get_ub()/has_var_solution() see
+   // an inconsistent, possibly DCR-infeasible routing even though a
+   // genuinely feasible one at value BestUB was found earlier in this
+   // very call: use that point instead, whenever one was recorded
+   if( BestUBrmin > 0 )
+    rmin = BestUBrmin;
    //cout << "Q[p].Val = " << Q[p].Val << endl;
    //cout << "rmin = " << rmin << endl;
 
@@ -1017,6 +1073,22 @@ void BenBound::Solve()
  //SOL_VALUE = ObjVal;//lagSol.getObjVal();
  //std::cout << "BUB=" << BestUB << " BLB=" << BestLB << std::endl;
  //std::cout << "GAP=" << std::abs(getUB() - getLB())/getUB() << std::endl;
+
+ // the line search above can leave lagSol's internal state (path[],
+ // Linksp[].rstar, ...) corresponding to an rmin different from the one
+ // just reported: the "already solved, nudge the point and just check
+ // isFeasible()" shortcut a few lines above updates lagSol's rmin and
+ // probes feasibility without a full Solve(), so if that happens to be
+ // the last thing done before this point is accepted, lagSol's solution
+ // reflects Inizial()'s quick initial trial rather than a converged
+ // shortest path at the *reported* rmin. Force one final, full solve at
+ // the exact value being reported so the primal solution extracted below
+ // is always internally consistent with it (updrmin() is a cheap no-op,
+ // and Solve() likewise, when lagSol is already solved for this rmin, so
+ // this only does real work in the mismatched case)
+ lagSol.updrmin( rmin );
+ lagSol.Solve();
+
  SOLUTION = lagSol.getRSOLS();
  }
 
@@ -1121,6 +1193,11 @@ int BenBound::LineSearch()
   //poscounter = 0;
   isize = Q[ i ].Cuts.size();
   max = -Inf< double >(); //reinitialize it to be safe.
+  // maxpos must be reset here too: unlike max, it used to carry over from
+  // the previous subinterval, whose Cuts vector can have a different size,
+  // so a degenerate search below (e.g. a NaN intersection making every
+  // comparison false) left Q[ i ].Cuts[ maxpos ] reading out of bounds
+  maxpos = 0;
   counter = 0;
 
   if( Q[ i ].branchedflag == 0 ) {
@@ -1273,6 +1350,11 @@ int BenBound::LineSearch()
  // we can eliminate that subinterval
 
  min = Inf< double >();
+ // defensive default: if Q has no real subinterval (size <= 1), or every
+ // Q[ i ].interVal fails the comparison below (e.g. because it is NaN),
+ // the loop never assigns minpos; falling back to the last valid index
+ // keeps Q[ minpos ] below in bounds instead of reading garbage
+ minpos = ( Q.size() > 1 ) ? 1 : 0;
 
  for( i = 1 ; i < Q.size() ; i++ ) {
   if( min >= Q[ i ].interVal ) {
@@ -1617,6 +1699,7 @@ void BenBound::Inizial()
     ObjVal = lambda * Flow.burst / Q[ 1 ].rmin - lambda * Flow.deadline +
              SPLabels[ Flow.sinknode ];
     HeurVal = lagSol.getHeurVal();
+    HeurSOLUTION = lagSol.getHeurRSOLS();
 
     //cout<<ObjVal<<HeurVal<<endl;
 
@@ -1838,6 +1921,7 @@ void BenBound::Inizial()
     rmin = Q[ 1 ].rmin;
 
     HeurVal = lagSol.getHeurVal();
+    HeurSOLUTION = lagSol.getHeurRSOLS();
     }
    // otherwise we initialize Q[1].interval with its value and pass everything
    // to solve
@@ -1933,7 +2017,25 @@ double * BenBound::Limitrmin()
     }
   */
 
- while( feas != 0 && j < numLinks ) {
+ // caps[] holds numLinks entries (indices 0 .. numLinks - 1, i.e. 0 .. dx):
+ // the loop condition must therefore guard on "j < dx", not "j < numLinks",
+ // since the body increments j *before* indexing caps[ j ]. With the
+ // off-by-one that used to be here, an instance whose Lagrangian
+ // subproblem is infeasible at every single capacity (feas stays nonzero
+ // through the last valid index, numLinks - 1) drove j one step further,
+ // to numLinks, and read caps[ numLinks ] / used it via updrmin(): one
+ // double past the end of the "new double[ numLinks ]" block allocated
+ // above. That is a heap out-of-bounds read, so whatever happened to sit
+ // in the adjacent heap memory (which differs from run to run depending
+ // on allocator/ASLR state, not on the instance data) was fed to
+ // isFeasible() as if it were a real capacity; on the runs where that
+ // garbage looked "feasible", crit_capc below was set from it instead of
+ // correctly falling through to the BenStat = Infeasible branch, silently
+ // corrupting the whole Inizial()/line-search window that crit_capc seeds
+ // for this flow -- while a different run, with different garbage, could
+ // still stumble onto a correct answer, exactly the non-reproducibility
+ // this hunts
+ while( feas != 0 && j < dx ) {
   j++;
 
   if( caps[ j ] != caps[ j - 1 ] ) //same rmin implies same result
@@ -2126,6 +2228,7 @@ void BenBound::clean_up()
  xPlot.clear();
 
  SOLUTION.clear();
+ HeurSOLUTION.clear();
  }
 
 

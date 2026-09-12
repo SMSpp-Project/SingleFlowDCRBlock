@@ -1051,13 +1051,6 @@ public:
                        Configuration * fsbc = nullptr ) override;
 
 /*--------------------------------------------------------------------------*/
- /// is_sol_feasible() reads the DCRSolution, the Variable are left alone
-
- [[nodiscard]] bool is_sol_feasible_physical( void ) const override {
-  return( true );
-  }
-
-/*--------------------------------------------------------------------------*/
  /// returns true if the DCR *instance* (not the current solution) is feasible
  /** Unlike is_feasible() and is_sol_feasible(), which check whether a
   * *solution* satisfies the constraints, this method checks whether the DCR

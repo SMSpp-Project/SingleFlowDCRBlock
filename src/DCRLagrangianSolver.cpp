@@ -42,6 +42,7 @@
 #include "SPT.h"
 #include "DCRLagrangianSolver.h"
 
+#include <algorithm>
 #include <cstring>
 #include <fstream>
 #include <iostream>
@@ -147,6 +148,7 @@ void DCRLagrangianSolver::LoadProblem( int nnodes , int nlinks ,
  copyDataArray( flow , links , nodes );
 
  RSOLS.resize( nlinks );
+ HeurRSOLS.assign( nlinks , 0.0 );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -175,6 +177,7 @@ void DCRLagrangianSolver::LoadProblem( DCR::DCRFlow flow )
  ObjVal = -Inf< double >();
  lambda = 0;
  HeurVal = Inf< double >();
+ HeurRSOLS.assign( numLinks , 0.0 );
 
  inizialflag = 0;
  solvedflag = 0;
@@ -216,6 +219,7 @@ void DCRLagrangianSolver::updrmin( double r_min )
 
   ObjVal = -Inf< double >();
   HeurVal = Inf< double >();
+  HeurRSOLS.assign( numLinks , 0.0 );
 
   /*  for(int i = 0; i < Cuts.size(); i++)
      cout<<"slope of cut: "<<i<<" = "<<Cuts[i].c.m;
@@ -334,8 +338,13 @@ bool DCRLagrangianSolver::is0opt( void )
 
  if( beta <= 0 ) {
   //the path is already delay-feasible: save it as a heuristic solution
-  if( HeurVal >= alpha )
+  if( HeurVal >= alpha ) {
    HeurVal = alpha;
+
+   HeurRSOLS.assign( numLinks , 0.0 );
+   for( int hi = 0 ; hi < nhops ; hi++ )
+    HeurRSOLS[ RedGraPos[ path[ hi ] ] ] = Linksp[ path[ hi ] ].rstar;
+   }
 
   return 0; //then lambda = 0 is optimal
   }
@@ -662,6 +671,18 @@ void DCRLagrangianSolver::Solve( void )
 
  // two-cut line search: iterate as long as the problem is known to be
  // feasible and not already solved - - - - - - - - - - - - - - - - - -
+ // use_bisection, set at the end of an iteration, forces the *next* one
+ // to evaluate at the plain bisection midpoint of [ pLambda , mLambda ]
+ // instead of the naive line-intersection lambda: see the note on
+ // pLambda / mLambda in the header for why this fallback exists.
+ // bisect_retries counts how many times this has fired so far, capped at
+ // max_bisect_retries: bracket_has_room already bounds this to at most
+ // ~60 halvings on its own relative-precision grounds, so the cap is a
+ // pure safety margin against a case that unexpectedly fails to shrink,
+ // preventing an unbounded blow-up in solve time on larger instances
+ bool use_bisection = false;
+ int bisect_retries = 0;
+ static constexpr int max_bisect_retries = 100;
  if( lagstat == OK && solvedflag != 1 ) {
   do {
    ////variables to save the new cut: generated at every iteration
@@ -679,10 +700,21 @@ void DCRLagrangianSolver::Solve( void )
    alpha = 0;     //initialized
    beta = beta_o; //to the constant term.
 
-   lambda =
-    ( mCut.q - pCut.q ) /
-    ( pCut.m -
-      mCut.m ); //lambda is set to the intersection point of the two cuts.
+   if( use_bisection ) {
+    // the previous iteration's naive intersection converged to a lambda
+    // where beta is not actually close to 0: fall back to plain
+    // bisection of the true [ pLambda , mLambda ] bracket for this one
+    // trial, in case the spurious convergence was only an artifact of a
+    // loose bracket rather than a genuine gap (see the note on
+    // pLambda / mLambda)
+    lambda = ( pLambda + mLambda ) / 2;
+    use_bisection = false;
+    }
+   else
+    lambda =
+     ( mCut.q - pCut.q ) /
+     ( pCut.m -
+       mCut.m ); //lambda is set to the intersection point of the two cuts.
 
    if( lambda <
        0 ) //also add to the line search the linear constraint lambda = 0;
@@ -730,6 +762,16 @@ void DCRLagrangianSolver::Solve( void )
 
    if( beta < -1e-20 && alpha <= HeurVal ) {
     HeurVal = alpha;
+
+    // save the routing that attains this HeurVal *now*, from the path/
+    // nhops of *this* iteration: HeurRSOLS must not be filled in after
+    // the do-while loop below exits, the way RSOLS is, because a later
+    // iteration can overwrite path/nhops with a different (possibly
+    // delay-infeasible) routing before the loop ends, leaving HeurVal
+    // and the routing that justifies it permanently out of sync
+    HeurRSOLS.assign( numLinks , 0.0 );
+    for( int hi = 0 ; hi < nhops ; hi++ )
+     HeurRSOLS[ RedGraPos[ path[ hi ] ] ] = Linksp[ path[ hi ] ].rstar;
     } //save the best delay-feasible primal solution found so far
 
    /*
@@ -771,7 +813,8 @@ void DCRLagrangianSolver::Solve( void )
    if( Cuts.size() < maxCutSize )
     Cuts.push_back( cut ); //save the new cut
 
-   UpdCut( alpha , beta ); //update the value of one of the two optimal cuts.
+   UpdCut( alpha , beta ,
+          lambda ); //update the value of one of the two optimal cuts.
 
    ObjVal =
     alpha +
@@ -788,11 +831,38 @@ void DCRLagrangianSolver::Solve( void )
    //cout<<"relative threshold"<<eps*releps<<endl<<endl;
    num_ite++;
 
+   // the two-cut model (InterVal) and the fresh evaluation (ObjVal) can
+   // agree -- satisfying the convergence test below -- even though beta
+   // is nowhere near 0: e.g. once every arc on the shortest path has its
+   // rate clamped at its own capacity, lambda no longer moves (alpha,
+   // beta) at all, so re-evaluating there trivially "confirms" a bracket
+   // that was never actually narrowed onto the true beta == 0 crossing
+   // (see the note on pLambda / mLambda). Detect this and, as long as the
+   // true bracket still has room, retry once at its plain bisection
+   // midpoint instead of accepting the spurious convergence -- this
+   // recovers cases where the bracket was simply too loose; a further
+   // "converged with room left" event on the very next iteration (the
+   // bracket having genuinely halved) instead signals that the gap is
+   // real (typically a discontinuous switch to a cheaper-but-infeasible
+   // shortest path) and there is nothing more bisection can do about it
+   if( ( InterVal - ObjVal ) <= eps * releps ) {
+    const bool beta_not_tight =
+     std::abs( beta ) > 1e-6 * std::max( 1.0 , std::abs( Flow.deadline ) );
+    const bool bracket_has_room =
+     std::abs( pLambda - mLambda ) >
+     1e-9 * std::max( 1.0 , std::abs( mLambda ) );
+    use_bisection = beta_not_tight && bracket_has_room &&
+                    ( bisect_retries < max_bisect_retries );
+    if( use_bisection )
+     bisect_retries++;
+    }
+
    } while(
-   ( InterVal - ObjVal ) >
-   ( eps *
-     releps ) );  /// /gap > epsilon * max{1,InterVal}: convergence test of the
-                  /// line search
+   ( ( InterVal - ObjVal ) >
+     ( eps *
+       releps ) ) ||  /// gap > epsilon * max{1,InterVal}: convergence test
+                      /// of the line search
+   use_bisection );
 
   //cout<<" eps = "<<eps<<endl;
   //cout<<"in solve relative difference"<<(InterVal - ObjVal)/InterVal<<endl;
@@ -829,10 +899,17 @@ void DCRLagrangianSolver::Solve( void )
         }
 
   // also fill in RSOLS, the rate solution indexed over *all* the arcs
-  // of the (unreduced) network, leaving 0 wherever an arc is unused
+  // of the (unreduced) network, leaving 0 wherever an arc is unused.
+  // path[ j ] is an index into the REDUCED graph (Linksp / RedGraLinks,
+  // sized cardRedGraph: only the arcs whose capacity supports the current
+  // rate); it must be translated back to the original arc index via
+  // RedGraPos[] before comparing against i, which ranges over the full,
+  // unreduced graph -- comparing i directly to path[ j ] matches an
+  // original arc index against a reduced-graph one, which are unrelated
+  // numbering spaces, and reports essentially arbitrary arcs as "used"
   for( int i = 0 ; i < numLinks ; i++ )
    for( int j = 0 ; j < nhops ; j++ )
-    if( i == path[ j ] )
+    if( i == RedGraPos[ path[ j ] ] )
      RSOLS[ i ] = RSol[ j ];
 
 
@@ -1039,7 +1116,7 @@ int DCRLagrangianSolver::Reopt( void )
 
   value = Cuts[ minpos ].c.q + lambda * Cuts[ minpos ].c.m;
 
-  UpdCut( Cuts[ minpos ].c.q , Cuts[ minpos ].c.m );
+  UpdCut( Cuts[ minpos ].c.q , Cuts[ minpos ].c.m , lambda );
 
   if( approx > 1 )
    epsrel = approx;
@@ -1080,7 +1157,11 @@ void DCRLagrangianSolver::Inizial( void )
  double alpha = 0;     //initialized
  double beta = beta_0; //to the constant term.
 
- //cout<<"lambda = "<<lambda<<endl;
+ lambda = 0; // the first trial of the two-cut search is always at
+             // lambda = 0, made explicit here (rather than relying on the
+             // caller to have left it there) since it is recorded as
+             // pLambda below
+
  //cout<<"beta = "<<beta<<endl;
  setReducedGraph(); //work on the reduced graph.
 
@@ -1123,7 +1204,7 @@ void DCRLagrangianSolver::Inizial( void )
   //cout<<"alpha= "<<alpha<<endl;
   //cout<<"beta = "<<beta<<endl;
 
-  UpdCut( alpha , beta ); //update the first optimal cut.
+  UpdCut( alpha , beta , lambda ); //update the first optimal cut.
 
   /////check whether 0 is already the optimal lambda
   if( beta <= 0 ) {
@@ -1176,10 +1257,19 @@ void DCRLagrangianSolver::Inizial( void )
    for( i = 0 ; i < numLinks ; i++ )
     RSOLS[ i ] = 0.0;
 
+   // path[ j ] is a reduced-graph index: translate it back to the
+   // original arc index via RedGraPos[] before comparing against i,
+   // exactly as in the analogous loop at the end of Solve()
    for( int i = 0 ; i < numLinks ; i++ )
     for( int j = 0 ; j < nhops ; j++ )
-     if( i == path[ j ] )
+     if( i == RedGraPos[ path[ j ] ] )
       RSOLS[ i ] = RSol[ j ];
+
+   // this beta <= 0 solution is delay-feasible by construction, and it is
+   // exactly the one HeurVal above was just set from: HeurRSOLS must be
+   // kept in lockstep with it, the same as RSOLS is with the (possibly
+   // different, not necessarily feasible) value returned by getRSOLS()
+   HeurRSOLS = RSOLS;
 
    cut.RSolsize = nhops;
    cut.c.m = beta;
@@ -1275,7 +1365,10 @@ void DCRLagrangianSolver::Inizial( void )
    if( Cuts.size() < maxCutSize )
     Cuts.push_back( cut ); //save the negative-slope cut.
 
-   UpdCut( alpha , beta ); //update the second optimal cut.
+   // lambda has already been doubled (line above) past the value that
+   // actually produced this (alpha, beta): halve it back to record the
+   // multiplier that was really used
+   UpdCut( alpha , beta , lambda / 2 ); //update the second optimal cut.
    //cout<<"LimitVal="<<LimitVal<<endl;
    //cout<<"ObjVal="<<ObjVal<<endl;
 
@@ -1414,6 +1507,7 @@ void DCRLagrangianSolver::clean_up()
  checkSolNeg.clear();
  OptPath.clear();
  RSOLS.clear();
+ HeurRSOLS.clear();
 
  for( i = 0 ; i < Cuts.size() ; i++ ) {
   Cuts[ i ].RSol.clear();
@@ -1430,16 +1524,19 @@ void DCRLagrangianSolver::clean_up()
 // updates pCut or mCut, depending on the sign of the slope, with the new
 // (alpha, beta) cut: see UpdCut() in DCRLagrangianSolver.h
 
-void DCRLagrangianSolver::UpdCut( double alpha , double beta )
+void DCRLagrangianSolver::UpdCut( double alpha , double beta ,
+                                  double at_lambda )
 {
  if( beta >= 0 ) {
   pCut.m = beta;
   pCut.q = alpha;
+  pLambda = at_lambda;
   }
 
  else {
   mCut.m = beta;
   mCut.q = alpha;
+  mLambda = at_lambda;
   }
  }
 /*<updates one of the two optimal cuts defining the current solution,

@@ -50,6 +50,10 @@
 
 #include "CDASolver.h"
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
 /*--------------------------------------------------------------------------*/
 /*-------------------------- NAMESPACE & USING -----------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -298,39 +302,62 @@ public:
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns the best upper bound on the optimum
- /** BenBound::getUB() is the value of the best solution BenBound found,
-  * and that bounds the optimum from above only if the solution is
-  * feasible: hence it is returned if the solution meets the deadline of
-  * the flow [see is_DCR_feasible()], and +INF, i.e. no bound at all, if it
-  * does not. The value of a solution that misses the deadline can still be
-  * looked at with get_var_value(), and the (possibly optimistic) relaxed
-  * one with BenBound::getHeurVal(); what neither of them is, is an upper
-  * bound on the optimum. */
+ /** An upper bound is only meaningful when it is the cost of an actually
+  * achievable, feasible solution: hence, whenever pick_solution_source()
+  * finds one (either the primary or the heuristic candidate), this
+  * *always* recomputes the bound from scratch via get_var_value(), out of
+  * the very routing/rates that get_var_solution() and get_Solution() would
+  * hand out for that same candidate, rather than trusting
+  * BenBound::getUB() == min( BestUB , HeurVal ) at face value. Deliberately
+  * so: BestUB is a Lagrangian-relaxation value (\f$ \alpha + \lambda \beta
+  * \f$ for whatever path/lambda attained it), not the routing's raw cost
+  * \f$ \alpha \f$, and the two can differ by an arbitrary amount whenever
+  * the delay slack \f$ \beta \f$ at that point is not exactly 0 -- even
+  * when the extracted routing is fully DCR-feasible. A concrete instance:
+  * a candidate whose actually-reserved rates cost 162000 (verified
+  * feasible, has_var_solution() true) was once seen reported as an upper
+  * bound of 129800 by trusting BenBound::getUB() directly, a bound with no
+  * solution behind it at all -- 129800 is not the cost of anything this
+  * Solver can actually produce. get_var_value() cannot suffer from this,
+  * since it always re-derives the value from the concrete X, R it reads.
+  *
+  * If no candidate is feasible, +INF is returned, i.e. no bound at all.
+  * Note that BenBound and DCRLagrangianSolver are plain (non-SMS++) classes
+  * that define their own local template class "Inf< T >", whose operator
+  * T() returns std::numeric_limits< T >::max() rather than a true
+  * infinity; since SingleFlowDCRBendersSolver derives from BenBound, an
+  * unqualified "Inf< OFValue >()" here would resolve to that inherited
+  * class, NOT to SMSpp_di_unipi_it::Inf< OFValue >() (a real infinity),
+  * even though this method lives in the SMSpp_di_unipi_it namespace:
+  * base-class lookup wins over the enclosing namespace. Hence the explicit
+  * qualification below, needed so a Solver with no bound at all correctly
+  * reports +Inf and not a (finite!) huge number that could be mistaken for
+  * a genuine, if very bad, bound by a caller checking std::isfinite(). */
 
  OFValue get_ub( void ) override
  {
-  if( has_var_solution() )
-   return( this->BenBound::getUB() );
+  if( pick_solution_source() != SolSource::None )
+   return( get_var_value() );
 
-  return( Inf< OFValue >() );
+  return( SMSpp_di_unipi_it::Inf< OFValue >() );
   }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// returns the objective value of the solution BenBound found
+ /// returns the objective value of the (active) solution BenBound found
  /** Recomputes, from scratch, the objective value \f$ \sum_i C[ i ] r[ i ]
-  * \f$ of the solution BenBound found [see get_solution_vectors()]. Note
-  * that the reserved rates are taken from BenBound and *not* from the
-  * Variable of the SingleFlowDCRBlock: what the Variable hold is whatever
-  * was last written there, by this Solver or by anybody else, while what
-  * this method has to answer is the value of the solution that this Solver
-  * found. */
+  * \f$ of whichever of BenBound's two candidates pick_solution_source()
+  * currently selects [see get_solution_vectors()]. Note that the reserved
+  * rates are taken from BenBound and *not* from the Variable of the
+  * SingleFlowDCRBlock: what the Variable hold is whatever was last written
+  * there, by this Solver or by anybody else, while what this method has to
+  * answer is the value of the solution that this Solver found. */
 
  OFValue get_var_value( void ) override
  {
   auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
 
   SingleFlowDCRBlock::Vec_double X , R;
-  get_solution_vectors( X , R );
+  get_solution_vectors( X , R , pick_solution_source() == SolSource::Heuristic );
 
   double sum = 0;
   for( Index i = 0 ; i < R.size() ; ++i )
@@ -355,26 +382,33 @@ public:
 
 /*--------------------------------------------------------------------------*/
  /// returns true if BenBound found a feasible (primal) solution
- /** Returns true if and only if BenBound terminated with a solution
-  * (BenBound::getStat() == BenBound::OK) *and* that solution is feasible
-  * for the DCR problem [see solution_is_feasible()]: a point that is not
-  * is not a solution, whatever BenBound makes of it. */
+ /** Returns true if and only if BenBound terminated properly
+  * (BenBound::getStat() == BenBound::OK) *and* at least one of its two
+  * candidate solutions -- the primary one or the heuristic one -- is
+  * feasible for the DCR problem [see pick_solution_source()]: a point
+  * that is not is not a solution, whatever BenBound makes of it. */
 
  bool has_var_solution( void ) override
  {
-  return( ( this->BenBound::getStat() == BenBound::OK ) &&
-          solution_is_feasible() );
+  return( pick_solution_source() != SolSource::None );
   }
 
 /*--------------------------------------------------------------------------*/
- /// writes the BenBound solution back into the SingleFlowDCRBlock
- /** Copies the per-arc reserved-rate solution found by BenBound (see
-  * BenBound::getSolution()) into the r[] Variable of the SingleFlowDCRBlock
-  * f_Block, deriving the corresponding "flow" ColVariable x[ i ] (1 if the
-  * arc is used, i.e., its reserved rate is > 0, 0 otherwise) and the
-  * theta[ i ] Variable (MTU / r[ i ] if the arc is used, 0 otherwise); \p
-  * solc is currently unused. If f_Block is nullptr the method silently
-  * does nothing. */
+ /// writes the (active) BenBound solution back into the SingleFlowDCRBlock
+ /** Copies the per-arc reserved-rate solution of whichever candidate
+  * pick_solution_source() currently selects (see get_solution_vectors())
+  * into the r[] Variable of the SingleFlowDCRBlock f_Block, deriving the
+  * corresponding "flow" ColVariable x[ i ] (1 if the arc is used, i.e., its
+  * reserved rate is > 0, 0 otherwise) and the theta[ i ] Variable
+  * (MTU / r[ i ] if the arc is used, 0 otherwise); \p solc is currently
+  * unused. If f_Block is nullptr the method silently does nothing.
+  *
+  * The aggregate r_min is recomputed here as the smallest R[ i ] among the
+  * arcs actually used, rather than read off BenBound::getr_min(): the
+  * latter is the candidate r_min BenBound's own line search was evaluating
+  * (meaningful for the primary solution only), while the former is correct
+  * for either solution and matches what SingleFlowDCRBlock::min_rate()
+  * would report for the very routing being written out here. */
 
  void get_var_solution( Configuration * solc = nullptr ) override
  {
@@ -384,18 +418,22 @@ public:
   auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
 
   SingleFlowDCRBlock::Vec_double X , R;
-  get_solution_vectors( X , R );
+  get_solution_vectors( X , R , pick_solution_source() == SolSource::Heuristic );
 
+  double rmin = std::numeric_limits< double >::infinity();
   for( Index i = 0 ; i < X.size() ; ++i ) {
    DCRB->set_x( i , X[ i ] );
    DCRB->set_r( i , R[ i ] );
    // the smallest burst delay the cone constraint of the arc allows
    DCRB->set_theta( i , X[ i ] > 0 ? DCRB->get_MTU() / R[ i ] : 0 );
+   if( X[ i ] > 0 )
+    rmin = std::min( rmin , R[ i ] );
    }
+  if( ! std::isfinite( rmin ) )
+   rmin = 0;
 
   // the same for the two "aggregate" variables: the minimum reserved rate
   // along the path and the burst delay that goes with it
-  auto rmin = BenBound::getr_min();
   DCRB->set_rmin( rmin );
   DCRB->set_theta_min( rmin > 0 ? DCRB->get_FlowBurst() / rmin : 0 );
   }
@@ -420,11 +458,12 @@ public:
   if( ! dsol )      // not the Solution this Solver knows how to fill:
    return( sol ); // hand back the empty one the Block gave
 
-  if( ! has_var_solution() ) // nothing to put in it
+  const auto src = pick_solution_source();
+  if( src == SolSource::None ) // nothing to put in it
    return( sol );
 
   SingleFlowDCRBlock::Vec_double X , R;
-  get_solution_vectors( X , R );
+  get_solution_vectors( X , R , src == SolSource::Heuristic );
 
   // which of the two parts the Solution wants is its own business, as
   // dictated by the Configuration it was asked with: only fill in what is
@@ -591,14 +630,26 @@ protected:
   * routing, and that the end-to-end delay meets the deadline. This is what
   * has_var_solution() and get_ub() are held to: a Solver that hands out a
   * point that is not feasible, and calls its value an upper bound on the
-  * optimum, says something false. */
+  * optimum, says something false.
+  *
+  * The default tolerance, 1e-5, matches the one SingleFlowDCRBlock.cpp
+  * itself uses for the same kind of cone-feasibility check [see "tol" in
+  * generate_dynamic_constraints()]: at the true optimum the end-to-end
+  * delay sits exactly at the deadline (it is the constraint that
+  * determines the optimal r_min), so the closed-form Lagrangian formulas
+  * BenBound uses to evaluate a candidate necessarily land within
+  * floating-point roundoff of it, not exactly on it. A tighter tolerance
+  * here (1e-6 was tried first) makes has_var_solution() reject genuinely
+  * optimal candidates purely on accumulated roundoff from the several
+  * sqrt()/pow() evaluations in that closed form, reporting +Inf for a
+  * problem that was in fact solved to optimality. */
 
- bool solution_is_feasible( double feps = 1e-6 )
+ bool solution_is_feasible( bool heuristic = false , double feps = 1e-5 )
  {
   auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
 
   SingleFlowDCRBlock::Vec_double X , R;
-  get_solution_vectors( X , R );
+  get_solution_vectors( X , R , heuristic );
 
   return( DCRB->flow_feasible( feps , X ) &&
           DCRB->bound_feasible( feps , X , R ) &&
@@ -607,16 +658,59 @@ protected:
   }
 
 /*--------------------------------------------------------------------------*/
- /// reads the solution of BenBound into a routing and a rate vector
- /** Fills X and R, both sized get_NArcs(), with the solution BenBound
-  * found: R[ i ] is the rate reserved on arc i and X[ i ] is 1 if the arc
-  * is used by the flow, i.e., if that rate is positive, and 0 otherwise.
-  * This is the one place where the solution of BenBound is turned into a
-  * solution of the SingleFlowDCRBlock, and it is what get_var_solution(),
-  * get_Solution() and is_DCR_feasible() all go through. */
+ /// which candidate solution (if any) get_ub()/get_var_solution()/
+ /// get_Solution()/is_DCR_feasible() should currently report
+ /** BenBound holds up to two internally-tracked candidates: the "primary"
+  * one (BenBound::getSolution(), tied to BestUB/getUB()) and the
+  * "heuristic" one (BenBound::getHeurSolution(), tied to getHeurVal()).
+  * Neither is guaranteed feasible a priori -- BestUB is a Lagrangian-
+  * relaxation value that can be attained at a delay-infeasible candidate
+  * [see the note on get_ub()], while HeurVal is only ever updated from a
+  * candidate DCRLagrangianSolver itself verified delay-feasible, but nothing
+  * stops both from being unset (BenStat != OK) or, in principle, both from
+  * failing the DCR-level check applied here (e.g. on a badly conditioned
+  * instance). This method is the single place that decides, so get_ub()
+  * and the solution-reporting methods below never disagree on which one
+  * they are looking at: prefer the primary candidate when it checks out
+  * (it is the one BestUB/getUB() naturally corresponds to, so get_ub() can
+  * still return a tight bound instead of always falling back to
+  * get_var_value()), and fall back to the heuristic one -- a real,
+  * verified-feasible, if possibly suboptimal, primal point -- only when
+  * the primary one does not hold up. */
+
+ enum class SolSource { None , Primary , Heuristic };
+
+ SolSource pick_solution_source( double feps = 1e-5 )
+ {
+  if( this->BenBound::getStat() != BenBound::OK )
+   return( SolSource::None );
+
+  if( solution_is_feasible( false , feps ) )
+   return( SolSource::Primary );
+
+  if( solution_is_feasible( true , feps ) )
+   return( SolSource::Heuristic );
+
+  return( SolSource::None );
+  }
+
+/*--------------------------------------------------------------------------*/
+ /// reads a solution of BenBound into a routing and a rate vector
+ /** Fills X and R, both sized get_NArcs(), with a solution BenBound holds:
+  * R[ i ] is the rate reserved on arc i and X[ i ] is 1 if the arc is used
+  * by the flow, i.e., if that rate is positive, and 0 otherwise. With \p
+  * heuristic == false (the default) this is BenBound::getSolution(), the
+  * candidate tied to BestUB/getUB(); with \p heuristic == true it is
+  * instead BenBound::getHeurSolution(), the candidate tied to getHeurVal()
+  * that DCRLagrangianSolver itself already verified delay-feasible [see
+  * pick_solution_source()]. This is the one place either solution of
+  * BenBound is turned into a solution of the SingleFlowDCRBlock, and it is
+  * what get_var_value(), get_var_solution(), get_Solution() and
+  * is_DCR_feasible() all go through. */
 
  void get_solution_vectors( SingleFlowDCRBlock::Vec_double & X ,
-                            SingleFlowDCRBlock::Vec_double & R )
+                            SingleFlowDCRBlock::Vec_double & R ,
+                            bool heuristic = false )
  {
   auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
   auto narcs = DCRB->get_NArcs();
@@ -625,7 +719,8 @@ protected:
   R.resize( narcs );
 
   for( Index i = 0 ; i < narcs ; ++i ) {
-   auto v = BenBound::getSolution( i );
+   auto v = heuristic ? BenBound::getHeurSolution( i )
+                       : BenBound::getSolution( i );
    R[ i ] = v;
    X[ i ] = v > 0 ? 1 : 0;
    }
