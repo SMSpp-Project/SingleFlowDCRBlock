@@ -46,6 +46,15 @@ algorithms.
 These instructions will let you build the `SingleFlowDCRBlock` module on
 your system.
 
+The module also comes ready-made: `sudo apt install libsmspp-sfdcr-dev` from
+the [PPA of the project](https://launchpad.net/~smspp/+archive/ubuntu/ppa),
+which has `smspp-sfdcr` for its command-line tool as well, and `vcpkg install
+"smspp[core,sfdcr]"` from the [SMS++ vcpkg
+registry](https://gitlab.com/smspp/vcpkg-registry); `conda install -c
+conda-forge smspp-project` and `brew install smspp`, from the [tap of the
+project](https://github.com/SMSpp-Project/homebrew-smspp), carry the whole
+framework. What follows is about building it yourself.
+
 ### Requirements
 
 - The [SMS++ core library](https://gitlab.com/smspp/smspp) and its
