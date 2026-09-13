@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [0.1.1] - 2026-09-13
+
+### Fixed
+
+- `is_sol_feasible()` reads the DCRSolution, and the Variable are left alone
+
 ## [0.1.0] - 2026-09-12
 
 ### Added
