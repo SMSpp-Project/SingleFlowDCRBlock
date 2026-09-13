@@ -760,18 +760,33 @@ void DCRLagrangianSolver::Solve( void )
 
    optBeta = beta;
 
-   if( beta < -1e-20 && alpha <= HeurVal ) {
-    HeurVal = alpha;
-
-    // save the routing that attains this HeurVal *now*, from the path/
-    // nhops of *this* iteration: HeurRSOLS must not be filled in after
-    // the do-while loop below exits, the way RSOLS is, because a later
-    // iteration can overwrite path/nhops with a different (possibly
-    // delay-infeasible) routing before the loop ends, leaving HeurVal
-    // and the routing that justifies it permanently out of sync
-    HeurRSOLS.assign( numLinks , 0.0 );
+   if( beta < -1e-20 ) {
+    // this path is delay-feasible at lambda, but lambda is whatever the
+    // shortest-path line search's own trial happened to be, not tuned
+    // for this specific, now-fixed path at all: squeeze out the slack
+    // (see tightenPath()) before deciding whether it improves on
+    // HeurVal, so a path is never passed over in favour of a costlier
+    // one purely because the *other* one's lambda got closer to its own
+    // delay-tight point
+    double t_alpha = alpha , t_beta = beta;
+    std::vector< double > t_rstar( nhops );
     for( int hi = 0 ; hi < nhops ; hi++ )
-     HeurRSOLS[ RedGraPos[ path[ hi ] ] ] = Linksp[ path[ hi ] ].rstar;
+     t_rstar[ hi ] = Linksp[ path[ hi ] ].rstar;
+    tightenPath( path , nhops , t_alpha , t_beta , t_rstar );
+
+    if( t_alpha <= HeurVal ) {
+     HeurVal = t_alpha;
+
+     // save the routing that attains this HeurVal *now*, from the path/
+     // nhops of *this* iteration: HeurRSOLS must not be filled in after
+     // the do-while loop below exits, the way RSOLS is, because a later
+     // iteration can overwrite path/nhops with a different (possibly
+     // delay-infeasible) routing before the loop ends, leaving HeurVal
+     // and the routing that justifies it permanently out of sync
+     HeurRSOLS.assign( numLinks , 0.0 );
+     for( int hi = 0 ; hi < nhops ; hi++ )
+      HeurRSOLS[ RedGraPos[ path[ hi ] ] ] = t_rstar[ hi ];
+     }
     } //save the best delay-feasible primal solution found so far
 
    /*
@@ -1541,6 +1556,101 @@ void DCRLagrangianSolver::UpdCut( double alpha , double beta ,
  }
 /*<updates one of the two optimal cuts defining the current solution,
  * depending on its slope*/
+
+/*--------------------------------------------------------------------------*/
+// squeezes the delay slack out of a verified delay-feasible path: see
+// tightenPath() in DCRLagrangianSolver.h
+
+void DCRLagrangianSolver::tightenPath( const std::vector< int > & path ,
+                                       int nhops , double & alpha ,
+                                       double & beta ,
+                                       std::vector< double > & rstar )
+{
+ // evaluates this (fixed) path's (alpha, beta) and per-arc rate at
+ // multiplier mu, via the exact same per-arc closed form setSPTcosts()
+ // uses, without touching the shared Linksp[] array (the caller's own
+ // line search may still need it).
+ //
+ // The burst term FlowBursts / r_min is computed from the *actual*
+ // smallest r_ij this evaluation attains on the path, exactly as
+ // SingleFlowDCRBlock::delay_feasible() computes it from min_rate( X , R )
+ // -- not from the member rmin, which is merely the lower bound every
+ // r_ij must respect (BenBound's current outer candidate for r_min), not
+ // necessarily its achieved value. The two coincide only when some arc's
+ // rate is clamped down to rmin; whenever every arc's own optimum sqrt(
+ // mu * MTU / cost ) already exceeds rmin, min_i( r_ij ) is strictly
+ // larger, and using rmin in its place overstates the burst delay,
+ // forcing mu (and hence cost) needlessly higher to compensate for a
+ // term that was never actually that large
+ auto evalAt = [&]( double mu , double & a , double & b ,
+                    std::vector< double > & rs ) {
+  a = 0;
+  double delay_no_burst = 0;
+  double min_r = Inf< double >();
+  rs.resize( nhops );
+  for( int k = 0 ; k < nhops ; ++k ) {
+   const int idx = path[ k ];
+   const auto & lk = RedGraLinks[ idx ];
+   double r;
+   if( lk.cost < 0 )
+    r = lk.capacity;
+   else {
+    const double sqr = sqrt( mu * MTU / lk.cost );
+    if( sqr < rmin )
+     r = rmin;
+    else if( lk.capacity < sqr )
+     r = lk.capacity;
+    else
+     r = sqr;
+    }
+   rs[ k ] = r;
+   a += lk.cost * r;
+   delay_no_burst += MTU / r + MTU / lk.speed + lk.delay +
+                     Nodes[ lk.startnode ].delay;
+   if( r < min_r )
+    min_r = r;
+   }
+  b = delay_no_burst + Flow.burst / min_r - Flow.deadline;
+  };
+
+ // beta( mu ) is monotonically non-increasing in mu (a larger multiplier
+ // only ever raises -- or, at an arc's own capacity ceiling, holds -- a
+ // rate, so delay can only fall): bisect [ 0 , lambda ] for the smallest
+ // mu at which this path is still delay-feasible. lambda (the caller's
+ // own current multiplier) is feasible by hypothesis (beta < 0 there);
+ // mu = 0 need not be -- e.g. if rmin alone (every arc's cheapest
+ // possible rate) already overshoots the deadline, the crossing point
+ // simply lies somewhere inside (0, lambda) rather than being 0 itself,
+ // and the loop below narrows in on it regardless of which end started
+ // out feasible
+ double lo = 0 , hi = lambda;
+ double a = alpha , b = beta; // seed with the caller's own (feasible)
+ std::vector< double > rs = rstar; // point, as the fallback if it is
+                                   // never improved upon
+
+ for( int it = 0 ;
+      it < 60 && ( hi - lo ) > 1e-9 * std::max( 1.0 , hi ) ; ++it ) {
+  const double mid = ( lo + hi ) / 2;
+  double am , bm;
+  std::vector< double > rsm;
+  evalAt( mid , am , bm , rsm );
+
+  if( bm <= 0 ) {
+   hi = mid;
+   a = am;
+   b = bm;
+   rs = rsm;
+   }
+  else
+   lo = mid;
+  }
+
+ if( a < alpha ) {
+  alpha = a;
+  beta = b;
+  rstar = rs;
+  }
+ }
 
 
 /*--------------------------------------------------------------------------*/

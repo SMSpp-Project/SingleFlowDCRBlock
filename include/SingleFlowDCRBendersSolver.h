@@ -354,17 +354,7 @@ public:
 
  OFValue get_var_value( void ) override
  {
-  auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
-
-  SingleFlowDCRBlock::Vec_double X , R;
-  get_solution_vectors( X , R , pick_solution_source() == SolSource::Heuristic );
-
-  double sum = 0;
-  for( Index i = 0 ; i < R.size() ; ++i )
-   if( ! DCRB->is_deleted( i ) )
-    sum += DCRB->get_C( i ) * R[ i ];
-
-  return( sum );
+  return( cost_of( pick_solution_source() == SolSource::Heuristic ) );
   }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
@@ -672,23 +662,54 @@ protected:
   * instance). This method is the single place that decides, so get_ub()
   * and the solution-reporting methods below never disagree on which one
   * they are looking at: prefer the primary candidate when it checks out
-  * (it is the one BestUB/getUB() naturally corresponds to, so get_ub() can
-  * still return a tight bound instead of always falling back to
-  * get_var_value()), and fall back to the heuristic one -- a real,
-  * verified-feasible, if possibly suboptimal, primal point -- only when
-  * the primary one does not hold up. */
+  * (it is the one BestUB/getUB() naturally corresponds to), but only
+  * when it does not cost more than the heuristic one: BestUB is a
+  * Lagrangian-relaxation value, not necessarily this Solver's cheapest
+  * verified-feasible candidate, whereas getHeurVal() (and hence the
+  * heuristic candidate) is reduced_line-search's own explicit tracking
+  * of the best delay-feasible routing it has found, arc rates included --
+  * see DCRLagrangianSolver::tightenPath(), which squeezes any avoidable
+  * slack out of every heuristic candidate before it is accepted. When
+  * both hold up, prefer whichever is actually cheaper; a Solver that
+  * reports an upper bound larger than one it could have reported instead
+  * is not wrong, but it is needlessly weak. */
 
  enum class SolSource { None , Primary , Heuristic };
+
+ /// recomputes, from scratch, the raw cost of one of BenBound's two
+ /// candidates (see get_solution_vectors()), independently of whichever
+ /// one pick_solution_source() currently selects
+ double cost_of( bool heuristic )
+ {
+  auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
+
+  SingleFlowDCRBlock::Vec_double X , R;
+  get_solution_vectors( X , R , heuristic );
+
+  double sum = 0;
+  for( Index i = 0 ; i < R.size() ; ++i )
+   if( ! DCRB->is_deleted( i ) )
+    sum += DCRB->get_C( i ) * R[ i ];
+
+  return( sum );
+  }
 
  SolSource pick_solution_source( double feps = 1e-5 )
  {
   if( this->BenBound::getStat() != BenBound::OK )
    return( SolSource::None );
 
-  if( solution_is_feasible( false , feps ) )
+  const bool primary_ok = solution_is_feasible( false , feps );
+  const bool heuristic_ok = solution_is_feasible( true , feps );
+
+  if( primary_ok && heuristic_ok )
+   return( cost_of( true ) < cost_of( false ) ? SolSource::Heuristic
+                                              : SolSource::Primary );
+
+  if( primary_ok )
    return( SolSource::Primary );
 
-  if( solution_is_feasible( true , feps ) )
+  if( heuristic_ok )
    return( SolSource::Heuristic );
 
   return( SolSource::None );

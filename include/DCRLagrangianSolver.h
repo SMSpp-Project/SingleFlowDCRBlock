@@ -601,6 +601,39 @@ public:
  void UpdCut( double alpha , double beta , double at_lambda );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// squeezes the delay slack out of a verified delay-feasible path
+ /** A path/rate combination with beta < 0 (found by Solve() at whatever
+  * multiplier its own line search happened to be probing) is feasible,
+  * but the multiplier that produced it need not be anywhere near the one
+  * that would make it *cheapest*: every arc's rate is set by the very
+  * same closed form setSPTcosts() uses, r*_ij( mu ) = clamp( sqrt( mu *
+  * MTU / cost_ij ) , r_min , capacity_ij ), and mu was simply "whatever
+  * Solve()'s own dual-ascent trial for the *shortest-path* search was
+  * at", not tuned for this specific, now-fixed path at all. Holding the
+  * arc *set* fixed (no re-solving of the shortest path: only mu varies),
+  * beta( mu ) is monotonically non-increasing, so a plain bisection for
+  * the mu at which beta( mu ) == 0 finds the minimum-cost rate
+  * assignment this exact path admits while still meeting the deadline --
+  * i.e. the true optimum *for this path*, matching what an exact
+  * per-arc-rate formulation (P/C, SOCP) would report for the same route.
+  * Never worse than the caller's own (alpha, beta): if even mu == 0 (the
+  * cheapest possible rate, r_min on every arc) is still infeasible for
+  * this path, it is left untouched.
+  * \param path arc indices (into the *reduced* graph) of the path to
+  *        tighten, unchanged by the call
+  * \param nhops number of arcs in path
+  * \param alpha in: the path's cost at the caller's multiplier; out: the
+  *        tightened (never larger) cost
+  * \param beta in: the path's delay slack at the caller's multiplier
+  *        (must be < 0); out: the tightened delay slack (in [ -eps , 0 ])
+  * \param rstar out: resized to nhops, the tightened per-arc rate of
+  *        path[ 0 .. nhops - 1 ], in the same order */
+
+ void tightenPath( const std::vector< int > & path , int nhops ,
+                   double & alpha , double & beta ,
+                   std::vector< double > & rstar );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// (re)builds the reduced graph, keeping only the arcs with capacity >= r_min
  /** Scans ModCaps (the working arc capacities, reflecting closeArcs() /
   * openArcs()) and copies into RedGraLinks/Linksp the arcs whose capacity

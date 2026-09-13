@@ -1025,7 +1025,15 @@ void BenBound::Solve()
     // its real cost is nowhere near BestLB. HeurVal cannot suffer from
     // this: it is only ever updated from a candidate DCRLagrangianSolver
     // itself verified delay-feasible (beta < 0), so it is always alpha,
-    // the genuine achievable cost, never a dual value in disguise
+    // the genuine achievable cost, never a dual value in disguise.
+    //
+    // Both criteria below also double as safety valves bounding how far
+    // LineSearch() can push r_min: without them it can keep proposing
+    // candidates past the point where the Lagrangian subproblem is still
+    // well-posed, reaching an r_min the reduced graph cannot support at
+    // all and running straight into the "no solution" logic_error thrown
+    // further down. So, imprecise as they are as *convergence* signals,
+    // they are load-bearing as *bracket* ones and must stay
     if( HeurVal == HUB && BestLB == BLB ) {
      solvedflag = 1;
      }
