@@ -276,6 +276,17 @@ void SPT::Solve()
     indices[ j ]; //takes the optimal path, putting it back in s-t order.
    }
   }
+ else {
+  // the sink is unreachable from the source in the current graph (or the
+  // backtrack could not complete): leave no stale path behind for
+  // getPath()/getNHops() to hand out. Without this, a caller that does
+  // not check getStatus() (or one who does check it but only nhops/path
+  // afterwards) would silently reuse whatever a previous, unrelated, and
+  // possibly differently-sized successful Solve() left in Sol, mixing
+  // arcs from two different solves into one bogus "path"
+  Sol.clear();
+  nhops = 0;
+  }
 
  delete[] indices;
  delete[] previous;

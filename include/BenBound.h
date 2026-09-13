@@ -358,6 +358,21 @@ public:
  /*<best primal-feasible solution found so far*/
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// returns the rate reserved on link i in the best *verified
+ /// delay-feasible* solution found, i.e. the one whose cost is
+ /// getHeurVal()
+ /** getSolution()/getSolution(i) reflect whichever candidate attained
+  * BestUB, which -- like BestUB itself -- is a Lagrangian-relaxation
+  * value and is *not* guaranteed to be delay-feasible (see the note on
+  * getUB()). getHeurVal(), by contrast, is only ever updated from a
+  * candidate that DCRLagrangianSolver itself verified delay-feasible
+  * (its delay slack beta was checked negative); this accessor gives the
+  * routing that goes with that guarantee, so a caller that finds
+  * getSolution() DCR-infeasible still has a genuinely feasible fallback
+  * to try before giving up and reporting no bound at all. */
+ double getHeurSolution( int i );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns the best available upper bound on the optimal value
  /** Returns min( BestUB , HeurVal ), i.e., the best between the best
   * value of d( . ) found while exploring the cutting-plane tree and the
@@ -420,6 +435,11 @@ private:
  double mystep;       ///< step used while restricting towards a
                       /// feasible point of the Lagrangian subproblem
  double BestUB;       ///< best (smallest) value of d( . ) found so far
+ double BestUBrmin;   ///< the r_min value (Q[p].inter) at which BestUB was
+                      /// attained, or -1 if BestUB was never updated; used
+                      /// at the end of Solve() to re-extract SOLUTION from
+                      /// the point that actually attains BestUB, rather
+                      /// than from wherever the line search last landed
  double BestLB;       ///< value of the piecewise-linear master problem
                       /// at the current candidate optimum (valid lower
                       /// bound on the true optimal value)
@@ -434,6 +454,10 @@ private:
  double SOL_VALUE;          ///< (unused) cached copy of the optimal value
  std::vector< double > SOLUTION; ///< best primal-feasible rate solution found,
                             /// one entry per link (see getSolution())
+ std::vector< double >
+  HeurSOLUTION; ///< rate solution of the best *verified delay-feasible*
+                /// candidate found (the one whose cost is HeurVal), one
+                /// entry per link; see getHeurSolution()
 
  DCRtimer * timer;  ///< timer
  long tlimit;       ///< time limit

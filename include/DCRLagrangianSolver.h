@@ -375,6 +375,22 @@ public:
 
  std::vector< double > getRSOLS() { return( RSOLS ); }
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// returns the r_ij rates of the best delay-feasible solution found so
+ /// far, i.e. the one whose cost is getHeurVal(), indexed like getRSOLS()
+ /** getHeurVal() tracks the value of the best primal point this solver
+  * has *verified* delay-feasible (every update is gated on the delay
+  * slack beta being strictly negative), which is a genuinely stronger
+  * guarantee than the point(s) used to build the value returned by
+  * getRSOLS()/the various cuts (those need not be delay-feasible: they
+  * are Lagrangian-relaxation values, valid as bounds but not necessarily
+  * as achievable solutions). This vector is updated in lockstep with
+  * HeurVal, at the exact same three call sites, so it always holds the
+  * routing that *justifies* the current getHeurVal(), not a mismatched
+  * routing from some other rmin/lambda. */
+
+ std::vector< double > getHeurRSOLS() { return( HeurRSOLS ); }
+
  /** @} ---------------------------------------------------------------------*/
 /*-------------------- Methods for checking feasibility --------------------*/
 /*--------------------------------------------------------------------------*/
@@ -575,11 +591,47 @@ public:
  /** Given the (alpha, beta) = (intercept, slope) pair of a newly computed
   * cut, replaces pCut (if beta >= 0) or mCut (if beta < 0) with it: the
   * two-cut approximation of the Lagrangian function used by the line
-  * search in Solve() and Reopt() is thereby tightened.
+  * search in Solve() and Reopt() is thereby tightened. Also records
+  * at_lambda into pLambda/mLambda (matching whichever cut was replaced):
+  * see the note on pLambda/mLambda for why this is needed.
   * \param alpha the intercept (routing cost) of the new cut
-  * \param beta the slope (delay slack) of the new cut */
+  * \param beta the slope (delay slack) of the new cut
+  * \param at_lambda the multiplier at which (alpha, beta) was evaluated */
 
- void UpdCut( double alpha , double beta );
+ void UpdCut( double alpha , double beta , double at_lambda );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// squeezes the delay slack out of a verified delay-feasible path
+ /** A path/rate combination with beta < 0 (found by Solve() at whatever
+  * multiplier its own line search happened to be probing) is feasible,
+  * but the multiplier that produced it need not be anywhere near the one
+  * that would make it *cheapest*: every arc's rate is set by the very
+  * same closed form setSPTcosts() uses, r*_ij( mu ) = clamp( sqrt( mu *
+  * MTU / cost_ij ) , r_min , capacity_ij ), and mu was simply "whatever
+  * Solve()'s own dual-ascent trial for the *shortest-path* search was
+  * at", not tuned for this specific, now-fixed path at all. Holding the
+  * arc *set* fixed (no re-solving of the shortest path: only mu varies),
+  * beta( mu ) is monotonically non-increasing, so a plain bisection for
+  * the mu at which beta( mu ) == 0 finds the minimum-cost rate
+  * assignment this exact path admits while still meeting the deadline --
+  * i.e. the true optimum *for this path*, matching what an exact
+  * per-arc-rate formulation (P/C, SOCP) would report for the same route.
+  * Never worse than the caller's own (alpha, beta): if even mu == 0 (the
+  * cheapest possible rate, r_min on every arc) is still infeasible for
+  * this path, it is left untouched.
+  * \param path arc indices (into the *reduced* graph) of the path to
+  *        tighten, unchanged by the call
+  * \param nhops number of arcs in path
+  * \param alpha in: the path's cost at the caller's multiplier; out: the
+  *        tightened (never larger) cost
+  * \param beta in: the path's delay slack at the caller's multiplier
+  *        (must be < 0); out: the tightened delay slack (in [ -eps , 0 ])
+  * \param rstar out: resized to nhops, the tightened per-arc rate of
+  *        path[ 0 .. nhops - 1 ], in the same order */
+
+ void tightenPath( const std::vector< int > & path , int nhops ,
+                   double & alpha , double & beta ,
+                   std::vector< double > & rstar );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// (re)builds the reduced graph, keeping only the arcs with capacity >= r_min
@@ -636,6 +688,38 @@ protected:
   pCut; ///< best cut with non-negative slope defining the optimal solution
  LinearCut
   mCut; ///< best cut with negative slope defining the optimal solution
+
+ /// the multiplier lambda at which pCut / mCut were, respectively, last
+ /// evaluated
+ /** The naive two-cut line search moves lambda to the intersection of
+  * pCut and mCut, which is a valid and usually fast-converging strategy
+  * as long as beta( lambda ), the delay slack of the shortest-path/rate
+  * combination found at each trial lambda, varies continuously between
+  * the two. It need not: beta( lambda ) is built out of the arc-by-arc
+  * closed-form rate r*_ij = sqrt( lambda * MTU / cost ), clamped to that
+  * arc's own capacity (see setSPTcosts()) -- flat once every arc on the
+  * shortest path is capacity-clamped, since lambda then no longer moves
+  * any rate at all -- and, more fundamentally, the shortest path itself
+  * can *switch* discontinuously to a cheaper-but-more-delayed alternative
+  * as lambda crosses some threshold, jumping beta from positive straight
+  * to negative with no intermediate value at all (a combinatorial, not
+  * numerical, duality gap: no lambda makes that alternative both the
+  * argmin *and* delay-feasible). Either way, the intersection formula can
+  * land on -- or be fed evaluations from -- a lambda whose (alpha, beta)
+  * never changes again on repeated re-evaluation, so it keeps recomputing
+  * the exact same lambda forever: a spurious fixed point that satisfies
+  * the "InterVal == ObjVal" convergence check even though beta is nowhere
+  * near 0 there. pLambda / mLambda let Solve() detect exactly this
+  * situation (a "converged" lambda with a non-negligible beta) and, as
+  * long as the true bracket [ min( pLambda , mLambda ) , max( pLambda ,
+  * mLambda ) ] still has room, retry once at its plain bisection midpoint
+  * instead of trusting the naive intersection again -- which recovers the
+  * cases caused by a merely loose initial bracket, and otherwise safely
+  * confirms (bracket shrinks to a point) that the gap is the genuine,
+  * combinatorial kind that no amount of further bisection can close. */
+ double pLambda = 0;
+ double mLambda = 0;
+
  std::vector< Cut_Val >
   Cuts;           ///< cache of the cuts currently in play (for Reopt())
  double InterVal; ///< value of the pCut/mCut intersection
@@ -648,6 +732,11 @@ protected:
 
  std::vector< double >
   RSOLS; ///< optimal r_ij, indexed over all arcs (0 if unused)
+
+ std::vector< double >
+  HeurRSOLS; ///< r_ij of the best delay-feasible solution found so far
+             /// (the one whose cost is HeurVal), indexed like RSOLS; see
+             /// getHeurRSOLS()
 
  int num_ite; ///< number of line-search iterations performed by Solve()
 
