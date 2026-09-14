@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `BenBound.cpp` no longer includes `unistd.h`, which it does not use and
+  which MSVC does not have
+
 ## [0.1.1] - 2026-09-13
 
 ### Fixed
