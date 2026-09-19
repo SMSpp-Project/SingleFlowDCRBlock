@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `chg_costs()`, `chg_ucaps()` and `chg_dfcts()` take their data as a
+  `std::span< const double >`, whose length they check against the Range or
+  the Subset instead of reading past the end, and the first two are
+  registered in the methods factory in that form too; the forms taking an
+  iterator stay, and defer to the span ones
+
 ### Fixed
 
 - `map_forward_Modification()` passed a change of the deficits on to the
