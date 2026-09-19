@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `map_forward_Modification()` passed a change of the deficits on to the
+  other `SingleFlowDCRBlock` as a change of its capacities, and, when this
+  one had no capacities or no deficits, read them out of the empty vector
+  rather than passing on the infinite capacities and the zero deficits it
+  has
+
 - `BenBound.cpp` no longer includes `unistd.h`, which it does not use and
   which MSVC does not have
 

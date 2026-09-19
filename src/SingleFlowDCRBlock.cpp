@@ -1752,12 +1752,9 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
     if( tmod->rng().second == tmod->rng().first + 1 )
      DCRB->chg_ucap( U.empty() ? Inf< double >() : U[ tmod->rng().first ] ,
                      tmod->rng().first , iPM , iPA );
-    else if( U.empty() ) {
-     Vec_double NCap( tmod->rng().second - tmod->rng().first );
-     auto NCit = NCap.begin();
-     for( Index i = tmod->rng().first ; i < tmod->rng().second ; ++i )
-      *( NCit++ ) = U[ i ];
-
+    else if( U.empty() ) {  // all the capacities are infinite
+     Vec_double NCap( tmod->rng().second - tmod->rng().first ,
+                      Inf< double >() );
      DCRB->chg_ucaps( NCap.begin() , tmod->rng() , iPM , iPA );
      }
     else
@@ -1775,13 +1772,9 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
     if( tmod->rng().second == tmod->rng().first + 1 )
      DCRB->chg_dfct( B.empty() ? 0 : B[ tmod->rng().first ] ,
                      tmod->rng().first , iPM , iPA );
-    else if( B.empty() ) {
-     Vec_double NDfct( tmod->rng().second - tmod->rng().first );
-     auto NDit = NDfct.begin();
-     for( Index i = tmod->rng().first ; i < tmod->rng().second ; ++i )
-      *( NDit++ ) = B[ i ];
-
-     DCRB->chg_ucaps( NDfct.begin() , tmod->rng() , iPM , iPA );
+    else if( B.empty() ) {  // all the deficits are zero
+     Vec_double NDfct( tmod->rng().second - tmod->rng().first , 0 );
+     DCRB->chg_dfcts( NDfct.begin() , tmod->rng() , iPM , iPA );
      }
     else
      DCRB->chg_dfcts( B.begin() + tmod->rng().first , tmod->rng() ,
