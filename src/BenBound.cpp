@@ -182,32 +182,156 @@ double BenBound::getr_min()
 
 /*--------------------------------------------------------------------------*/
 
-/// best available upper bound: the smaller of BestUB and HeurVal
+/// best available upper bound: HeurVal
+/** BestUB is deliberately *not* used here, even though its name suggests
+ * it should be: it is a Lagrangian-relaxation value alpha + lambda * beta
+ * for whatever (r_min, lambda) pair attained it, not the raw cost alpha
+ * of an actually-achievable routing, and the two can differ by an
+ * arbitrary amount whenever the delay slack beta at that point is not
+ * exactly 0 (see the get_ub() override in SingleFlowDCRBendersSolver.h,
+ * which documents a concrete instance of this and deliberately bypasses
+ * BenBound::getUB() for it). HeurVal, by contrast, is only ever updated
+ * from a candidate DCRLagrangianSolver itself verified delay-feasible
+ * (beta < 0), so it is always alpha, the genuine achievable cost -- the
+ * only value here that a caller can safely treat as an upper bound */
 
 double BenBound::getUB()
 {
- //std::cout << "UB=" << BestUB << std::endl;
- //return(ObjVal);
- return( std::min( BestUB , HeurVal ) );
+ return( HeurVal );
  }
 
 /*--------------------------------------------------------------------------*/
 
 // best available lower bound: the master-problem value BestLB, clipped
 // from above by getUB() (it can never exceed a known upper bound) and
-// from below by 0 (the DCR objective cannot be negative)
+// from below by 0 (the DCR objective cannot be negative). BestUB is
+// excluded from the cap for the same reason getUB() ignores it: it is
+// not a genuine upper bound, so letting it cap BestLB can (and, on
+// larger instances, does) suppress an already-established, tighter and
+// perfectly valid lower bound down to whatever arbitrary Lagrangian
+// value some earlier, unrelated candidate happened to attain
 
 double BenBound::getLB()
 {
- //std::cout << "LB=" << BestLB << std::endl;
- //std::cout << HeurVal << "," << ObjVal << "," << ApproxVal << std::endl;
- //std::cout<<"BenStat="<<BenStat<<std::endl;
- //if(BestUB < BestLB || BestLB < -1e-6)
- //return(min(BestUB,HeurVal));
- return( std::max( 0.0 , std::min( std::min( BestUB , HeurVal ) , BestLB ) ) );
- //return(HeurVal);
+ return( std::max( 0.0 , std::min( HeurVal , BestLB ) ) );
  }
 
+/*--------------------------------------------------------------------------*/
+
+// smallest value the cut model takes anywhere in subinterval i: a valid
+// lower bound on min d( . ) over the whole subinterval [see the comment
+// on cutEnvMin() in BenBound.h]
+
+double BenBound::cutEnvMin( int i )
+{
+ if( ( i < 1 ) || ( i >= (int) Q.size() ) )
+  return( -Inf< double >() );
+
+ const double a = Q[ i - 1 ].rmin;
+ const double b = Q[ i ].rmin;
+ if( ! ( a <= b ) )       // degenerate or NaN endpoints: claim nothing
+  return( -Inf< double >() );
+
+ auto & C = Q[ i ].Cuts;
+ const int n = (int) C.size();
+
+ // Read the two halves of the envelope in ONE pass: gm, the highest cut
+ // of negative slope, is decreasing, and gp, the highest of the
+ // nonnegative-slope ones, is nondecreasing. The envelope is
+ // max( gm , gp ), so it falls until they cross and rises after: its
+ // minimum sits exactly at that crossing, or at an endpoint when they do
+ // not cross inside [ a , b ]. That turns the search for the minimum into
+ // a one-dimensional bisection on the sign of gm - gp, O( n ) per step,
+ // instead of scanning all O( n^2 ) pairwise breakpoints at O( n ) each.
+ //
+ // pCut and mCut are read alongside Cuts, and not as a refinement: the
+ // right cut rc is written to Q[ p ].mCut but pushed only onto the Cuts
+ // of the subintervals to the RIGHT of the split, never onto Q[ p ]'s own
+ // [see Solve()], so for that subinterval mCut is a supporting line that
+ // Cuts simply does not hold. Leaving it out costs nothing in validity --
+ // fewer lines only ever lower the envelope -- but it does cost
+ // tightness, and on some flows a great deal of it: the bound stops
+ // improving and the search runs to the iteration cap with a gap it had
+ // the information to close. Both are genuine supporting lines of d( . ),
+ // so both belong in the envelope. The recognisable ( 0 , 0 )
+ // initialisation of mCut [see Inizial()] is safe to read too: the DCR
+ // objective is a sum of nonnegative arc costs times nonnegative rates,
+ // so the constant 0 never exceeds d( . )
+ auto both = [ & ]( double x , double & vm , double & vp ) {
+  vm = -Inf< double >();
+  vp = -Inf< double >();
+
+  auto take = [ & ]( double m , double q ) {
+   if( ! ( std::isfinite( m ) && std::isfinite( q ) ) )
+    return;
+   const double w = q + m * x;
+   if( m < 0 ) {
+    if( w > vm )
+     vm = w;
+    }
+   else
+    if( w > vp )
+     vp = w;
+   };
+
+  for( int k = 0 ; k < n ; k++ )
+   take( C[ k ].m , C[ k ].q );
+
+  take( Q[ i ].pCut.m , Q[ i ].pCut.q );
+  take( Q[ i ].mCut.m , Q[ i ].mCut.q );
+  };
+
+ double gma , gpa , gmb , gpb;
+ both( a , gma , gpa );
+ both( b , gmb , gpb );
+
+ if( ( gma == -Inf< double >() ) && ( gpa == -Inf< double >() ) )
+  return( -Inf< double >() );        // no usable cut at all: claim nothing
+
+ Q[ i ].lbCuts = Q[ i ].Cuts.size();   // what this reading was taken from
+ Q[ i ].lbA = a;
+ Q[ i ].lbB = b;
+
+ if( gma <= gpa ) {    // already rising at a: the minimum is a
+  Q[ i ].lbArg = a;
+  return( std::max( gma , gpa ) );
+  }
+
+ if( gmb >= gpb ) {    // still falling at b: the minimum is b
+  Q[ i ].lbArg = b;
+  return( std::max( gmb , gpb ) );
+  }
+
+ // gm - gp is positive at a and negative at b, so the crossing lies
+ // strictly inside: bracket it
+ double lo = a , hi = b;
+ for( int it = 0 ; it < 60 ; it++ ) {
+  const double mid = lo + ( hi - lo ) / 2;
+  if( ( mid <= lo ) || ( mid >= hi ) )   // bracket down to the last ulp
+   break;
+  double vm , vp;
+  both( mid , vm , vp );
+  if( vm > vp )
+   lo = mid;
+  else
+   hi = mid;
+  }
+
+ // Whatever the bracket, this can only UNDERSTATE the minimum, never
+ // overstate it -- which is the direction that keeps the bound valid.
+ // Writing x* for the crossing, lo <= x* <= hi, and the minimum equals
+ // gp( x* ) == gm( x* ); gp is nondecreasing so gp( lo ) <= gp( x* ),
+ // and gm is decreasing so gm( hi ) <= gm( x* ). Both are therefore
+ // lower bounds on the minimum, and they converge up to it as the
+ // bracket tightens
+ double lom , lop , him , hip;
+ both( lo , lom , lop );
+ both( hi , him , hip );
+
+ Q[ i ].lbArg = ( lop >= him ) ? lo : hi;
+
+ return( std::max( lop , him ) );
+ }
 
 /*--------------------------------------------------------------------------*/
 
@@ -467,6 +591,9 @@ void BenBound::Solve()
  int Qsize;
  double approx;
  int p = 1;         //insertion position in the new subdivision of Q
+ int no_progress_streak = 0; // consecutive iterations with no change to
+                             // either bound (see the "no progress" stop
+                             // criterion below)
  int nonConvexflag; //flag to distinguish the case of convex cuts
  int triedflag =
   0; //flag to tell whether we have already tried the jump to the optimum
@@ -503,6 +630,8 @@ void BenBound::Solve()
  //before next line was commented
  //solvedflag = 0;
 
+ noLiveSubInterval = false;   // fresh solve: nothing retired yet
+
  if( solvedflag == 0 ) {
   if( BenStat == 0 ) {
    do {
@@ -521,6 +650,8 @@ void BenBound::Solve()
 
     double BLB = BestLB;
     double HUB = HeurVal;
+    const std::size_t QszEntry = Q.size();
+    degenerateSplit = false;
 
     bool is_feas;
     double Qnew;
@@ -629,6 +760,42 @@ void BenBound::Solve()
       Q[ p ].inter ); //let the candidate show us its potential :)
      lagSol.Solve();
      counter_ite_Lag += lagSol.getNumIte();
+
+     // The candidate can land on an r_min the reduced graph cannot
+     // support at all, and then the Lagrangian subproblem has no
+     // solution to report. This used to be treated as impossible ("it
+     // means we are getting something wrong") and threw, which was only
+     // ever true while fathoming was aggressive enough to keep
+     // LineSearch() away from those points -- it doubled as a bracket.
+     // Now that subintervals are fathomed on a bound that is actually
+     // valid [see cutEnvMin()], they legitimately stay alive longer and
+     // the candidate does reach such points, so this has to be handled
+     // rather than asserted away. Look for an r_min that IS feasible
+     // inside this same subinterval, scanning left to right as the
+     // preliminary recovery above does, and move the candidate there;
+     // staying inside the subinterval keeps Q sorted, which relocating
+     // anywhere in the whole window would not
+     if( lagSol.getStatus() != 0 ) {
+      const double lft = Q[ p - 1 ].rmin;
+      const double rgt = Q[ p ].rmin;
+      const int nprobe = 200;
+
+      for( int k = 0 ; k <= nprobe ; k++ ) {
+       const double cand = lft + ( k * ( rgt - lft ) ) / nprobe;
+
+       lagSol.updrmin( cand );
+       if( ! lagSol.isFeasible() )  // cheap test first: a full Solve()
+        continue;                   // at every probe would be far dearer
+
+       lagSol.Solve();
+       counter_ite_Lag += lagSol.getNumIte();
+
+       if( lagSol.getStatus() == 0 ) {
+        Q[ p ].inter = cand;
+        break;
+        }
+       }
+      }
 
      lgstat = lagSol.getStatus();
      lambda = lagSol.getLambda();
@@ -869,6 +1036,19 @@ void BenBound::Solve()
       Q[ p ].Val = rc.q + Q[ p ].inter * rc.m; //take the value at the point.
       Q[ p ].solflag = 1;
 
+      // d( . ) evaluated at this subinterval's envelope minimiser has met
+      // the envelope there: the model is tight at the point that decides
+      // lbBound, so the minimum of d( . ) over this subinterval IS
+      // lbBound and no further refinement of it can teach us anything.
+      // Retire it -- its (exact) lbBound goes on counting towards the
+      // global bound -- and let the search move to a subinterval that can
+      // still move. This used to end the entire search instead, via the
+      // |ObjVal - approx| term of the loop condition below: a local
+      // statement about one subinterval, read as global convergence
+      if( std::abs( Q[ p ].Val - Q[ p ].lbBound ) <=
+          eps * std::max( 1.0 , std::abs( Q[ p ].lbBound ) ) / 100 )
+       Q[ p ].branchedflag = 1;
+
       ObjVal = Q[ p ].Val;
 
       if( Q[ p ].Val < BestUB ) {
@@ -916,10 +1096,15 @@ void BenBound::Solve()
        I.Val = Q[ p ].Val;
        I.inter = Q[ p ].inter; //for now, the solution is exactly this!
        I.interVal = Q[ p ].interVal;
+       I.lbBound = -Inf< double >();  // claims nothing until LineSearch()
+                                      // recomputes it from this
+                                      // subinterval's own cuts
        I.pCut.m = Q[ p ].pCut.m; //we also copy the cuts that define it
        I.pCut.q = Q[ p ].pCut.q; //from which the LS will start.
        I.mCut.m = Q[ p ].mCut.m;
        I.mCut.q = Q[ p ].mCut.q;
+       I.bisect_retries = 0;  // a fresh, tighter subinterval gets its
+                              // own fallback budget
        I.solflag = 1;
        I.branchedflag = 0;
        I.infeasflag = 0;
@@ -932,6 +1117,15 @@ void BenBound::Solve()
         I.mCut.m = lc.m;
         }  // if we were in the case defined by a single cut, now we also have
           // the other one
+
+       // A split at a point that IS one of the subinterval's own endpoints
+       // does not narrow anything: the piece inserted here is zero-width
+       // and the original subinterval survives unchanged. The partition
+       // still grows by one, which matters for the no-progress valve
+       // below -- it treats a growing Q as evidence of ongoing work, and
+       // on a degenerate split that evidence is false
+       degenerateSplit = ( ( Q[ p ].inter <= Q[ p - 1 ].rmin ) ||
+                           ( Q[ p ].inter >= Q[ p ].rmin ) );
 
        Q.insert( Q.begin() + p , I );
        Qsize++;
@@ -972,10 +1166,22 @@ void BenBound::Solve()
         }
        } // if convex
       } //if the Lagrangian finds a solution
-     else //otherwise it means we are getting something wrong
-     {
-      throw( std::logic_error( "BenBound::Solve: the Lagrangian "
-                               "relaxation found no solution" ) );
+     else {
+      // No feasible r_min was found anywhere in this subinterval, so no
+      // cut can be built from it and there is no point coming back:
+      // retire it and let LineSearch() pick another one.
+      //
+      // Deliberately, lbBound is left exactly as it was rather than set
+      // to +INF. Setting it would assert that nothing in this
+      // subinterval can beat the incumbent -- which would be true if the
+      // subproblem really were infeasible throughout, but all that is
+      // known here is that a finite scan did not find a feasible point.
+      // On a false negative that assertion would discard the optimum and
+      // put back exactly the class of invalid lower bound this code was
+      // fixed to stop producing. Keeping the old lbBound instead costs
+      // only tightness: the global bound stays where it was, so the flow
+      // ends up reporting an honest open gap rather than a wrong proof
+      Q[ p ].branchedflag = 1;
       }
      } //if we had not already solved for that value
 
@@ -986,10 +1192,31 @@ void BenBound::Solve()
     {
      p = LineSearch();
      //if(Q.size()==2||Q.size()==3) cout<<"P = "<<p<<endl;
+
+     // Solve where the bound actually is. inter used to be the
+     // intersection of pCut/mCut, which is NOT in general where the cut
+     // model bottoms out over the subinterval -- on Sunet flow 30 the
+     // two were 110529 and 83469 apart -- so refining there left the
+     // quantity that decides the global bound untouched. lbArg is the
+     // abscissa cutEnvMin() read lbBound at: a cut generated there is
+     // the one that can lift it
+     if( ( p > 0 ) && ( p < (int) Q.size() ) &&
+         std::isfinite( Q[ p ].lbArg ) &&
+         ( Q[ p ].lbArg >= Q[ p - 1 ].rmin ) &&
+         ( Q[ p ].lbArg <= Q[ p ].rmin ) ) {
+      Q[ p ].inter = Q[ p ].lbArg;
+      Q[ p ].interVal = Q[ p ].lbBound;
+      Q[ p ].solflag = 0;      // it has not been solved at THIS point yet
+      }
      }
 
-    if( Q[ p ].interVal > BestLB )
-     BestLB = Q[ p ].interVal;
+    // BestLB is NOT updated from Q[ p ].interVal here. interVal is the cut
+    // model read at this subinterval's candidate point only, so it is not a
+    // lower bound on the optimum over the whole domain -- raising BestLB to
+    // it (and the ratchet below never lowers it again) is precisely what
+    // produced "solved" flows whose reported lower bound sat above the true
+    // optimum. LineSearch() already sets BestLB, from the minimum of the
+    // per-subinterval lbBound, which is a valid bound [see cutEnvMin()]
 
     ObjVal = Q[ p ].Val;
 
@@ -1031,14 +1258,61 @@ void BenBound::Solve()
     // well-posed, reaching an r_min the reduced graph cannot support at
     // all and running straight into the "no solution" logic_error thrown
     // further down. So, imprecise as they are as *convergence* signals,
-    // they are load-bearing as *bracket* ones and must stay
-    if( HeurVal == HUB && BestLB == BLB ) {
-     solvedflag = 1;
+    // they are load-bearing as *bracket* ones and must stay.
+    //
+    // The "no progress" check itself requires a few CONSECUTIVE
+    // no-progress iterations, not just one, before it fires: a single
+    // static iteration is not reliable evidence that nothing more is
+    // achievable -- e.g. the bisection fallback in LineSearch() can
+    // leave both bounds unchanged for one iteration while it is still
+    // partway through narrowing towards a materially better point on
+    // the next one. It also does not count an iteration as "no
+    // progress" if the search tree itself grew (Q gained a subinterval):
+    // best-first exploration can spend many iterations refining a
+    // *different*, still-unresolved region before it finally overtakes
+    // the current BestLB/HeurVal, and that region visibly growing is
+    // real, ongoing work, not stagnation -- treating it as "no progress"
+    // would cut off a search that is actively still narrowing down
+    // towards a better bound elsewhere in the tree.
+    //
+    // A small, bounded amount of extra patience (capped, like the other
+    // criteria, well short of the 5000-iteration limit) avoids declaring
+    // convergence prematurely without reopening the crash this valve
+    // exists to prevent
+    if( HeurVal == HUB && BestLB == BLB &&
+        ( ( Q.size() == QszEntry ) || degenerateSplit ) ) {
+     if( ++no_progress_streak >= 3 )
+      solvedflag = 1;
      }
+
+    else
+     no_progress_streak = 0;
+
+    // A run of splits that narrow nothing is its own stopping signal,
+    // independent of the bounds: the candidate keeps landing on one of
+    // its subinterval's endpoints, so every split inserts a zero-width
+    // piece and the partition grows without a single subinterval getting
+    // smaller. The valve above cannot catch this on its own, because it
+    // also demands that both bounds sit still, and they can keep
+    // twitching while nothing of substance happens. Observed on
+    // w1_300_04 flow 69: 2255 subintervals, the same window
+    // [4232.17,9998] and the same candidate 9998 throughout, the bound
+    // frozen at 13129.1 from iteration ~500 to the 5000-iteration cap.
+    // A real split resets the count, so a search still refining
+    // anywhere is never cut off by this
+    if( degenerateSplit ) {
+     if( ++degenerate_streak >= 100 )
+      solvedflag = 1;
+     }
+    else
+     degenerate_streak = 0;
 
     if( ( HeurVal - BestLB ) / HeurVal < eps ) {
      solvedflag = 1;
      }
+
+    if( noLiveSubInterval )  // no subinterval left to explore
+     solvedflag = 1;
 
     counter_ite_Ben++; //number of points visited
 
@@ -1047,9 +1321,7 @@ void BenBound::Solve()
 
     // }while(solvedflag == 0 && abs(ObjVal - approx) > eps * releps); (before
     // on the code)
-    } while( solvedflag == 0 &&
-            ( std::abs( ObjVal - approx ) > eps * releps / 100 ) &&
-            counter_ite_Ben < 5000 );
+    } while( solvedflag == 0 && counter_ite_Ben < 5000 );
    //std::cout << "HV = " << HeurVal << std::endl;
    //}while(counter_ite_Ben<100 && abs(BestUB-BestLB)>eps*BestUB);
 
@@ -1284,6 +1556,56 @@ int BenBound::LineSearch()
       100 );  // since these are exact LS anyway, a releps could optionally be
               // added
 
+    // bisection fallback: interx above is the naive intersection of
+    // whichever two lines currently happen to be pCut / mCut, which can
+    // (on instances with many arcs) crawl towards a genuine, possibly
+    // combinatorial breakpoint of d( . ) instead of bisecting it --
+    // exactly the failure mode already documented and fixed for
+    // pLambda / mLambda in DCRLagrangianSolver::Solve(). Trigger only
+    // once a real, still-open gap is known (this subinterval has been
+    // resolved before, at interx, and the actual Val found there did not
+    // match the interVal this same two-cut model had predicted): on a
+    // fresh subinterval, or one whose prediction already checked out,
+    // the naive method is left alone since it is often exact or nearly
+    // so (e.g. a genuinely linear d( . ) on part of the range).
+    //
+    // The fallback bisects this subinterval's OWN [ Q[i-1].rmin ,
+    // Q[i].rmin ] bounds, not a bracket of past cut-evaluation points:
+    // r_min feasibility need not be monotonic or contiguous (a capacity
+    // that only some arcs have can carve an infeasible island out of the
+    // middle of a range that is feasible at both ends), so a bracket
+    // built from two particular evaluations can exclude a feasible,
+    // better region that the subinterval's own bounds still correctly
+    // contain; isFeasible() / the lgstat == 1 recovery further down
+    // already handles a bisection trial landing inside such an island
+    {
+     const bool already_resolved_once = ( Q[ i ].solflag == 1 );
+     const bool gap_not_tight = already_resolved_once &&
+      ( std::abs( Q[ i ].Val - Q[ i ].interVal ) >
+        1e-6 * std::max( 1.0 , std::abs( Q[ i ].interVal ) ) );
+     const double blo = Q[ i - 1 ].rmin;
+     const double bhi = Q[ i ].rmin;
+     const bool bracket_has_room =
+      ( bhi - blo ) > 1e-9 * std::max( 1.0 , bhi );
+     static constexpr int max_bisect_retries = 100;
+
+     if( gap_not_tight && bracket_has_room &&
+         ( Q[ i ].bisect_retries < max_bisect_retries ) ) {
+      interx = ( blo + bhi ) / 2;
+      max = -Inf< double >();
+      for( j = 0 ; j < isize ; j++ ) {
+       someinter = Q[ i ].Cuts[ j ].q + interx * Q[ i ].Cuts[ j ].m;
+       if( max <= someinter ) {
+        max = someinter;
+        maxpos = j;
+        }
+       }
+      interxVal = Q[ i ].Cuts[ maxpos ].q + interx * Q[ i ].Cuts[ maxpos ].m;
+      UpdCut( Q[ i ].Cuts[ maxpos ].q , Q[ i ].Cuts[ maxpos ].m , i );
+      Q[ i ].bisect_retries++;
+      }
+     }
+
     //at this point we must check whether we stayed inside the subinterval,
     //otherwise we will take the closest endpoint as the value.
 
@@ -1362,22 +1684,124 @@ int BenBound::LineSearch()
  // keeps Q[ minpos ] below in bounds instead of reading garbage
  minpos = ( Q.size() > 1 ) ? 1 : 0;
 
+ // globalLB is the smallest lower bound among the subintervals, i.e. the
+ // best statement that can be made about the whole domain at this
+ // iteration; it is built from lbBound and NOT from interVal (see below)
+ double globalLB = Inf< double >();
+
  for( i = 1 ; i < Q.size() ; i++ ) {
-  if( min >= Q[ i ].interVal ) {
-   min = Q[ i ].interVal;
-   minpos = i;
+  // Refresh this subinterval's own bound FIRST: everything below --
+  // which subinterval to explore next, whether it can be fathomed, and
+  // the global bound -- has to read the value implied by the cuts as
+  // they stand now, not the one left over from the previous iteration.
+  //
+  // lbBound is the minimum of the cut envelope over the WHOLE
+  // subinterval [see cutEnvMin()], and that is the quantity all three
+  // uses need. interVal, the model read at the single candidate point
+  // inter, is not: it says nothing about the rest of the subinterval and
+  // is routinely far above the envelope's minimum there, so a
+  // subinterval whose interVal exceeds HeurVal can still contain a
+  // better solution. (Observed: on Sunet flow 30 the subinterval holding
+  // the optimal r_min had interVal = 110529 while its envelope dipped to
+  // 83469, below the true optimum 86975.9; fathoming on interVal
+  // discarded it anyway, and the run then "proved" the suboptimal
+  // incumbent 103410 optimal.)
+  if( Q[ i ].branchedflag == 0 ) {
+   // Recomputing the envelope minimum for every subinterval on every
+   // iteration is what makes LineSearch() quadratic: each call is linear
+   // in the cut list, both the list and the partition grow by one per
+   // iteration, and on a flow that runs to the iteration cap that is the
+   // whole running time. Nearly all of that work changes nothing.
+   //
+   // A cut added since the last reading can only raise this subinterval's
+   // envelope -- cuts are never removed -- so the reading stays a valid
+   // lower bound whatever happens, and the only question is whether it is
+   // still the tightest one. It cannot have moved unless one of the new
+   // cuts rises above the old reading AT THE POINT where it was taken, so
+   // checking the new cuts (and pCut/mCut, which are read alongside Cuts
+   // and can change without Cuts growing) at that single abscissa decides
+   // it in O( new cuts ) instead of O( all cuts ). A full recomputation
+   // then happens only where the answer can actually differ
+   const double a = Q[ i - 1 ].rmin , b = Q[ i ].rmin;
+   bool recompute = ( Q[ i ].lbA != a ) || ( Q[ i ].lbB != b ) ||
+                    ( Q[ i ].lbCuts == 0 );
+
+   if( ! recompute ) {
+    const double x = Q[ i ].lbArg;
+    const double cur = Q[ i ].lbBound;
+
+    for( std::size_t k = Q[ i ].lbCuts ;
+         ( k < Q[ i ].Cuts.size() ) && ( ! recompute ) ; k++ )
+     if( Q[ i ].Cuts[ k ].q + Q[ i ].Cuts[ k ].m * x > cur )
+      recompute = true;
+
+    if( ! recompute )
+     if( ( Q[ i ].pCut.q + Q[ i ].pCut.m * x > cur ) ||
+         ( Q[ i ].mCut.q + Q[ i ].mCut.m * x > cur ) )
+      recompute = true;
+
+    if( ! recompute )
+     Q[ i ].lbCuts = Q[ i ].Cuts.size();   // reading provably unchanged
+    }
+
+   if( recompute )
+    Q[ i ].lbBound = cutEnvMin( i );
+   }
+  // a fathomed subinterval keeps the lbBound it had when it was
+  // fathomed, which was >= the HeurVal of that moment and hence >= the
+  // current one, since HeurVal only ever improves: it stays correctly
+  // fathomed and cannot drag globalLB down
+
+  // Which subinterval to explore next is chosen on interVal, NOT on
+  // lbBound -- deliberately, and not for lack of a tidier story.
+  // Best-first on lbBound is what the textbook prescribes, since the
+  // global bound is the minimum of lbBound and only rises when the
+  // subinterval attaining it is refined. Measured here it is clearly
+  // worse: the run then stops after 3-10 iterations, because approx
+  // below is the selected subinterval's interVal and the
+  // |ObjVal - approx| test fires at once on the subinterval that
+  // selection just picked, whereas on interVal the search stays
+  // productive for hundreds or thousands of iterations. On seven flows
+  // it cost real bound quality -- cost266 45 11082.7 -> 10063.2,
+  // janos-us 32 18287.7 -> 14925.4, w1_300_04 34 36470.7 -> 28371.3 --
+  // every one of which came back exactly on reverting to interVal.
+  // Change this only together with that stopping test
+  // Best-first on lbBound: the global bound is the MINIMUM of lbBound
+  // over the subintervals, so it only rises once the subinterval
+  // attaining that minimum is refined -- exploring anything else leaves
+  // it exactly where it was. This pairs with two things that have to
+  // move with it, and is wrong without them: the Lagrangian is solved at
+  // that subinterval's envelope minimiser [see Solve()], and the
+  // |Val - lbBound| test there retires the subinterval instead of
+  // stopping the whole search
+  if( ( Q[ i ].branchedflag == 0 ) && ( min >= Q[ i ].lbBound ) ) {
+   min = Q[ i ].lbBound;    // only a subinterval that is still alive can
+   minpos = i;              // be handed back as the next one to explore
    }
 
-  if( Q[ i ].interVal >= BestUB ) {
+  if( Q[ i ].lbBound < globalLB )
+   globalLB = Q[ i ].lbBound;
+
+  if( Q[ i ].lbBound >= HeurVal ) {
    Q[ i ].branchedflag = 1;
    branchcounter++;
    }
   }
 
- //next line not in the original code
- //if(Q[minpos].interVal > BestLB)
- BestLB = Q[ minpos ].interVal;
+ // BestLB tracks the best (highest) valid lower bound established so far.
+ // globalLB is a valid lower bound on the optimum as of *this* iteration's
+ // cuts, and since the optimum itself never moves, a bound established on
+ // an earlier iteration stays valid too: only ever raise BestLB, never
+ // lower it. (When every subinterval has been fathomed globalLB is +Inf,
+ // and getLB() clips the result to HeurVal -- correctly reporting that the
+ // incumbent has been proved optimal.)
+ if( globalLB > BestLB )
+  BestLB = globalLB;
  ApproxVal = Q[ minpos ].interVal;
+
+ // nothing was selectable above: every subinterval is fathomed, so there
+ // is nowhere left for Solve() to go [see noLiveSubInterval]
+ noLiveSubInterval = ( min == Inf< double >() );
 
  //std::cout << "LB=" << BestLB << std::endl;
  //std::cout << "minpos=" << minpos << std::endl;
@@ -1553,6 +1977,8 @@ void BenBound::Inizial()
    Q[ 1 ].solflag = 0;
    Q[ 1 ].branchedflag = 0;
    Q[ 1 ].infeasflag = 0;
+   Q[ 0 ].lbBound = -Inf< double >();  // no cuts yet: claim nothing
+   Q[ 1 ].lbBound = -Inf< double >();
 
 
    Q[ 0 ].rmin = limits[ 0 ];
@@ -1934,6 +2360,7 @@ void BenBound::Inizial()
 
    Q[ 1 ].mCut.q = 0;
    Q[ 1 ].mCut.m = 0; //give it a recognizable initialization
+   Q[ 1 ].bisect_retries = 0;
 
    } //if a non-trivial interval of feasibility existed
   } //if Benstat = 0

@@ -241,17 +241,19 @@ private:
  std::vector< double > DualSol; //dual solution of SP (labels).
  Status stat; //to check for the presence of negative-cost cycles.
 
+ /// adjOut[ h ] lists the indices (into Links) of every arc leaving node
+ /// h, built once in copyDataArrays() from the topology alone (which
+ /// updCosts() never changes) and reused by every subsequent Solve():
+ /// without it, finding the arcs leaving a node requires scanning all of
+ /// Links, turning what should be an O( out-degree ) step into an
+ /// O( numLinks ) one repeated for every node dequeued
+ std::vector< std::vector< int > > adjOut;
 
 /*--------------------------------------------------------------------------*/
- /// deep-copies links into the Links data member
+ /// deep-copies links into the Links data member and (re)builds adjOut
  void copyDataArrays( std::vector< SPTLink > links );
 
-/*--------------------------------------------------------------------------*/
- /// returns the index (in Links) of the arc with tail = from, head = to,
- /// or sets stat = Error and returns -1 if no such arc exists
- int getLink( int from , int to );
-
- /// clears all container data members (Links, Sol, DualSol)
+ /// clears all container data members (Links, Sol, DualSol, adjOut)
  void clean_up( void );
 
  }; // end( class( SPT ) )

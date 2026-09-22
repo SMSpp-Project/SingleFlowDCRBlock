@@ -328,6 +328,14 @@ void DCR_SPT::DCRheurERAI()
  double inf , dist , rmin , cost;
  double * distance = new double[ numNodes ];
  int * previous = new int[ numNodes ];
+ int * previousArc = new int[ numNodes ]; // arc (into Links) realizing
+                                          // previous[]: previousArc[ next ]
+                                          // is the arc from previous[ next ]
+                                          // to next that last improved
+                                          // next's label, so the s-t path
+                                          // can be reconstructed without
+                                          // re-searching Links for the
+                                          // connecting arc
  int * Q = new int[ numNodes ]; //FIFO queue
  int HEAD;                      //FIFO head
  int TAIL;                      //FIFO tail
@@ -373,36 +381,37 @@ void DCR_SPT::DCRheurERAI()
    if( HEAD == -1 )
     TAIL = -1;
 
-   //consider all neighbours of h
-   for( j = 0 ; j < numLinks ; j++ ) {
+   //consider all neighbours of h: adjOut[ h ] lists only the arcs that
+   //actually leave h, instead of scanning the whole (possibly much
+   //larger) Links array to find them
+   for( int aj = 0 ; aj < (int) adjOut[ h ].size() ; aj++ ) {
+    j = adjOut[ h ][ aj ];
     if( Flows[ 0 ].caps[ j ] < rmin )
      continue; //NB always use individual capacity
 
-    if( Links[ j ].startnode == h ) {
-     next = Links[ j ].endnode;
-     dist = MTU / Flows[ 0 ].caps[ j ] + MTU / Links[ j ].speed +
-            Nodes[ h ].delay + Links[ j ].delay + distance[ h ];
+    next = Links[ j ].endnode;
+    dist = MTU / Flows[ 0 ].caps[ j ] + MTU / Links[ j ].speed +
+           Nodes[ h ].delay + Links[ j ].delay + distance[ h ];
 
-     if( dist < distance[ next ] ) {
-      distance[ next ] = dist;
-      previous[ next ] = h;
+    if( dist < distance[ next ] ) {
+     distance[ next ] = dist;
+     previous[ next ] = h;
+     previousArc[ next ] = j;
 
-      //insert node in queue Q
-      if( HEAD == -1 ) {
-       HEAD = next;
-       TAIL = next;
-       }
-      else if( ( HEAD != next ) && ( TAIL != next ) &&
-                 ( Q[ next ] == -1 ) ) {
-       Q[ TAIL ] = next;
-       TAIL = next;
-       }
+     //insert node in queue Q
+     if( HEAD == -1 ) {
+      HEAD = next;
+      TAIL = next;
+      }
+     else if( ( HEAD != next ) && ( TAIL != next ) &&
+                ( Q[ next ] == -1 ) ) {
+      Q[ TAIL ] = next;
+      TAIL = next;
+      }
 
-      } //if (distance label update)
+     } //if (distance label update)
 
-     } //if (neighbour arc)
-
-    } //for (all arcs)
+    } //for (all arcs leaving h)
 
    } //while (head != -1)
 
@@ -414,7 +423,7 @@ void DCR_SPT::DCRheurERAI()
    tcost = 0;
    i = t;
    while( i != s ) {
-    lindex = DCRgetLink( previous[ i ] , i );
+    lindex = previousArc[ i ];
     tcost += Flows[ 0 ].costs[ lindex ] * Flows[ 0 ].caps[ lindex ];
     i = previous[ i ];
     }
@@ -426,7 +435,7 @@ void DCR_SPT::DCRheurERAI()
     i = t;
     j = 0;
     while( i != s ) {
-     lindex = DCRgetLink( previous[ i ] , i );
+     lindex = previousArc[ i ];
      Xsol[ j ] = lindex;
      Rsol[ j ] = Flows[ 0 ].caps[ lindex ];
      j++;
@@ -441,6 +450,7 @@ void DCR_SPT::DCRheurERAI()
   } //for (all capacities values -> reduced graph)
 
  delete[] distance;
+ delete[] previousArc;
  delete[] previous;
  delete[] Q;
 
@@ -492,6 +502,14 @@ void DCR_SPT::DCRheurERAH()
  double tcost , tr0 , dl , inf , dist , rmin , cost , r0;
  double * distance = new double[ numNodes ];
  int * previous = new int[ numNodes ];
+ int * previousArc = new int[ numNodes ]; // arc (into Links) realizing
+                                          // previous[]: previousArc[ next ]
+                                          // is the arc from previous[ next ]
+                                          // to next that last improved
+                                          // next's label, so the s-t path
+                                          // can be reconstructed without
+                                          // re-searching Links for the
+                                          // connecting arc
  int * Q = new int[ numNodes ]; //FIFO queue
  int HEAD;                      //FIFO head
  int TAIL;                      //FIFO tail
@@ -549,7 +567,7 @@ void DCR_SPT::DCRheurERAH()
      nh = 0;
      i = t;
      while( i != s ) {
-      lindex = DCRgetLink( previous[ i ] , i );
+      lindex = previousArc[ i ];
       dl += MTU / Links[ lindex ].speed + Nodes[ previous[ i ] ].delay +
             Links[ lindex ].delay;
       nh++;
@@ -563,7 +581,7 @@ void DCR_SPT::DCRheurERAH()
      tcost = 0;
      i = t;
      while( i != s ) {
-      lindex = DCRgetLink( previous[ i ] , i );
+      lindex = previousArc[ i ];
       tcost += Flows[ 0 ].costs[ lindex ] * tr0;
       i = previous[ i ];
       }
@@ -577,7 +595,7 @@ void DCR_SPT::DCRheurERAH()
       j = 0;
       i = t;
       while( i != s ) {
-       lindex = DCRgetLink( previous[ i ] , i );
+       lindex = previousArc[ i ];
        Xsol[ j ] = lindex;
        Rsol[ j ] = r0;
        j++;
@@ -591,42 +609,44 @@ void DCR_SPT::DCRheurERAH()
 
     } //if (sink is extracted -> check solution)
 
-   //consider all neighbours of h
-   for( j = 0 ; j < numLinks ; j++ ) {
+   //consider all neighbours of h: adjOut[ h ] lists only the arcs that
+   //actually leave h, instead of scanning the whole (possibly much
+   //larger) Links array to find them
+   for( int aj = 0 ; aj < (int) adjOut[ h ].size() ; aj++ ) {
+    j = adjOut[ h ][ aj ];
     if( Flows[ 0 ].caps[ j ] < rmin )
      continue;
 
-    if( Links[ j ].startnode == h ) {
-     next = Links[ j ].endnode;
-     dist = MTU / rmin + MTU / Links[ j ].speed + Nodes[ h ].delay +
-            Links[ j ].delay + distance[ h ];
+    next = Links[ j ].endnode;
+    dist = MTU / rmin + MTU / Links[ j ].speed + Nodes[ h ].delay +
+           Links[ j ].delay + distance[ h ];
 
-     if( dist < distance[ next ] ) {
-      distance[ next ] = dist;
-      previous[ next ] = h;
+    if( dist < distance[ next ] ) {
+     distance[ next ] = dist;
+     previous[ next ] = h;
+     previousArc[ next ] = j;
 
-      //insert next node in queue Q if not already present
-      if( HEAD == -1 ) {
-       HEAD = next;
-       TAIL = next;
-       }
-      else if( ( HEAD != next ) && ( TAIL != next ) &&
-                 ( Q[ next ] == -1 ) ) {
-       Q[ TAIL ] = next;
-       TAIL = next;
-       }
+     //insert next node in queue Q if not already present
+     if( HEAD == -1 ) {
+      HEAD = next;
+      TAIL = next;
+      }
+     else if( ( HEAD != next ) && ( TAIL != next ) &&
+                ( Q[ next ] == -1 ) ) {
+      Q[ TAIL ] = next;
+      TAIL = next;
+      }
 
-      } //if (distance label update)
+     } //if (distance label update)
 
-     } //if (neighbour arc)
-
-    } //for (all arcs)
+    } //for (all arcs leaving h)
 
    } //while (head != -1)
 
   } //for (all capacities values -> reduced graph)
 
  delete[] distance;
+ delete[] previousArc;
  delete[] previous;
  delete[] Q;
 
@@ -640,21 +660,6 @@ void DCR_SPT::DCRheurERAH()
  objval = cost;
 
  /*cout << "\n ERA-H cost is " << cost << " with #hops " << nhops << endl;*/
- }
-
-/*--------------------------------------------------------------------------*/
-
-/* This private method returns the index of the link having the given
- * startnode (from) and endnode (to), or -1 if the network has no such
- * link (which the callers, that only ask for the links of a path just
- * constructed out of the network itself, never expect). */
-int DCR_SPT::DCRgetLink( int from , int to )
-{
- for( int i = 0 ; i < numLinks ; i++ )
-  if( ( Links[ i ].startnode == from ) && ( Links[ i ].endnode == to ) )
-   return( i );
-
- return( -1 );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -688,6 +693,8 @@ void DCR_SPT::clean_up()
   delete[] Rsol;
   Rsol = 0;
   }
+
+ adjOut.clear();
  }
 
 /*--------------------------------------------------------------------------*/
@@ -725,6 +732,10 @@ void DCR_SPT::copyDataArrays( DCRFlow * flows , DCRLink * links ,
   Links[ j ].endnode = links[ j ].endnode;
   }
 
+ adjOut.clear();
+ adjOut.resize( numNodes );
+ for( j = 0 ; j < numLinks ; j++ )
+  adjOut[ Links[ j ].startnode ].push_back( j );
 
  try {
   Flows = new DCR::DCRFlow[ numFlows ];

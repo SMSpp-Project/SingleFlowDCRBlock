@@ -2222,25 +2222,19 @@ void SingleFlowDCRBlock::serialize( netCDF::NcGroup & group ) const
 /*------------- METHODS FOR ADDING / REMOVING / CHANGING DATA --------------*/
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::chg_costs( MF_dbl_sp NCost , Range rng ,
+void SingleFlowDCRBlock::chg_costs( c_Vec_double_it NCost , Range rng ,
                                     ModParam issueMod , ModParam issueAMod )
 {
  rng.second = std::min( rng.second , get_NArcs() );
  if( rng.second <= rng.first ) // nothing to change
   return;                      // cowardly (and silently) return
 
- if( NCost.size() < rng.second - rng.first )
-  throw( std::invalid_argument( "SingleFlowDCRBlock::chg_costs: the span is "
-                                "shorter than the Range" ) );
-
- auto NCost_it = NCost.begin();
-
  // check to see how many of the initial arcs are either deleted or not
  // really changing the costs
- while( ( std::isnan( C[ rng.first ] ) || ( *NCost_it == C[ rng.first ] ) ) &&
+ while( ( std::isnan( C[ rng.first ] ) || ( *NCost == C[ rng.first ] ) ) &&
         ( rng.first < rng.second ) ) {
   ++rng.first;
-  ++NCost_it;
+  ++NCost;
   }
 
  if( rng.second <= rng.first ) // nothing left to change
@@ -2248,7 +2242,7 @@ void SingleFlowDCRBlock::chg_costs( MF_dbl_sp NCost , Range rng ,
 
  // check to see how many of the final arcs are either deleted or not
  // really changing the costs
- auto NCEit = NCost_it + ( rng.second - rng.first );
+ auto NCEit = NCost + ( rng.second - rng.first );
  while( ( ( std::isnan( C[ rng.second - 1 ] ) ) ||
           ( *( --NCEit ) == C[ rng.second - 1 ] ) ) &&
         ( rng.first < rng.second ) )
@@ -2263,11 +2257,11 @@ void SingleFlowDCRBlock::chg_costs( MF_dbl_sp NCost , Range rng ,
   Vec_double NC( rng.second - rng.first );
   auto NCit = NC.begin();
 
-  for( Index i = rng.first ; i < rng.second ; ++i , ++NCost_it )
+  for( Index i = rng.first ; i < rng.second ; ++i , ++NCost )
    if( std::isnan( C[ i ] ) ) // arc is deleted
     *( NCit++ ) = 0;          // give it an "harmless" coefficient
    else                       // arc is there
-    *( NCit++ ) = C[ i ] = *NCost_it;
+    *( NCit++ ) = C[ i ] = *NCost;
 
   get_lfo()->modify_coefficients( std::move( NC ) , rng ,
                                   un_ModBlock( issueAMod ) );
@@ -2275,9 +2269,9 @@ void SingleFlowDCRBlock::chg_costs( MF_dbl_sp NCost , Range rng ,
  else
   // only change the physical representation- - - - - - - - - - - - - - - - -
   if( not_dry_run( issueMod ) )
-   for( Index i = rng.first ; i < rng.second ; ++i , ++NCost_it )
+   for( Index i = rng.first ; i < rng.second ; ++i , ++NCost )
     if( ! std::isnan( C[ i ] ) )
-     C[ i ] = *NCost_it;
+     C[ i ] = *NCost;
 
  f_cond_lower = dNAN; // reset conditional bounds
 
@@ -2293,20 +2287,14 @@ void SingleFlowDCRBlock::chg_costs( MF_dbl_sp NCost , Range rng ,
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::chg_costs( MF_dbl_sp NCost , Subset && nms ,
+void SingleFlowDCRBlock::chg_costs( c_Vec_double_it NCost , Subset && nms ,
                                     bool ordered , ModParam issueMod ,
                                     ModParam issueAMod )
 {
- if( NCost.size() < nms.size() )
-  throw( std::invalid_argument( "SingleFlowDCRBlock::chg_costs: the span is "
-                                "shorter than the Subset" ) );
-
- auto NCost_it = NCost.begin();
-
  if( nms.empty() ) // nothing to change
   return;          // cowardly (and silently) return
 
- // eliminate from NCost_it and nms the entries corresponding to either
+ // eliminate from NCost and nms the entries corresponding to either
  // deleted arcs or arcs whose cost actually does not change; meanwhile,
  // if nms is not ordered, order it
  Vec_double NC;
@@ -2315,7 +2303,7 @@ void SingleFlowDCRBlock::chg_costs( MF_dbl_sp NCost , Subset && nms ,
   auto NCit = NC.begin();
   auto nmsit = nms.begin();
   for( auto i : nms ) {
-   auto nci = *( NCost_it++ );
+   auto nci = *( NCost++ );
    if( ( ! std::isnan( C[ i ] ) ) && ( nci != C[ i ] ) ) {
     *( nmsit++ ) = i;
     *( NCit++ ) = nci;
@@ -2329,7 +2317,7 @@ void SingleFlowDCRBlock::chg_costs( MF_dbl_sp NCost , Subset && nms ,
   std::vector< TP > pairs;
   pairs.reserve( nms.size() );
   for( auto i : nms ) {
-   auto nci = *( NCost_it++ );
+   auto nci = *( NCost++ );
    if( ( ! std::isnan( C[ i ] ) ) && ( nci != C[ i ] ) )
     pairs.push_back( std::make_pair( i , nci ) );
    }
@@ -2417,22 +2405,16 @@ void SingleFlowDCRBlock::chg_cost( double NCost , Index arc ,
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::chg_ucaps( MF_dbl_sp NCap , Range rng ,
+void SingleFlowDCRBlock::chg_ucaps( c_Vec_double_it NCap , Range rng ,
                                     ModParam issueMod , ModParam issueAMod )
 {
  rng.second = std::min( rng.second , get_NArcs() );
  if( rng.second <= rng.first ) // nothing to change
   return;                      // cowardly (and silently) return
 
- if( NCap.size() < rng.second - rng.first )
-  throw( std::invalid_argument( "SingleFlowDCRBlock::chg_ucaps: the span is "
-                                "shorter than the Range" ) );
-
- auto NCap_it = NCap.begin();
-
  if( U.empty() ) {
   if( std::all_of(
-       NCap_it , NCap_it + ( rng.second - rng.first ) ,
+       NCap , NCap + ( rng.second - rng.first ) ,
        []( c_double cap ) { return( cap >= Inf< double >() ); } ) )
    return;
 
@@ -2441,10 +2423,10 @@ void SingleFlowDCRBlock::chg_ucaps( MF_dbl_sp NCap , Range rng ,
 
  // check to see how many of the initial arcs are either deleted or not
  // really changing the capacity
- while( ( std::isnan( C[ rng.first ] ) || ( *NCap_it == U[ rng.first ] ) ) &&
+ while( ( std::isnan( C[ rng.first ] ) || ( *NCap == U[ rng.first ] ) ) &&
         ( rng.first < rng.second ) ) {
   ++rng.first;
-  ++NCap_it;
+  ++NCap;
   }
 
  if( rng.second <= rng.first ) // nothing left to change
@@ -2452,7 +2434,7 @@ void SingleFlowDCRBlock::chg_ucaps( MF_dbl_sp NCap , Range rng ,
 
  // check to see how many of the final arcs are either deleted or not
  // really changing the capacity
- auto NCEit = NCap_it + ( rng.second - rng.first );
+ auto NCEit = NCap + ( rng.second - rng.first );
  while( ( ( std::isnan( C[ rng.second - 1 ] ) ) ||
           ( *( --NCEit ) == U[ rng.second - 1 ] ) ) &&
         ( rng.first < rng.second ) )
@@ -2477,10 +2459,10 @@ void SingleFlowDCRBlock::chg_ucaps( MF_dbl_sp NCap , Range rng ,
   Index i = rng.first;
 
   // static part
-  for( ; i < std::min( rng.second , get_NArcs() ) ; ++i , ++NCap_it )
-   if( ( ! std::isnan( C[ i ] ) ) && ( U[ i ] != *NCap_it ) ) {
-    U[ i ] = *NCap_it;
-    UB[ i ].set_rhs( *NCap_it , ampar );
+  for( ; i < std::min( rng.second , get_NArcs() ) ; ++i , ++NCap )
+   if( ( ! std::isnan( C[ i ] ) ) && ( U[ i ] != *NCap ) ) {
+    U[ i ] = *NCap;
+    UB[ i ].set_rhs( *NCap , ampar );
    }
 
   close_if_needed( ampar , rng.second - rng.first );
@@ -2490,7 +2472,7 @@ void SingleFlowDCRBlock::chg_ucaps( MF_dbl_sp NCap , Range rng ,
   // note that this also changes the capacity of deleted arcs, but since that
   // is never really used, it does not matter
   if( not_dry_run( issueMod ) )
-   std::copy( NCap_it , NCap_it + ( rng.second - rng.first ) ,
+   std::copy( NCap , NCap + ( rng.second - rng.first ) ,
               U.begin() + rng.first );
 
  if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
@@ -2505,18 +2487,12 @@ void SingleFlowDCRBlock::chg_ucaps( MF_dbl_sp NCap , Range rng ,
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::chg_ucaps( MF_dbl_sp NCap , Subset && nms ,
+void SingleFlowDCRBlock::chg_ucaps( c_Vec_double_it NCap , Subset && nms ,
                                     bool ordered , ModParam issueMod ,
                                     ModParam issueAMod )
 {
- if( NCap.size() < nms.size() )
-  throw( std::invalid_argument( "SingleFlowDCRBlock::chg_ucaps: the span is "
-                                "shorter than the Subset" ) );
-
- auto NCap_it = NCap.begin();
-
  if( U.empty() ) {
-  if( std::all_of( NCap_it , NCap_it + nms.size() , []( c_double cap ) {
+  if( std::all_of( NCap , NCap + nms.size() , []( c_double cap ) {
        return( cap >= Inf< double >() );
       } ) )
    return;
@@ -2524,7 +2500,7 @@ void SingleFlowDCRBlock::chg_ucaps( MF_dbl_sp NCap , Subset && nms ,
   U.assign( get_MaxNArcs() , Inf< double >() );
   }
 
- // eliminate from NCap_it and nms the entries corresponding to either
+ // eliminate from NCap and nms the entries corresponding to either
  // deleted arcs or arcs whose capacity actually does not change;
  // meanwhile, if nms is not ordered, order it
  Vec_double NC;
@@ -2533,7 +2509,7 @@ void SingleFlowDCRBlock::chg_ucaps( MF_dbl_sp NCap , Subset && nms ,
   auto NCit = NC.begin();
   auto nmsit = nms.begin();
   for( auto i : nms ) {
-   auto nci = *( NCap_it++ );
+   auto nci = *( NCap++ );
    if( ( ! std::isnan( C[ i ] ) ) && ( nci != U[ i ] ) ) {
     *( nmsit++ ) = i;
     *( NCit++ ) = nci;
@@ -2546,7 +2522,7 @@ void SingleFlowDCRBlock::chg_ucaps( MF_dbl_sp NCap , Subset && nms ,
   std::vector< TP > pairs;
   pairs.reserve( nms.size() );
   for( auto i : nms ) {
-   auto nci = *( NCap_it++ );
+   auto nci = *( NCap++ );
    if( ( ! std::isnan( C[ i ] ) ) && ( nci != U[ i ] ) )
     pairs.push_back( std::make_pair( i , nci ) );
    }
@@ -2657,28 +2633,22 @@ void SingleFlowDCRBlock::chg_ucap( double NCap , Index arc ,
 /*--------------------------------------------------------------------------*/
 
 
-void SingleFlowDCRBlock::chg_dfcts( MF_dbl_sp NDfct , Range rng ,
+void SingleFlowDCRBlock::chg_dfcts( c_Vec_double_it NDfct , Range rng ,
                                     ModParam issueMod , ModParam issueAMod )
 {
  rng.second = std::min( rng.second , get_NNodes() );
  if( rng.second <= rng.first ) // nothing to change
   return;                      // cowardly (and silently) return
 
- if( NDfct.size() < rng.second - rng.first )
-  throw( std::invalid_argument( "SingleFlowDCRBlock::chg_dfcts: the span is "
-                                "shorter than the Range" ) );
-
- auto NDfct_it = NDfct.begin();
-
  if( B.empty() ) {
-  if( std::all_of( NDfct_it , NDfct_it + ( rng.second - rng.first ) ,
+  if( std::all_of( NDfct , NDfct + ( rng.second - rng.first ) ,
                    []( c_double dfct ) { return( dfct == 0 ); } ) )
    return;
 
   B.assign( get_MaxNNodes() , 0 );
   }
 
- c_Index ndiff = countdiff( NDfct_it , NDfct_it + ( rng.second - rng.first ) ,
+ c_Index ndiff = countdiff( NDfct , NDfct + ( rng.second - rng.first ) ,
                             B.cbegin() + rng.first );
  if( ! ndiff )
   return;
@@ -2693,10 +2663,10 @@ void SingleFlowDCRBlock::chg_dfcts( MF_dbl_sp NDfct , Range rng ,
   Index i = rng.first;
 
   // static part
-  for( ; i < std::min( rng.second , get_NNodes() ) ; ++i , ++NDfct_it )
-   if( B[ i ] != *NDfct_it ) {
-    B[ i ] = *NDfct_it;
-    E[ i ].set_both( *NDfct_it , ampar );
+  for( ; i < std::min( rng.second , get_NNodes() ) ; ++i , ++NDfct )
+   if( B[ i ] != *NDfct ) {
+    B[ i ] = *NDfct;
+    E[ i ].set_both( *NDfct , ampar );
    }
 
   close_if_needed( ampar , ndiff );
@@ -2704,7 +2674,7 @@ void SingleFlowDCRBlock::chg_dfcts( MF_dbl_sp NDfct , Range rng ,
  else
   // only change the physical representation- - - - - - - - - - - - - - - - -
   if( not_dry_run( issueMod ) )
-   std::copy( NDfct_it , NDfct_it + ( rng.second - rng.first ) ,
+   std::copy( NDfct , NDfct + ( rng.second - rng.first ) ,
               B.begin() + rng.first );
 
  // TODO: if some changes are "fake", restrict the range
@@ -2721,25 +2691,19 @@ void SingleFlowDCRBlock::chg_dfcts( MF_dbl_sp NDfct , Range rng ,
 
 /*--------------------------------------------------------------------------*/
 
-void SingleFlowDCRBlock::chg_dfcts( MF_dbl_sp NDfct , Subset && nms ,
+void SingleFlowDCRBlock::chg_dfcts( c_Vec_double_it NDfct , Subset && nms ,
                                     bool ordered , ModParam issueMod ,
                                     ModParam issueAMod )
 {
- if( NDfct.size() < nms.size() )
-  throw( std::invalid_argument( "SingleFlowDCRBlock::chg_dfcts: the span is "
-                                "shorter than the Subset" ) );
-
- auto NDfct_it = NDfct.begin();
-
  if( B.empty() ) {
-  if( std::all_of( NDfct_it , NDfct_it + nms.size() ,
+  if( std::all_of( NDfct , NDfct + nms.size() ,
                    []( c_double dfct ) { return( dfct == 0 ); } ) )
    return;
 
   B.assign( get_MaxNNodes() , 0 );
   }
 
- Index ndiff = countdiff( B , nms , NDfct_it , get_NNodes() );
+ Index ndiff = countdiff( B , nms , NDfct , get_NNodes() );
  if( ! ndiff )
   return;
 
@@ -2753,7 +2717,7 @@ void SingleFlowDCRBlock::chg_dfcts( MF_dbl_sp NDfct , Subset && nms ,
  else
   // only change the physical representation- - - - - - - - - - - - - - - - -
   if( not_dry_run( issueMod ) )
-   copyidx( B , nms , NDfct_it );
+   copyidx( B , nms , NDfct );
 
  // TODO: eliminate from nms the "fake" changes
 

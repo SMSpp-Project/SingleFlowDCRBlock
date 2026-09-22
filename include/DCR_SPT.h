@@ -39,6 +39,8 @@
 
 #include "DCR.h"
 
+#include <vector>
+
 /*--------------------------------------------------------------------------*/
 /*--------------------------- CLASS DCR_SPT --------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -248,10 +250,15 @@ private:
  double objval; ///< cost of the best feasible path found so far
  int nhops;     ///< number of arcs (hops) of the best path found
 
- //private methods
+ /// adjOut[ h ] lists the indices (into Links) of every arc leaving node
+ /// h, built once in copyDataArrays() from the topology alone and reused
+ /// by every candidate r_min tried by DCRheurERAI() / DCRheurERAH():
+ /// without it, finding the arcs leaving a node means scanning all of
+ /// Links, redone from scratch for every node dequeued and for every one
+ /// of the (possibly many) candidate r_min values
+ std::vector< std::vector< int > > adjOut;
 
- /// index (in Links) of the arc from "from" to "to", -1 if there is none
- int DCRgetLink( int from , int to );
+ //private methods
 
  /// runs the ERA-I heuristic (see DCR_SPT.cpp for the details)
  void DCRheurERAI();

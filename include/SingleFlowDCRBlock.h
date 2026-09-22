@@ -1521,8 +1521,7 @@ public:
  /** Method to change the costs of a subset of arcs with "contiguous names".
   * That is, *( NCost + i - strt ) becomes the new cost of the i-th arc in
   * \p rng. Note that if the right extreme of the range is >= get_NArcs() it
-  * is ignored; \p NCost has to be at least as long as what is left of
-  * \p rng.
+  * is ignored.
   *
   * Note that if \p rng contains some closed arc, its cost is also changed.
   * While this has no immediate impact on the problem solved, if the arc is
@@ -1543,27 +1542,14 @@ public:
   * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is
   * issued. */
 
- void chg_costs( MF_dbl_sp NCost , Range rng = INFRange ,
-                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// change the costs of a contiguous interval, iterator form
- /** As the span form, \p NCost pointing to the first of the new costs; its
-  * length is taken from \p rng, restricted to what there is. */
-
  void chg_costs( c_Vec_double_it NCost , Range rng = INFRange ,
-                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck ) {
-  rng.second = std::min( rng.second , get_NArcs() );
-  if( rng.second > rng.first )
-   chg_costs( MF_dbl_sp( & * NCost , rng.second - rng.first ) , rng , issueMod ,
-              issueAMod );
-  }
+                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// change the costs of an arbitrary subset of arcs
  /** Method to change the costs of an arbitrary subset of arc. That is,
   * *( NCost + i ) becomes the new cost of arc nms[ i ] for all 0 <= i <
-  * nms.size(), \p NCost having to be at least as long as \p nms. The
+  * NCost.size(), (which means that nms.size() == NCost.size()). The
   * parameter ordered tells if the nms vector is ordered for increasing
   * index of the arc. As the && tells, nms is "consumed" by the method,
   * typically being shipped to an appropriate SingleFlowDCRBlockSbstMod
@@ -1573,22 +1559,9 @@ public:
   * the "physical" one is a SingleFlowDCRBlockSbstMod), and about changes in
   * costs of closed arcs. */
 
- void chg_costs( MF_dbl_sp NCost ,
-                 Subset && nms , bool ordered = false ,
-                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// change the costs of an arbitrary subset, iterator form
- /** As the span form, \p NCost pointing to the first of the new costs; its
-  * length is taken from \p nms. */
-
  void chg_costs( c_Vec_double_it NCost ,
                  Subset && nms , bool ordered = false ,
-                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck ) {
-  if( ! nms.empty() )
-   chg_costs( MF_dbl_sp( & * NCost , nms.size() ) , std::move( nms ) , ordered ,
-              issueMod , issueAMod );
-  }
+                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// changes the cost of the given arc
@@ -1605,8 +1578,7 @@ public:
  /** Method to change the capacities of a subset of arcs with "contiguous
   * names". That is, *( NCap + i - strt ) becomes the new capacity of the i-th
   * arc in \p rng. Note that if the right extreme of the range is
-  * >= get_NArcs() it is ignored; \p NCap has to be at least as long as what
-  * is left of \p rng. Note that, according to the Configuration of
+  * >= get_NArcs() it is ignored. Note that, according to the Configuration of
   * the static Constraint, the capacity of the arcs cannot be changed: trying
   * to do that will result in an exception being thrown.
   *
@@ -1633,28 +1605,15 @@ public:
   * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is
   * issued. */
 
- void chg_ucaps( MF_dbl_sp NCap , Range rng = INFRange ,
-                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// change the capacities of a contiguous interval, iterator form
- /** As the span form, \p NCap pointing to the first of the new capacities; its
-  * length is taken from \p rng, restricted to what there is. */
-
  void chg_ucaps( c_Vec_double_it NCap , Range rng = INFRange ,
-                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck ) {
-  rng.second = std::min( rng.second , get_NArcs() );
-  if( rng.second > rng.first )
-   chg_ucaps( MF_dbl_sp( & * NCap , rng.second - rng.first ) , rng , issueMod ,
-              issueAMod );
-  }
+                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// change the capacities of an arbitrary subset of arcs
  /** Method to change the capacities of an arbitrary subset of arc. That is,
   * *( NCap + i ) becomes the new capacity of arc nms[ i ] for all 0 <= i <
-  * nms.size(), \p NCap having to be at least as long as \p nms. The
-  * parameter ordered tells if the nms vector is ordered for increasing index of the
+  * NCap.size() (which means that nms.size() == NCap.size()). The parameter
+  * ordered tells if the nms vector is ordered for increasing index of the
   * arc. As the && tells, nms is "consumed" by the method, typically
   * being shipped to an appropriate SingleFlowDCRBlockSbstMod object.
   *
@@ -1666,22 +1625,9 @@ public:
   * the "physical" one is a SingleFlowDCRBlockSbstMod) and about changing
   * capacities of closed arcs. */
 
- void chg_ucaps( MF_dbl_sp NCap ,
-                 Subset && nms , bool ordered = false ,
-                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// change the capacities of an arbitrary subset, iterator form
- /** As the span form, \p NCap pointing to the first of the new capacities; its
-  * length is taken from \p nms. */
-
  void chg_ucaps( c_Vec_double_it NCap ,
                  Subset && nms , bool ordered = false ,
-                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck ) {
-  if( ! nms.empty() )
-   chg_ucaps( MF_dbl_sp( & * NCap , nms.size() ) , std::move( nms ) , ordered ,
-              issueMod , issueAMod );
-  }
+                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// change the capacity of the given arc
@@ -1701,8 +1647,7 @@ public:
  /** Method to change the deficits of a subset of nodes with "contiguous
   * names". That is, *( NDfct + i - strt ) becomes the new deficit of the i-th
   * node in \p rng. Note that if the right extreme of the range is
-  * >= get_NNodes() it is ignored; \p NDfct has to be at least as long as
-  * what is left of \p rng. Note that "node names" here go from 0 to
+  * >= get_NNodes() it is ignored. Note that "node names" here go from 0 to
   * get_NNodes() - 1, despite the fact that get_SN() and get_EN() report node
   * "names" between 1 and get_NNodes().
   *
@@ -1720,27 +1665,14 @@ public:
   * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is
   * issued. */
 
- void chg_dfcts( MF_dbl_sp NDfct , Range rng = INFRange ,
-                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// change the deficits of a contiguous interval, iterator form
- /** As the span form, \p NDfct pointing to the first of the new deficits; its
-  * length is taken from \p rng, restricted to what there is. */
-
  void chg_dfcts( c_Vec_double_it NDfct , Range rng = INFRange ,
-                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck ) {
-  rng.second = std::min( rng.second , get_NNodes() );
-  if( rng.second > rng.first )
-   chg_dfcts( MF_dbl_sp( & * NDfct , rng.second - rng.first ) , rng , issueMod ,
-              issueAMod );
-  }
+                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// change the deficits of an arbitrary subset of nodes
  /** Method to change the deficits of an arbitrary subset of nodes. That is,
   * *( NDfct + i ) becomes the new deficit of node nms[ i ] for all 0 <= i <
-  * nms.size(), \p NDfct having to be at least as long as \p nms. The
+  * NDfct.size(), (which means that nms.size() == NDfct.size()). The
   * parameter ordered tells if the nms vector is ordered for increasing index
   * of the node. Note that "node names" here go from 0 to get_NNodes() - 1,
   * despite the fact that get_SN() and get_EN() report node "names" between
@@ -1751,22 +1683,9 @@ public:
   * See chg_dfcts( range ) for Modification issued (except that, of course,
   * the "physical" one is a SingleFlowDCRBlockSbstMod). */
 
- void chg_dfcts( MF_dbl_sp NDfct ,
-                 Subset && nms , bool ordered = false ,
-                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
-
-/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// change the deficits of an arbitrary subset, iterator form
- /** As the span form, \p NDfct pointing to the first of the new deficits; its
-  * length is taken from \p nms. */
-
  void chg_dfcts( c_Vec_double_it NDfct ,
                  Subset && nms , bool ordered = false ,
-                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck ) {
-  if( ! nms.empty() )
-   chg_dfcts( MF_dbl_sp( & * NDfct , nms.size() ) , std::move( nms ) , ordered ,
-              issueMod , issueAMod );
-  }
+                 ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// changes the deficit of the given node
@@ -2088,23 +2007,6 @@ public:
                                           & SingleFlowDCRBlock::chg_ucaps );
 
   register_method< SingleFlowDCRBlock , MF_dbl_it , Subset && , bool >(
-   "SingleFlowDCRBlock::chg_ucaps" , & SingleFlowDCRBlock::chg_ucaps );
-
-  // the same data-carrying methods in the span form, which the iterator
-  // one defers to
-
-  register_method< SingleFlowDCRBlock , MF_dbl_sp , Range >(
-                                          "SingleFlowDCRBlock::chg_costs" ,
-                                          & SingleFlowDCRBlock::chg_costs );
-
-  register_method< SingleFlowDCRBlock , MF_dbl_sp , Subset && , bool >(
-   "SingleFlowDCRBlock::chg_costs" , & SingleFlowDCRBlock::chg_costs );
-
-  register_method< SingleFlowDCRBlock , MF_dbl_sp , Range >(
-                                          "SingleFlowDCRBlock::chg_ucaps" ,
-                                          & SingleFlowDCRBlock::chg_ucaps );
-
-  register_method< SingleFlowDCRBlock , MF_dbl_sp , Subset && , bool >(
    "SingleFlowDCRBlock::chg_ucaps" , & SingleFlowDCRBlock::chg_ucaps );
 
   register_method< SingleFlowDCRBlock , Range >(

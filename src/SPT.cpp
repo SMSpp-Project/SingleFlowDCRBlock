@@ -173,11 +173,11 @@ int SPT::getNHops()
  * has no negative-cost cycle reachable from s (which is not checked
  * for directly: an infinite loop would ensue in that case).
  *
- * Once distances have stabilized, the shortest s-t path is
- * reconstructed backwards from t by repeatedly following previous[]
- * (the predecessor labels set while relaxing) until s is reached; if at
- * any point the arc from previous[ i ] to i cannot be found (getLink()
- * returns -1 and sets stat = Error), the reconstruction stops early,
+ * Once distances have stabilized, the shortest s-t path is reconstructed
+ * backwards from t by repeatedly following previous[] / previousArc[]
+ * (respectively the predecessor node and the connecting arc recorded
+ * while relaxing) until s is reached; if at any point previous[ i ] is
+ * still -1 (i was never reached), the reconstruction stops early,
  * signalling that t is not reachable from s. The resulting arc indices
  * are stored, in source-to-sink order, in Sol (see getPath()), and the
  * final node distances in DualSol (see getLabel()). */
@@ -190,6 +190,15 @@ void SPT::Solve()
  // negative-cost cycle (?)
  double * distance = new double[ numNodes ];
  int * previous = new int[ numNodes ];
+ int * previousArc = new int[ numNodes ]; // arc realizing previous[]:
+                                          // previousArc[ next ] is the
+                                          // index (into Links) of the arc
+                                          // from previous[ next ] to next
+                                          // that last improved next's
+                                          // label, so the s-t path can be
+                                          // reconstructed by following it
+                                          // without re-searching Links
+                                          // for the connecting arc
  int * Q = new int[ numNodes ]; //FIFO queue
  double dist , inf = Inf< double >();
  int next;
@@ -200,6 +209,7 @@ void SPT::Solve()
  for( i = 0 ; i < numNodes ; i++ ) {
   distance[ i ] = inf;
   previous[ i ] = -1;
+  previousArc[ i ] = -1;
   Q[ i ] = -1;
   }
  distance[ s ] = 0;
@@ -216,32 +226,33 @@ void SPT::Solve()
   if( HEAD == -1 )
    TAIL = -1;
 
-  //consider all neighbours of h
-  for( j = 0 ; j < numLinks ; j++ ) {
-   if( Links[ j ].startnode == h ) {
-    next = Links[ j ].endnode;
-    dist = Links[ j ].cost + distance[ h ];
+  //consider all neighbours of h: adjOut[ h ] lists only the arcs that
+  //actually leave h, instead of scanning the whole (possibly much
+  //larger) Links array to find them
+  for( int aj = 0 ; aj < (int) adjOut[ h ].size() ; aj++ ) {
+   j = adjOut[ h ][ aj ];
+   next = Links[ j ].endnode;
+   dist = Links[ j ].cost + distance[ h ];
 
-    if( dist < distance[ next ] ) {
-     distance[ next ] = dist;
-     previous[ next ] = h;
+   if( dist < distance[ next ] ) {
+    distance[ next ] = dist;
+    previous[ next ] = h;
+    previousArc[ next ] = j;
 
-     //insert node in queue Q
-     if( HEAD == -1 ) {
-      HEAD = next;
-      TAIL = next;
-      }
-     else if( ( HEAD != next ) && ( TAIL != next ) &&
-                ( Q[ next ] == -1 ) ) {
-      Q[ TAIL ] = next;
-      TAIL = next;
-      }
+    //insert node in queue Q
+    if( HEAD == -1 ) {
+     HEAD = next;
+     TAIL = next;
+     }
+    else if( ( HEAD != next ) && ( TAIL != next ) &&
+               ( Q[ next ] == -1 ) ) {
+     Q[ TAIL ] = next;
+     TAIL = next;
+     }
 
-     } //if (distance label update)
+    } //if (distance label update)
 
-    } //if (neighbour arc)
-
-   } //for (all arcs)
+   } //for (all arcs leaving h)
   } //while (head != -1)
  //Set up the variables for the get methods.
 
@@ -255,15 +266,19 @@ void SPT::Solve()
 
  i = t;
  int * indices = new int[ numNodes ];
- int index;
  nhops = 0; //needed for subsequent calls
 
  while( i != s && stat == OK ) {
-  index = getLink(
-   previous[ i ] ,
-   i ); //if no link is found, it concludes that the graph is disconnected
+  if( previous[ i ] == -1 ) {
+   // i was never reached by the relaxation above: the sink is
+   // unreachable from the source (the graph is disconnected), exactly
+   // the condition the old from-scratch getLink( previous[ i ], i )
+   // search used to detect by failing to find a connecting arc
+   stat = Error;
+   break;
+   }
   indices[ nhops ] =
-   index; //copies the indices of the optimal path in reverse
+   previousArc[ i ]; //copies the indices of the optimal path in reverse
   i = previous[ i ];
   nhops++; //saves the number of these indices
   }
@@ -289,6 +304,7 @@ void SPT::Solve()
   }
 
  delete[] indices;
+ delete[] previousArc;
  delete[] previous;
  delete[] distance;
  delete[] Q;
@@ -310,8 +326,9 @@ SPT::~SPT()
 /*---------------------------- PRIVATE METHODS -----------------------------*/
 /*--------------------------------------------------------------------------*/
 
-// deep-copies links (startnode/endnode/cost) into the Links data member;
-// numLinks must already be set
+// deep-copies links (startnode/endnode/cost) into the Links data member
+// and rebuilds the out-arc adjacency list adjOut from the topology alone;
+// numLinks/numNodes must already be set
 
 void SPT::copyDataArrays( std::vector< SPTLink > links )
 {
@@ -325,33 +342,16 @@ void SPT::copyDataArrays( std::vector< SPTLink > links )
   Links[ j ].cost = links[ j ].cost;
   //no need to copy Link.rstar at this level.
   }
+
+ adjOut.clear();
+ adjOut.resize( numNodes );
+ for( j = 0 ; j < numLinks ; j++ )
+  adjOut[ Links[ j ].startnode ].push_back( j );
  }
 
 /*--------------------------------------------------------------------------*/
 
-// returns the index (in Links) of the arc with tail == from, head == to;
-// if no such arc exists (the graph is disconnected there, which for the
-// caller of Solve() typically means it was over-restricted, e.g. to a
-// reduced graph, when trying to reconstruct the s-t path) sets
-// stat = Error and returns -1
-
-int SPT::getLink( int from , int to )
-{
- int i;
-
- for( i = 0 ; i < numLinks ; i++ ) {
-  if( Links[ i ].startnode == from && Links[ i ].endnode == to )
-   return i;
-  }
- //cout<<"rmin too large: the graph has become disconnected\n";
- stat = Error;
- return -1;
- }
-
-
-/*--------------------------------------------------------------------------*/
-
-// clears all container data members (Links, Sol, DualSol)
+// clears all container data members (Links, Sol, DualSol, adjOut)
 
 void SPT::clean_up()
 {
@@ -361,6 +361,7 @@ void SPT::clean_up()
  Sol.clear();
  //cout<<"DualSol"<<endl;
  DualSol.clear();
+ adjOut.clear();
  }
 
 

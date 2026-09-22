@@ -164,8 +164,22 @@ public:
                 /// this subinterval (intersection of the two cuts
                 /// pCut/mCut, or of a cut with the subinterval border)
 
-  double interVal; ///< ordinate of inter, i.e., the local lower bound on
-                   /// d( . ) given by the cuts' intersection
+  double interVal; ///< ordinate of inter, i.e., the value the cut model
+                   /// takes at the candidate point inter
+
+  double lbArg = 0;       ///< the abscissa at which lbBound was read
+  std::size_t lbCuts = 0; ///< Cuts.size() when lbBound was last computed
+  double lbA = 0 , lbB = 0; ///< the endpoints lbBound was computed for
+
+  double lbBound; ///< a *valid* lower bound on the minimum of d( . ) over
+                  /// the WHOLE subinterval: the minimum, over
+                  /// [ Q[ i - 1 ].rmin , Q[ i ].rmin ], of the upper
+                  /// envelope of Cuts. Unlike interVal -- which is only
+                  /// the envelope read at the single point inter, and so
+                  /// says nothing about the rest of the subinterval --
+                  /// this one may legitimately be used to fathom the
+                  /// subinterval and to build the global lower bound
+                  /// [see cutEnvMin() and LineSearch()]
 
   double Val; ///< value of d( inter ), i.e., the local upper bound
               /// on the optimum obtained by (re)solving the
@@ -192,6 +206,17 @@ public:
   DCRLagrangianSolver::LinearCut mCut; ///< the cut with negative slope
                                        /// that, together with pCut,
                                        /// currently defines the optimum
+
+  /// number of times LineSearch() has fallen back to plain bisection
+  /// instead of trusting the naive intersection of pCut / mCut, capped
+  /// against max_bisect_retries. The naive intersection can, on
+  /// instances with many arcs, crawl toward the true breakpoint of
+  /// d( . ) instead of bisecting it -- the same failure mode already
+  /// documented and fixed for pLambda / mLambda in
+  /// DCRLagrangianSolver::Solve() -- so once a resolve shows the
+  /// predicted interVal was not actually tight, LineSearch() switches to
+  /// bisection
+  int bisect_retries = 0;
 
   std::vector< DCRLagrangianSolver::LinearCut > Cuts;  ///< all the cuts
                                                        ///< currently
@@ -388,6 +413,22 @@ public:
  double getLB();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// minimum over subinterval i of the upper envelope of its cuts
+ /** Returns min over x in [ Q[ i - 1 ].rmin , Q[ i ].rmin ] of
+  * max_k ( Cuts[ k ].q + Cuts[ k ].m * x ), i.e., the smallest value the
+  * cut model can take anywhere in the subinterval. Since every cut is a
+  * supporting line of d( . ), the envelope never exceeds d( . ), hence
+  * this is a valid lower bound on the minimum of d( . ) over the whole
+  * subinterval -- which is exactly what fathoming and the global lower
+  * bound need, and what interVal (the envelope at one point only) is
+  * not. The envelope is convex piecewise linear, so its minimum is
+  * attained either at an endpoint or at a breakpoint, i.e. at the
+  * intersection of two of the lines: the computation below is therefore
+  * exact, not a numerical search. */
+
+ double cutEnvMin( int i );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns the number of links of the loaded instance
  int get_Links() { return( numLinks ); };
 
@@ -474,6 +515,28 @@ private:
  DCRLagrangianSolver lagSol; ///< the Lagrangian subproblem solver used to
                              /// evaluate d( r_min ) and obtain the cuts
  std::vector< SubInterval > Q;    //subintervals of V considered.
+
+ /// set by LineSearch() when every subinterval of Q has been fathomed
+ /** No subinterval is left that could still be explored: either its cut
+  * model already rules it out, or the Lagrangian subproblem turned out to
+  * have no solution anywhere in it. Solve() stops when this is set: there
+  * is nowhere left to look, and BestLB already holds everything that was
+  * legitimately established, so getLB() reports the truth either way --
+  * a proof of optimality when the bound met the incumbent, an open gap
+  * when it did not. */
+ bool noLiveSubInterval = false;
+
+ /// set when the last split failed to narrow any subinterval
+ /** The candidate point can sit exactly on one of its subinterval's own
+  * endpoints, and splitting there inserts a zero-width piece while
+  * leaving the original subinterval as it was. Q still grows, so the
+  * no-progress valve in Solve() -- which reads a growing Q as ongoing
+  * work -- would keep the search alive on the strength of splits that
+  * refine nothing, all the way to the iteration cap. */
+ bool degenerateSplit = false;
+
+ /// consecutive splits that narrowed no subinterval [see degenerateSplit]
+ int degenerate_streak = 0;
 
  double
   myparam;  // parameter in (0,1) that selects the point in cases of
