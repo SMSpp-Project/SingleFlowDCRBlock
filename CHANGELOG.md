@@ -147,5 +147,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that is not a solution together with a value below the optimum. The
   point is now moved towards that endpoint, and stops there
 
-[Unreleased]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.1.0...develop
+[Unreleased]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.1.1...develop
+[0.1.1]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.1.0...0.1.1
 [0.1.0]: https://gitlab.com/smspp/singleflowdcrblock/-/tags/0.1.0
