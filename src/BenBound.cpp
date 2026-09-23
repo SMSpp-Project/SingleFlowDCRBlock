@@ -1036,18 +1036,7 @@ void BenBound::Solve()
       Q[ p ].Val = rc.q + Q[ p ].inter * rc.m; //take the value at the point.
       Q[ p ].solflag = 1;
 
-      // d( . ) evaluated at this subinterval's envelope minimiser has met
-      // the envelope there: the model is tight at the point that decides
-      // lbBound, so the minimum of d( . ) over this subinterval IS
-      // lbBound and no further refinement of it can teach us anything.
-      // Retire it -- its (exact) lbBound goes on counting towards the
-      // global bound -- and let the search move to a subinterval that can
-      // still move. This used to end the entire search instead, via the
-      // |ObjVal - approx| term of the loop condition below: a local
-      // statement about one subinterval, read as global convergence
-      if( std::abs( Q[ p ].Val - Q[ p ].lbBound ) <=
-          eps * std::max( 1.0 , std::abs( Q[ p ].lbBound ) ) / 100 )
-       Q[ p ].branchedflag = 1;
+
 
       ObjVal = Q[ p ].Val;
 
@@ -1193,21 +1182,6 @@ void BenBound::Solve()
      p = LineSearch();
      //if(Q.size()==2||Q.size()==3) cout<<"P = "<<p<<endl;
 
-     // Solve where the bound actually is. inter used to be the
-     // intersection of pCut/mCut, which is NOT in general where the cut
-     // model bottoms out over the subinterval -- on Sunet flow 30 the
-     // two were 110529 and 83469 apart -- so refining there left the
-     // quantity that decides the global bound untouched. lbArg is the
-     // abscissa cutEnvMin() read lbBound at: a cut generated there is
-     // the one that can lift it
-     if( ( p > 0 ) && ( p < (int) Q.size() ) &&
-         std::isfinite( Q[ p ].lbArg ) &&
-         ( Q[ p ].lbArg >= Q[ p - 1 ].rmin ) &&
-         ( Q[ p ].lbArg <= Q[ p ].rmin ) ) {
-      Q[ p ].inter = Q[ p ].lbArg;
-      Q[ p ].interVal = Q[ p ].lbBound;
-      Q[ p ].solflag = 0;      // it has not been solved at THIS point yet
-      }
      }
 
     // BestLB is NOT updated from Q[ p ].interVal here. interVal is the cut
@@ -1321,7 +1295,9 @@ void BenBound::Solve()
 
     // }while(solvedflag == 0 && abs(ObjVal - approx) > eps * releps); (before
     // on the code)
-    } while( solvedflag == 0 && counter_ite_Ben < 5000 );
+    } while( solvedflag == 0 &&
+            ( std::abs( ObjVal - approx ) > eps * releps / 100 ) &&
+            counter_ite_Ben < 5000 );
    //std::cout << "HV = " << HeurVal << std::endl;
    //}while(counter_ite_Ben<100 && abs(BestUB-BestLB)>eps*BestUB);
 
@@ -1774,8 +1750,8 @@ int BenBound::LineSearch()
   // that subinterval's envelope minimiser [see Solve()], and the
   // |Val - lbBound| test there retires the subinterval instead of
   // stopping the whole search
-  if( ( Q[ i ].branchedflag == 0 ) && ( min >= Q[ i ].lbBound ) ) {
-   min = Q[ i ].lbBound;    // only a subinterval that is still alive can
+  if( ( Q[ i ].branchedflag == 0 ) && ( min >= Q[ i ].interVal ) ) {
+   min = Q[ i ].interVal;    // only a subinterval that is still alive can
    minpos = i;              // be handed back as the next one to explore
    }
 
@@ -1802,6 +1778,7 @@ int BenBound::LineSearch()
  // nothing was selectable above: every subinterval is fathomed, so there
  // is nowhere left for Solve() to go [see noLiveSubInterval]
  noLiveSubInterval = ( min == Inf< double >() );
+
 
  //std::cout << "LB=" << BestLB << std::endl;
  //std::cout << "minpos=" << minpos << std::endl;
