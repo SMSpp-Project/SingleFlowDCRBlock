@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   drops what looks unused takes the registration away with it, so the target
   now tells whoever links it to keep the symbol that forces the module in,
   and on ELF, where naming the symbol is not enough, the library as a whole
+
 - `chg_costs()`, `chg_ucaps()` and `chg_dfcts()` take their data as a
   `std::span< const double >`, whose length they check against the Range or
   the Subset instead of reading past the end, and the first two are
