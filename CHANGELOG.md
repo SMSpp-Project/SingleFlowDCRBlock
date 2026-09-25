@@ -36,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- on macOS a program linking the module lost the classes the module
+  registers in the factories when the linker dropped the library, as it
+  does under `-dead_strip_dylibs`, which conda sets: the target now asks the
+  linker for the symbol that forces the module in (`-u`), which ld64,
+  unlike the ELF linker, counts as a use of the library
+
 - `is_sol_feasible()` declared infeasible a routing where an arc the flow
   does not use reserves a rate of the order of the tolerance of the Solver:
   r <= U x was checked against a tolerance relative to U x, i.e., an
