@@ -1318,10 +1318,13 @@ bool SingleFlowDCRBlock::link_feasible( c_double feps , c_Vec_double & X ,
   c_double ri = R[ i ];
 
   // r[ i ] <= U[ i ] x[ i ], which for an arc of infinite capacity only
-  // says that an arc the flow does not use reserves nothing
+  // says that an arc the flow does not use reserves nothing; the tolerance
+  // is relative to U[ i ], the size of the terms of the constraint, since a
+  // Solver leaves on an unused arc a rate as small as its tolerance allows
+  // relative to that, and x[ i ] = 0 would otherwise make it an absolute one
   c_double Ui = get_U( i );
   if( Ui < Inf< double >() ) {
-   if( violated( ri , Ui * xi , feps ) )
+   if( violated( ri , Ui * xi , feps , Ui ) )
     return( false );
    }
   else

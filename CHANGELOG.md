@@ -36,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `is_sol_feasible()` declared infeasible a routing where an arc the flow
+  does not use reserves a rate of the order of the tolerance of the Solver:
+  r <= U x was checked against a tolerance relative to U x, i.e., an
+  absolute one when x = 0, and it is now relative to U, the size of the
+  terms of the constraint
+
 - a `MultiFlowDCRBlock` could not be read back from the netCDF file it
   wrote: `serialize()` wrote the topology and the costs alone, leaving out
   the data of the flows, and `deserialize()` built no `SingleFlowDCRBlock`

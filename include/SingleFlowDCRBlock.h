@@ -51,6 +51,8 @@
 
 #include "Solution.h"
 
+#include <algorithm>
+
 /*--------------------------------------------------------------------------*/
 /*--------------------------- NAMESPACE ------------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -2109,12 +2111,16 @@ public:
 
 /*--------------------------------------------------------------------------*/
  /// true if lhs <= rhs is violated by more than the tolerance feps
- /** The tolerance is relative to rhs, save that a rhs smaller than one
-  * counts as one, so that the check does not become an exact one where the
-  * right-hand side happens to be zero. */
+ /** The tolerance is relative to rhs, save that a rhs smaller than \p scale
+  * (one by default) counts as \p scale, so that the check does not become
+  * an exact one where the right-hand side happens to be zero: \p scale is
+  * the size of the terms of the constraint, which a Solver measures its own
+  * tolerance against, e.g., the capacity U of r <= U x. */
 
- static bool violated( c_double lhs , c_double rhs , c_double feps ) {
-  return( lhs - rhs > feps * std::max( double( 1 ) , std::abs( rhs ) ) );
+ static bool violated( c_double lhs , c_double rhs , c_double feps ,
+                       c_double scale = 1 ) {
+  return( lhs - rhs > feps * std::max( { double( 1 ) , std::abs( scale ) ,
+                                         std::abs( rhs ) } ) );
   }
 
 /*--------------------------------------------------------------------------*/
