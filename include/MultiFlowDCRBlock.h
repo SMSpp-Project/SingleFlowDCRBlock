@@ -259,32 +259,32 @@ class MultiFlowDCRBlock : public Block
   *
   * - the dimension "NComm" containing the number of commodities (flows);
   *
-  * - the dimension "NCnst" containing the number of arcs having a mutual
-  *   capacity constraint (currently always == "NArcs");
-  *
-  * - the variable "SN", of type int and indexed over "NArcs", containing
+  * - the variable "SN", of type uint64 and indexed over "NArcs", containing
   *   the starting node of each arc;
   *
-  * - the variable "EN", of type int and indexed over "NArcs", containing
+  * - the variable "EN", of type uint64 and indexed over "NArcs", containing
   *   the ending node of each arc;
   *
   * - the variable "Utot", of type double and indexed over "NArcs",
   *   containing the (individual) total capacity of each arc;
   *
-  * - the variable "U", of type double and indexed over ( "NComm" , "NArcs" ),
-  *   containing the per-commodity individual arc capacities;
+  * - the variable "CapTot", of type double and indexed over "NArcs",
+  *   containing the mutual capacity of each arc; if it is not there it is
+  *   computed out of "Utot" as load() computes it;
   *
-  * - the variable "B", of type double and indexed over ( "NComm" , "NNodes" ),
-  *   containing the per-commodity node deficits;
+  * - the variables "MTU", "rho", "FlowBursts" and "FlowDeadlines", of type
+  *   double and indexed over "NComm", containing the MTU, the rate, the burst
+  *   and the deadline of each flow;
   *
-  * - the variable "C", of type double and indexed over ( "NComm" , "NArcs" ),
-  *   containing the per-commodity arc costs.
+  * - one group "SingleFlowDCRBlock_<k>" for each flow k, containing the
+  *   SingleFlowDCRBlock of that flow [see SingleFlowDCRBlock::deserialize()],
+  *   which holds everything else about it.
   *
-  * The "NNodes", "NArcs" and "NComm" dimensions and the "SN", "EN" variables
-  * are mandatory. Note that this method only reads the *coupling* data
-  * (topology, mutual capacities, and the raw per-commodity U/B/C matrices);
-  * it does *not* construct the NComm SingleFlowDCRBlock sub-Block, which is
-  * instead the job of generate_abstract_variables(). */
+  * The "NNodes", "NArcs" and "NComm" dimensions, the "SN", "EN" and "Utot"
+  * variables and the groups of the flows are mandatory. The variables "U",
+  * "B" and "C", of type double and indexed over ( "NComm" , "NArcs" ) or
+  * ( "NComm" , "NNodes" ), which the files of an earlier format hold, are
+  * read when they are there. */
 
  void deserialize( const netCDF::NcGroup & group ) override;
 
@@ -419,13 +419,13 @@ class MultiFlowDCRBlock : public Block
 /// extends Block::serialize( netCDF::NcGroup )
 /** Extends Block::serialize( netCDF::NcGroup ) to the specific format of a
  * MultiFlowDCRBlock. See MultiFlowDCRBlock::deserialize(netCDF::NcGroup) for
- * details of the
- * format of the created netCDF group; in short, besides calling
- * Block::serialize(), this writes the "NNodes", "NArcs", "NComm" and
- * "NCnst" dimensions, the "SN", "EN" and "Utot" variables (the graph
- * topology and the per-arc individual capacity), and the "U", "B" and "C"
- * matrix variables (indexed over commodity and, respectively, arc, node
- * and arc) holding the per-commodity data. */
+ * details of the format of the created netCDF group; in short, besides
+ * calling Block::serialize(), this writes the "NNodes", "NArcs" and "NComm"
+ * dimensions, the "SN", "EN", "Utot" and "CapTot" variables (the graph
+ * topology and the individual and mutual capacity of each arc), the "MTU",
+ * "rho", "FlowBursts" and "FlowDeadlines" variables of the flows, and the
+ * SingleFlowDCRBlock of each flow in a group of its own, so that the whole
+ * Block can be read back. */
 
  void serialize( netCDF::NcGroup & file ) const override;
 
@@ -699,10 +699,7 @@ class MultiFlowDCRBlock : public Block
                          ///< capacities enforced in the coupling
                          ///< Constraint MCs; computed from UTot by an
                          ///< oversubscription discount factor (see
-                         ///< FACTOR in MultiFlowDCRBlock.cpp). Note that
-                         ///< only UTot (not CapTot) is written/read by
-                         ///< serialize()/deserialize(), so CapTot must be
-                         ///< (re)computed after deserialize()
+                         ///< FACTOR in MultiFlowDCRBlock.cpp)
 
  Vec_double NodeDelays;     ///< Vector of the (fixed) per-node processing
                              ///< delays, one entry per node

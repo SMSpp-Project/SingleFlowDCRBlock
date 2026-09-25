@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- the instances of the module, as netCDF files downloaded from the Package
+  Registry into `data/nc4` [see `data/README.md`]: 140 `SingleFlowDCRBlock`,
+  one per flow of 14 networks (the ten GARR ones, Abilene, Cogentco, Colt and
+  w1_100_04), and 70 `MultiFlowDCRBlock`, each network with its first 1 to 5
+  flows, which is what a formulation holding all of them solves exactly
+
+- `tools/dcr2nc4`, which writes a `MultiFlowDCRBlock` out of the multi-file
+  textual format that `load()` reads, or out of the raw one of the data sets
+  it comes from, possibly keeping its first flows only, working in a
+  temporary directory, since `load()` writes its own files in the current one
+
 ### Changed
 
 - whoever links the module keeps it: the classes of a module register
@@ -24,6 +35,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   iterator stay, and defer to the span ones
 
 ### Fixed
+
+- a `MultiFlowDCRBlock` could not be read back from the netCDF file it
+  wrote: `serialize()` wrote the topology and the costs alone, leaving out
+  the data of the flows, and `deserialize()` built no `SingleFlowDCRBlock`
+  and kept the previous instance, so that generating the abstract
+  representation of what it read crashed. The file now holds the mutual
+  capacities, the data of each flow and the `SingleFlowDCRBlock` of each flow
+  in a group of its own, which `deserialize()` rebuilds; the matrices of the
+  costs, of the capacities and of the deficits of an earlier file are still
+  read, and no longer written, the costs being in the flows
 
 - `map_forward_Modification()` passed a change of the deficits on to the
   other `SingleFlowDCRBlock` as a change of its capacities, and, when this

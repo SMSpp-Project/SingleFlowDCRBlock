@@ -149,10 +149,77 @@ target_link_libraries(${modName} PUBLIC ${modNamespace}::SMS++)
 # the library with this notation.
 add_library(${modNamespace}::${modName} ALIAS ${modName})
 
+# ----- Tools --------------------------------------------------------------- #
+add_subdirectory(tools)
+
 # ----- Tests --------------------------------------------------------------- #
 if (BUILD_TESTING)
     # Just consuming BUILD_TESTING to avoid warnings
 endif ()
+
+# ----- Custom commands and targets ----------------------------------------- #
+
+# The version of the archive in the Package Registry. A published version is
+# never replaced: new data go out under a new version, written here first [see
+# data/upload-nc4], and the archive and the marker of its extraction carry it
+# in their name, so that a tree holding the data of an older version (a cache
+# of the CI, or a clone that has been extracted before) downloads and extracts
+# again instead of taking them for the current ones.
+set(DATA_VERSION 2026-09-26)
+
+# Download nc4.tgz from GitLab Package Registry if it doesn't exist
+set(DATA_URL "https://gitlab.com/api/v4/projects/51070974/packages/generic/nc4/${DATA_VERSION}/nc4.tgz")
+set(DATA_ARCHIVE ${CMAKE_CURRENT_SOURCE_DIR}/data/nc4-${DATA_VERSION}.tgz)
+set(DATA_MARKER ${CMAKE_CURRENT_SOURCE_DIR}/data/.extracted-${DATA_VERSION})
+set(DATA_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/download_dcr_nc4.cmake)
+
+file(WRITE ${DATA_SCRIPT} "
+file(DOWNLOAD \"${DATA_URL}\" \"${DATA_ARCHIVE}\" SHOW_PROGRESS STATUS _status)
+list(GET _status 0 _code)
+list(GET _status 1 _message)
+if(NOT _code EQUAL 0)
+  # what is on disk is whatever the server answered with, and leaving it there
+  # would let the build take it for the archive: the next attempt has to
+  # download again rather than fail while extracting it
+  file(REMOVE \"${DATA_ARCHIVE}\")
+  message(FATAL_ERROR \"cannot download ${DATA_URL}: \${_message}\")
+endif()
+file(SIZE \"${DATA_ARCHIVE}\" _size)
+if(_size LESS 1024)
+  file(REMOVE \"${DATA_ARCHIVE}\")
+  message(FATAL_ERROR \"${DATA_ARCHIVE} came down with \${_size} bytes, so the \
+server answered but not with the archive: try again later\")
+endif()
+")
+
+add_custom_command(
+        OUTPUT ${DATA_ARCHIVE}
+        COMMAND ${CMAKE_COMMAND} -E echo "Downloading nc4.tgz from GitLab Package Registry..."
+        COMMAND ${CMAKE_COMMAND} -P ${DATA_SCRIPT}
+        COMMENT "Downloading nc4.tgz"
+        VERBATIM
+)
+
+add_custom_target(download_dcr_nc4
+        DEPENDS ${DATA_ARCHIVE})
+
+# Custom command to extract the nc4.tgz archive if the marker of this version
+# does not exist
+add_custom_command(
+        OUTPUT ${DATA_MARKER}
+        COMMAND tar xzf ${DATA_ARCHIVE}
+        COMMAND echo > ${DATA_MARKER}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data
+        COMMENT "Extracting nc4.tgz"
+        VERBATIM
+        DEPENDS download_dcr_nc4)
+
+# Create custom targets to run the data extraction
+add_custom_target(extract_dcr_nc4
+        DEPENDS ${DATA_MARKER})
+
+# Ensure that extract_dcr_nc4 is executed after the download
+add_dependencies(extract_dcr_nc4 download_dcr_nc4)
 
 # ----- Install instructions ------------------------------------------------ #
 # The following commands are used when installing the library

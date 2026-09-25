@@ -385,10 +385,9 @@ void MultiFlowDCRBlock::print( std::ostream & output , char vlvl ) const
  }
 
 /*--------------------------------------------------------------------------*/
-// writes the "coupling" data (topology, mutual/individual capacities,
-// per-commodity deficits and costs); note that CapTot[] itself is *not*
-// written (only the "raw" UTot[]), and neither are the per-commodity
-// SingleFlowDCRBlock sub-Block, which are not serialized here
+// writes the data the flows share (topology, individual and mutual
+// capacities), the data of each flow and the SingleFlowDCRBlock of each flow,
+// each in a group of its own, so that deserialize() rebuilds the whole Block
 
 void MultiFlowDCRBlock::serialize( netCDF::NcGroup & group ) const
 {
@@ -396,12 +395,11 @@ void MultiFlowDCRBlock::serialize( netCDF::NcGroup & group ) const
 
  Block::serialize( group );
 
- // now the MultiFlowDCRBlock data- - - - - - - - - - - - - - - - - - - - - - -
- // - - -
+ // the data the flows share- - - - - - - - - - - - - - - - - - - - - - - - -
+
  netCDF::NcDim nn = group.addDim( "NNodes" , get_NNodes() );
  netCDF::NcDim na = group.addDim( "NArcs" , get_NArcs() );
  netCDF::NcDim nc = group.addDim( "NComm" , get_NComm() );
- netCDF::NcDim ncnst = group.addDim( "NCnst" , NCnst );
 
  ( group.addVar( "SN" , netCDF::NcUint64() , na ) ).putVar( Startn.data() );
 
@@ -409,92 +407,140 @@ void MultiFlowDCRBlock::serialize( netCDF::NcGroup & group ) const
 
  ( group.addVar( "Utot" , netCDF::NcDouble() , na ) ).putVar( UTot.data() );
 
- ::serialize( group , "U" , netCDF::NcDouble() , U , { nc , na } );
+ ( group.addVar( "CapTot" , netCDF::NcDouble() , na ) ).putVar(
+                                                           CapTot.data() );
 
- ::serialize( group , "B" , netCDF::NcDouble() , B , { nc , nn } );
+ // the data of each flow - - - - - - - - - - - - - - - - - - - - - - - - - -
 
- ::serialize( group , "C" , netCDF::NcDouble() , C , { nc , na } );
+ ( group.addVar( "MTU" , netCDF::NcDouble() , nc ) ).putVar( MTU.data() );
+
+ ( group.addVar( "rho" , netCDF::NcDouble() , nc ) ).putVar( rho.data() );
+
+ ( group.addVar( "FlowBursts" , netCDF::NcDouble() , nc ) ).putVar(
+                                                       FlowBursts.data() );
+
+ ( group.addVar( "FlowDeadlines" , netCDF::NcDouble() , nc ) ).putVar(
+                                                    FlowDeadlines.data() );
+
+ // and the SingleFlowDCRBlock of each flow, which holds all the rest- - - - -
+
+ for( Index k = 0 ; k < get_NComm() ; ++k ) {
+  auto sub = group.addGroup( "SingleFlowDCRBlock_" + std::to_string( k ) );
+  v_Block[ k ]->serialize( sub );
+  }
 
  } // end( MultiFlowDCRBlock::serialize )
 
 /*--------------------------------------------------------------------------*/
-// reads the "coupling" data written by serialize() (see the detailed
-// description of the netCDF format in MultiFlowDCRBlock::deserialize() in
-// MultiFlowDCRBlock.h); note that CapTot[] is *not* read (as it is not
-// written by serialize()) and must be (re)computed separately, and that,
-// unlike generate_abstract_variables(), this method does *not* construct
-// the per-commodity SingleFlowDCRBlock sub-Block
+// reads what serialize() writes (see the description of the netCDF format in
+// MultiFlowDCRBlock::deserialize() in MultiFlowDCRBlock.h), the
+// SingleFlowDCRBlock of each flow included; the matrices "U", "B" and "C"
+// that files of an earlier format may hold are read when there
 
 void MultiFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
 {
  // erase previous instance, if any- - - - - - - - - - - - - - - - - - - - - -
- // IMPLEMENTATION NOTE: unlike, e.g., MCFBlock::deserialize(), this does
- // *not* call guts_of_destructor(): "MultiFlowDCRBlock()" here constructs
- // and immediately discards a temporary, unnamed object, so it has no
- // effect whatsoever on the current one
 
- if( NNodes || NComm || get_NArcs() )
-  MultiFlowDCRBlock();
+ guts_of_destructor();
 
- // read problem data- - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ // read the data the flows share - - - - - - - - - - - - - - - - - - - - - -
 
  auto nn = group.getDim( "NNodes" );
  if( nn.isNull() )
-  throw( std::logic_error( "NNodes dimension is required" ) );
+  throw( std::invalid_argument( "MultiFlowDCRBlock::deserialize: NNodes "
+                                "dimension is required" ) );
  NNodes = nn.getSize();
 
  auto na = group.getDim( "NArcs" );
  if( na.isNull() )
-  throw( std::logic_error( "NArcs dimension is required" ) );
+  throw( std::invalid_argument( "MultiFlowDCRBlock::deserialize: NArcs "
+                                "dimension is required" ) );
  NArcs = na.getSize();
 
  auto nc = group.getDim( "NComm" );
  if( nc.isNull() )
-  throw( std::logic_error( "NComm dimension is required" ) );
+  throw( std::invalid_argument( "MultiFlowDCRBlock::deserialize: NComm "
+                                "dimension is required" ) );
  NComm = nc.getSize();
-
- Index NCnst = NArcs;
- auto ncnst = group.getDim( "NCnst" );
- if( nc.isNull() )
-  throw( std::logic_error( "NCnst dimension is required" ) );
- NCnst = ncnst.getSize();
+ NCnst = NArcs;
 
  auto sn = group.getVar( "SN" );
  if( sn.isNull() )
-  throw( std::logic_error( "Starting Nodes not found" ) );
-
+  throw( std::invalid_argument( "MultiFlowDCRBlock::deserialize: SN "
+                                "(the starting nodes) is required" ) );
  Startn.resize( NArcs );
  sn.getVar( Startn.data() );
 
  auto en = group.getVar( "EN" );
  if( en.isNull() )
-  throw( std::logic_error( "Ending Nodes not found" ) );
-
+  throw( std::invalid_argument( "MultiFlowDCRBlock::deserialize: EN "
+                                "(the ending nodes) is required" ) );
  Endn.resize( NArcs );
  en.getVar( Endn.data() );
 
  auto ut = group.getVar( "Utot" );
  if( ut.isNull() )
-  throw( std::logic_error( "Total capacities not found" ) );
-
+  throw( std::invalid_argument( "MultiFlowDCRBlock::deserialize: Utot "
+                                "(the total capacities) is required" ) );
  UTot.resize( NArcs );
  ut.getVar( UTot.data() );
 
- U.resize( NComm );
- for( int i = 0 ; i < NComm ; i++ )
-  U[ i ].resize( NArcs );
+ // the mutual capacities, which a file without them has computed as load()
+ // computes them
+ CapTot.resize( NArcs );
+ auto ct = group.getVar( "CapTot" );
+ if( ct.isNull() )
+  for( Index i = 0 ; i < NArcs ; ++i )
+   CapTot[ i ] = std::floor( FACTOR * NComm * UTot[ i ] );
+ else
+  ct.getVar( CapTot.data() );
 
- B.resize( NComm );
- for( int i = 0 ; i < NComm ; i++ )
-  B[ i ].resize( NNodes );
+ // the data of each flow, which the SingleFlowDCRBlock hold as well- - - - -
 
- C.resize( NComm );
- for( int i = 0 ; i < NComm ; i++ )
-  C[ i ].resize( NArcs );
+ auto read_flows = [ & ]( const char * name , Vec_double & v ) {
+  v.assign( NComm , 0 );
+  auto var = group.getVar( name );
+  if( ! var.isNull() )
+   var.getVar( v.data() );
+  };
 
- ::deserialize( group , "U" , U );
- ::deserialize( group , "B" , B );
- ::deserialize( group , "C" , C );
+ read_flows( "MTU" , MTU );
+ read_flows( "rho" , rho );
+ read_flows( "FlowBursts" , FlowBursts );
+ read_flows( "FlowDeadlines" , FlowDeadlines );
+
+ NodeDelays.resize( NNodes );
+ LinkDelays.resize( NArcs );
+
+ // the matrices of an earlier format, if there - - - - - - - - - - - - - - -
+
+ if( ! group.getVar( "U" ).isNull() ) {
+  U.assign( NComm , Vec_double( NArcs ) );
+  ::deserialize( group , "U" , U );
+  }
+ if( ! group.getVar( "B" ).isNull() ) {
+  B.assign( NComm , Vec_double( NNodes ) );
+  ::deserialize( group , "B" , B );
+  }
+ if( ! group.getVar( "C" ).isNull() ) {
+  C.assign( NComm , Vec_double( NArcs ) );
+  ::deserialize( group , "C" , C );
+  }
+
+ // the SingleFlowDCRBlock of each flow - - - - - - - - - - - - - - - - - - -
+
+ v_Block.assign( NComm , nullptr );
+ for( Index k = 0 ; k < NComm ; ++k ) {
+  const std::string name = "SingleFlowDCRBlock_" + std::to_string( k );
+  auto sub = group.getGroup( name );
+  if( sub.isNull() )
+   throw( std::invalid_argument( "MultiFlowDCRBlock::deserialize: " + name +
+                                 " not present" ) );
+  v_Block[ k ] = new_Block( sub , this );
+  if( ! dynamic_cast< SingleFlowDCRBlock * >( v_Block[ k ] ) )
+   throw( std::invalid_argument( "MultiFlowDCRBlock::deserialize: " + name +
+                                 " is not a SingleFlowDCRBlock" ) );
+  }
 
  // call the method of Block- - - - - - - - - - - - - - - - - - - - - - - - -
  // inside this the NBModification, the "nuclear option",  is issued

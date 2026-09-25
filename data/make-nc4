@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+#
+# usage: make-nc4 [-a] < instances > < dcr2nc4 >
+#        -a            = also the instances with all the flows of each network
+#        < instances > = the directory holding garr/ and ods24/, as the tests
+#                        of the DCR problems had them (tag archive/dcr-flow of
+#                        the tests repository, directory SFDCR_Benders)
+#        < dcr2nc4 >   = the converter of tools/, default ../tools/dcr2nc4
+#
+# builds nc4/ as it is distributed [see README.md]:
+#
+# - nc4/single/<network>_<i>.nc4, the SingleFlowDCRBlock of flow i of each
+#   network, as they were written from the textual instances: each of them
+#   was there more than once (flow i + 10 of a network is flow i, and the two
+#   GARR networks of ods24 are those of garr), and it is taken once;
+#
+# - nc4/multi/<network>_<k>.nc4, the MultiFlowDCRBlock of the first k flows
+#   of each network, k = 1..5, which is what a formulation holding all of
+#   them can solve exactly; with -a, also nc4/multi/<network>.nc4, the one of
+#   all its flows, which are not distributed, since they are thousands (up
+#   to 38612) and each of them is a group of the file.
+
+set -eu
+ALL=0
+if [ "${1:-}" = -a ] ; then ALL=1 ; shift ; fi
+SRC=${1:?usage: make-nc4 [-a] instances [dcr2nc4]}
+DCR2NC4=${2:-../tools/dcr2nc4}
+HERE="$( cd "$( dirname "$0" )" && pwd )"
+
+GARR="Garr199901 Garr199904 Garr199905 Garr200109 Garr200112 Garr200404
+      Garr200908 Garr200909 Garr200912 Garr201001"
+ODS="Abilene Cogentco Colt w1_100_04"
+
+mkdir -p "$HERE/nc4/single" "$HERE/nc4/multi"
+
+# single flow - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+for n in $GARR ; do
+  for i in $( seq 0 9 ) ; do
+    cp "$SRC/garr/$n.nod_$i.nc4" "$HERE/nc4/single/${n}_$i.nc4"
+  done
+done
+for n in $ODS ; do
+  for i in $( seq 0 9 ) ; do
+    cp "$SRC/ods24/$n.nod_$i.nc4" "$HERE/nc4/single/${n}_$i.nc4"
+  done
+done
+
+# multiple flows- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# the files of garr are in the format load() reads; those of ods24 in the raw
+# one, whose original .nod and .dcr are the ones ending in -1 (the other two
+# were rewritten by a previous run), hence they are staged under their name
+STAGE=$( mktemp -d )
+trap 'rm -rf "$STAGE"' EXIT
+for n in $ODS ; do
+  cp "$SRC/ods24/$n.arc" "$SRC/ods24/$n.sup" "$STAGE/"
+  cp "$SRC/ods24/$n-1.nod" "$STAGE/$n.nod"
+  cp "$SRC/ods24/$n-1.dcr" "$STAGE/$n.dcr"
+done
+
+for n in $GARR $ODS ; do
+  case " $ODS " in
+    *" $n "*) base="$STAGE/$n" ; raw=-r ;;
+    *)        base="$SRC/garr/$n" ; raw= ;;
+  esac
+  if [ $ALL -eq 1 ] ; then
+    "$DCR2NC4" $raw "$base" "$HERE/nc4/multi/$n.nc4"
+  fi
+  for k in 1 2 3 4 5 ; do
+    "$DCR2NC4" $raw -k $k "$base" "$HERE/nc4/multi/${n}_$k.nc4"
+  done
+done
