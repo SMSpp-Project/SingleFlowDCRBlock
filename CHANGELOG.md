@@ -36,6 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `dcr2nc4` did not build with MSVC, which has no `mkdtemp()`: the temporary
+  directory of a run is made with `std::filesystem::create_directory()` on a
+  random name, tried again while the name is already there
+
 - on macOS a program linking the module lost the classes the module
   registers in the factories when the linker dropped the library, as it
   does under `-dead_strip_dylibs`, which conda sets: the target now asks the

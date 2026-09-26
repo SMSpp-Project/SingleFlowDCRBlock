@@ -38,6 +38,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <random>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -188,12 +189,21 @@ int main( int argc , char **argv )
 
  // the files load() reads, in a temporary directory- - - - - - - - - - - - -
 
- std::string tmpl = ( fs::temp_directory_path() / "dcr2nc4.XXXXXX" ).string();
- if( ! mkdtemp( tmpl.data() ) ) {
-  std::cerr << "Error: cannot create a temporary directory" << std::endl;
-  return( 1 );
+ // a directory of this run: create_directory() does not create a name that
+ // is already there, so a random one is tried until one is new
+ fs::path tmp;
+ {
+  std::random_device rd;
+  std::error_code ec;
+  int tries = 0;
+  do
+   tmp = fs::temp_directory_path() / ( "dcr2nc4." + std::to_string( rd() ) );
+  while( ( ! fs::create_directory( tmp , ec ) ) && ( ++tries < 100 ) );
+  if( tries == 100 ) {
+   std::cerr << "Error: cannot create a temporary directory" << std::endl;
+   return( 1 );
+   }
   }
- const fs::path tmp = tmpl;
  const fs::path tbase = tmp / base.filename();
  auto in_tmp = [ & ]( const char * ext ) {
   return( fs::path( tbase.string() + ext ) );
