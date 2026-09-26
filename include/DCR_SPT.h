@@ -205,7 +205,8 @@ public:
     @{ */
 
  virtual void DCRcloseArcs( int * whch , int na );
- /**< Closes arcs of the network, for all flows.
+ /**< Closes arcs of the network, for all flows, by giving them an infinite
+  * cost: the heuristics use no arc of infinite cost.
   * \param whch indices of the arcs to be closed*/
 
  virtual void DCRcloseArcs( int k , int * whch , int na );

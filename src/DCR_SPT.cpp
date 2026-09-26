@@ -386,8 +386,9 @@ void DCR_SPT::DCRheurERAI()
    //larger) Links array to find them
    for( int aj = 0 ; aj < (int) adjOut[ h ].size() ; aj++ ) {
     j = adjOut[ h ][ aj ];
-    if( Flows[ 0 ].caps[ j ] < rmin )
-     continue; //NB always use individual capacity
+    if( ( Flows[ 0 ].caps[ j ] < rmin ) ||
+        ( Flows[ 0 ].costs[ j ] >= inf ) )
+     continue; //NB always use individual capacity; closed arcs are skipped
 
     next = Links[ j ].endnode;
     dist = MTU / Flows[ 0 ].caps[ j ] + MTU / Links[ j ].speed +
@@ -560,7 +561,7 @@ void DCR_SPT::DCRheurERAH()
    //////////////////////////////////////
    if( h == t ) {
 
-    if( ( distance[ t ] + Flows[ 0 ].burst / rmin ) < Flows[ 0 ].deadline ) {
+    if( ( distance[ t ] + Flows[ 0 ].burst / rmin ) <= Flows[ 0 ].deadline ) {
 
      //calculate r0
      dl = 0;
@@ -614,8 +615,9 @@ void DCR_SPT::DCRheurERAH()
    //larger) Links array to find them
    for( int aj = 0 ; aj < (int) adjOut[ h ].size() ; aj++ ) {
     j = adjOut[ h ][ aj ];
-    if( Flows[ 0 ].caps[ j ] < rmin )
-     continue;
+    if( ( Flows[ 0 ].caps[ j ] < rmin ) ||
+        ( Flows[ 0 ].costs[ j ] >= inf ) )
+     continue;  // closed arcs are skipped
 
     next = Links[ j ].endnode;
     dist = MTU / rmin + MTU / Links[ j ].speed + Nodes[ h ].delay +

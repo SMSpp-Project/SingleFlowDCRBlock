@@ -285,7 +285,10 @@ void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pSn ,
   std::copy( pC.begin() , pC.begin() + m , C.begin() );
   }
 
- if( std::any_of( pU.begin() , pU.begin() + m ,
+ // an empty vector stands for all its entries at their default value, and
+ // it has no m (or n) entries to look at
+ if( ( ! pU.empty() ) &&
+     std::any_of( pU.begin() , pU.begin() + m ,
                   []( c_double ui ) { return( ui < Inf< double >() ); } ) ) {
   U.resize( MaxNArcs );
   std::copy( pU.begin() , pU.begin() + m , U.begin() );
@@ -293,7 +296,8 @@ void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pSn ,
  else
   U.clear();
 
- if( std::any_of( pNodeDelays.begin() , pNodeDelays.begin() + n ,
+ if( ( ! pNodeDelays.empty() ) &&
+     std::any_of( pNodeDelays.begin() , pNodeDelays.begin() + n ,
                   []( c_double NodeDelaysi ) {
                    return( NodeDelaysi < Inf< double >() );
                   } ) ) {
@@ -304,7 +308,8 @@ void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pSn ,
  else
   NodeDelays.clear();
 
- if( std::any_of( pLinkDelays.begin() , pLinkDelays.begin() + m ,
+ if( ( ! pLinkDelays.empty() ) &&
+     std::any_of( pLinkDelays.begin() , pLinkDelays.begin() + m ,
                   []( c_double LinkDelaysi ) {
                    return( LinkDelaysi < Inf< double >() );
                   } ) ) {
@@ -1514,7 +1519,9 @@ bool SingleFlowDCRBlock::is_feasible_instance( void )
  Vec_double c( get_NArcs() );
  for( Index i = 0 ; i < get_NArcs() ; ++i ) {
   u[ i ] = get_U( i );
-  c[ i ] = is_deleted( i ) ? 0 : get_C( i );
+  // a closed arc is given an infinite cost, which DCR_SPT does not use
+  c[ i ] = is_deleted( i ) ? 0 :
+           ( is_closed( i ) ? Inf< double >() : get_C( i ) );
   }
 
  DCR::DCRFlow flow = {};
@@ -2596,8 +2603,8 @@ void SingleFlowDCRBlock::chg_ucap( double NCap , Index arc ,
  if( arc >= get_NArcs() )
   throw( std::invalid_argument( "invalid arc name" ) );
 
- if( U.empty() ) {
-  if( NCap < Inf< double >() )
+ if( U.empty() ) {  // all the capacities are infinite
+  if( NCap >= Inf< double >() )
    return;
 
   U.assign( get_MaxNArcs() , Inf< double >() );
@@ -3133,6 +3140,7 @@ void SingleFlowDCRBlock::guts_of_destructor( void )
  C.clear();
  B.clear();
  NodeDelays.clear();
+ LinkDelays.clear();
 
  // explicitly reset all Constraint and Variable
  // this is done for the case where this method is called prior to re-loading

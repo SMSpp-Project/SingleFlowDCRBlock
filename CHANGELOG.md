@@ -12,6 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `DCRSolution::is_dual_feasible()` returns false, the Solution holding no
   dual values [see `Solution::is_dual_feasible()`]
 
+- a tester of the module in `test/`, needing nothing but the core SMS++ and
+  run by `ctest -L SingleFlowDCRBlock`, which on tiny graphs built in memory
+  compares `SPT`, both heuristics of `DCR_SPT` and the two bounds of
+  `DCRLagrangianSolver` with the enumeration of the paths, and checks the
+  feasibility of given solutions, the netCDF round trip, the feasibility of
+  the instance and the Modification issued by the changes of the
+  `SingleFlowDCRBlock`, the edge cases (source equal to sink, no path, every
+  path over the deadline, the deadline met with equality, ties, zero-cost,
+  parallel and closed arcs) each on its own
+
 - the instances of the module, as netCDF files downloaded from the Package
   Registry into `data/nc4` [see `data/README.md`], out of 307 networks in
   four sets (garr, sndlib, topo and waxman): 3070 `SingleFlowDCRBlock`, the
@@ -43,6 +53,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   iterator stay, and defer to the span ones
 
 ### Fixed
+
+- `load()` read m (or n) entries of the capacities and of the delays when
+  they were given empty, which its documentation allows and which means all
+  infinite, or all 0: it looks at them only when they are there
+
+- `chg_ucap()` did nothing on a `SingleFlowDCRBlock` whose capacities are
+  all infinite, the test on the new capacity being the other way round
+
+- `deserialize()` over a `SingleFlowDCRBlock` that had link delays kept
+  them when the file has none, since they were not cleared with the rest
+
+- `is_feasible_instance()` counted the closed arcs as usable: they are
+  given an infinite cost, which `DCR_SPT` now reads as closed
+
+- `DCR_SPT` routed through the arcs closed with `DCRcloseArcs()`, whose
+  infinite cost ERA-I could even return as the objective: both heuristics
+  skip them, and ERA-H accepts a path that meets the deadline with
+  equality, as ERA-I does, rather than only one that meets it strictly
+
+- `DCRLagrangianSolver` could not route through an arc of zero cost at
+  lambda = 0, where its rate came out as sqrt( 0 / 0 ), a NaN the shortest
+  path never takes, so that an instance whose paths all use one was found
+  infeasible: an arc of zero cost reserves its capacity, as one of negative
+  cost does; and after the first `LoadProblem()` the heuristic value started
+  at 0 instead of +Inf, so that `getHeurVal()` returned 0 whenever the
+  delay constraint binds
 
 - `dcr2nc4` did not build with MSVC, which has no `mkdtemp()`: the temporary
   directory of a run is made with `std::filesystem::create_directory()` on a

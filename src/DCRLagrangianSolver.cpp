@@ -137,7 +137,7 @@ void DCRLagrangianSolver::LoadProblem( int nnodes , int nlinks ,
  rmin = r_min;
  ObjVal = -Inf< double >();
  lambda = 0;
- HeurVal = 0;
+ HeurVal = Inf< double >();  // no delay-feasible solution found yet
 
  num_ite = 0;
 
@@ -1462,9 +1462,10 @@ void DCRLagrangianSolver::setSPTcosts()
  for( i = 0 ; i < cardRedGraph ; i++ ) {
   ///choice of the costs according to the various cases, see paragraph 2.
   //cout<<"set STPcost"<<endl;
-  if( RedGraLinks[ i ].cost < 0 ) {
-   // negative-cost arc: the Lagrangian cost is decreasing in r,
-   // so the minimum over [rmin, capacity] is at r* = capacity
+  if( RedGraLinks[ i ].cost <= 0 ) {
+   // non-positive-cost arc: the Lagrangian cost is non-increasing in r,
+   // so the minimum over [rmin, capacity] is at r* = capacity (for a
+   // zero cost and lambda = 0, sqrt( lambda * MTU / cost ) is a NaN)
    Linksp[ i ].rstar = RedGraLinks[ i ].capacity;
    Linksp[ i ].cost = getCost( RedGraLinks[ i ].capacity , i );
    }
@@ -1592,7 +1593,7 @@ void DCRLagrangianSolver::tightenPath( const std::vector< int > & path ,
    const int idx = path[ k ];
    const auto & lk = RedGraLinks[ idx ];
    double r;
-   if( lk.cost < 0 )
+   if( lk.cost <= 0 )
     r = lk.capacity;
    else {
     const double sqr = sqrt( mu * MTU / lk.cost );
