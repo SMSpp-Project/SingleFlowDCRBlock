@@ -64,4 +64,6 @@ ehthumbs.db
 # --- Data ---------------------------------------------------
 data/nc4
 data/nc4*.tgz
+data/txt
+data/txt*.tgz
 data/.extracted*

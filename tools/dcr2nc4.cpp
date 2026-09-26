@@ -14,6 +14,13 @@
  * deadline of each flow and, last, the MTU, and there is no <base>.param: the
  * two files that load() reads are written out of it first.
  *
+ * With -s i the file is rather the SingleFlowDCRBlock of flow i (from 0) on
+ * its own, as the single-flow instances of the data sets are made: each arc
+ * with its own capacity and cost out of <base>.arc, not the capacity the
+ * flows share and the unit cost of the sub-Block of a MultiFlowDCRBlock, and
+ * the flow with its source, sink and rate out of <base>.sup, its burst and
+ * deadline out of <base>.param and the MTU.
+ *
  * With -k only the first k flows are kept, which is what makes an instance
  * with thousands of flows small enough for a formulation that holds them all
  * to be solved exactly: the flows are read in order, hence it is enough to
@@ -44,6 +51,8 @@
 #include <vector>
 
 #include <MultiFlowDCRBlock.h>
+
+#include <SingleFlowDCRBlock.h>
 
 /*--------------------------------------------------------------------------*/
 /*-------------------------------- USING -----------------------------------*/
@@ -132,6 +141,71 @@ static void split_raw_dcr( const fs::path & raw , const fs::path & dcr ,
  }
 
 /*--------------------------------------------------------------------------*/
+/// writes the SingleFlowDCRBlock of flow \p flow of the instance in \p tbase
+/** \p tbase names the files that load() reads (the raw .dcr already split),
+ * and the Block is built out of the two descriptions that a
+ * SingleFlowDCRBlock loads, written in memory. */
+
+static void write_single( const fs::path & tbase , int flow , int nflows ,
+                          int nnodes , int narcs , const fs::path & out )
+{
+ auto name = [ & ]( const char * ext ) {
+  return( fs::path( tbase.string() + ext ) );
+  };
+
+ // the flow: its source, sink and rate, its burst and deadline, and the MTU
+ std::ifstream sup( name( ".sup" ) ) , param( name( ".param" ) );
+ double src , dst , cmm , rho = 0 , rho1 , mtu , burst = 0 , deadline = 0;
+ if( ! ( param >> mtu ) ) {
+  std::cerr << "Error: " << name( ".param" ) << " has no MTU" << std::endl;
+  exit( 1 );
+  }
+ for( int j = 0 ; j <= flow ; ++j )
+  if( ! ( ( sup >> src >> cmm >> rho >> dst >> cmm >> rho1 ) &&
+          ( param >> burst >> deadline ) ) ) {
+   std::cerr << "Error: flow " << flow << " is not in " << tbase << std::endl;
+   exit( 1 );
+   }
+
+ // the graph, each arc with its own capacity and cost
+ std::stringstream dmx;
+ dmx << "p min " << nnodes << " " << narcs << "\n"
+     << "n " << src << " 1\n" << "n " << dst << " -1\n";
+ std::ifstream arc( name( ".arc" ) );
+ for( int i = 0 ; i < narcs ; ++i ) {
+  double num , sn , en , nc , cost , cap , num2;
+  if( ! ( arc >> num >> sn >> en >> nc >> cost >> cap >> num2 ) ) {
+   std::cerr << "Error: " << name( ".arc" ) << " ends before its arcs"
+             << std::endl;
+   exit( 1 );
+   }
+  dmx << "a " << sn << " " << en << " -1 " << cap << " " << cost << "\n";
+  }
+
+ // the delays, then the burst, the deadline, the MTU and the rate
+ // (a .dcr whose last line has no end of line would glue it to the burst)
+ std::stringstream dcr;
+ std::string delays = read_file( name( ".dcr" ) );
+ if( ( ! delays.empty() ) && ( delays.back() != '\n' ) )
+  delays += '\n';
+ dcr << delays << burst << "\n" << deadline << "\n" << mtu << "\n" << rho << "\n";
+
+ auto SFB = dynamic_cast< SingleFlowDCRBlock * >(
+                              Block::new_Block( "SingleFlowDCRBlock" ) );
+ SFB->load( dmx );
+ SFB->load_dcr( dcr , SFB->get_NNodes() , SFB->get_NArcs() );
+
+ netCDF::NcFile f( out.string() , netCDF::NcFile::replace );
+ f.putAtt( "SMS++_file_type" , netCDF::NcInt() , eBlockFile );
+ SFB->Block::serialize( f , eBlockFile );
+
+ std::cout << out.filename().string() << ": flow " << flow << " of "
+           << nflows << ", " << nnodes << " nodes, " << narcs << " arcs"
+           << std::endl;
+ delete SFB;
+ }
+
+/*--------------------------------------------------------------------------*/
 /*--------------------------------- Main -----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -140,6 +214,7 @@ int main( int argc , char **argv )
  std::set_terminate( smspp_terminate );
 
  int keep = 0;       // flows to keep, 0 = all of them
+ int single = -1;    // the flow written on its own, -1 = none
  bool raw = false;   // the .dcr is in the raw format
  std::vector< std::string > args;
 
@@ -148,21 +223,27 @@ int main( int argc , char **argv )
   if( ( a == "-k" ) && ( i + 1 < argc ) )
    keep = std::atoi( argv[ ++i ] );
   else
-   if( a == "-r" )
-    raw = true;
+   if( ( a == "-s" ) && ( i + 1 < argc ) )
+    single = std::atoi( argv[ ++i ] );
    else
-    args.push_back( a );
+    if( a == "-r" )
+     raw = true;
+    else
+     args.push_back( a );
   }
 
  if( args.size() != 2 ) {
-  std::cerr << "Usage: " << argv[ 0 ] << " [-r] [-k flows] base out.nc4"
+  std::cerr << "Usage: " << argv[ 0 ]
+            << " [-r] [-k flows | -s flow] base out.nc4"
             << std::endl
             << "  base     the instance, i.e., base.nod, base.arc, base.sup,"
             << std::endl
             << "           base.dcr and base.param (not with -r)" << std::endl
             << "  -r       base.dcr is in the raw format, holding the flows "
             << "and the MTU" << std::endl
-            << "  -k flows only the first flows are kept [all]" << std::endl;
+            << "  -k flows only the first flows are kept [all]" << std::endl
+            << "  -s flow  the SingleFlowDCRBlock of that flow (from 0) "
+            << "alone" << std::endl;
   return( 1 );
   }
 
@@ -225,7 +306,19 @@ int main( int argc , char **argv )
       << narcs;
   }
 
- // load it there and write it- - - - - - - - - - - - - - - - - - - - - - - -
+ // one flow on its own, or load it there and write it- - - - - - - - - - - -
+
+ if( single >= 0 ) {
+  if( single >= nflows ) {
+   std::cerr << "Error: flow " << single << " asked of an instance with "
+             << nflows << std::endl;
+   fs::remove_all( tmp );
+   return( 1 );
+   }
+  write_single( tbase , single , nflows , nnodes , narcs , out );
+  fs::remove_all( tmp );
+  return( 0 );
+  }
 
  const fs::path here = fs::current_path();
  fs::current_path( tmp );

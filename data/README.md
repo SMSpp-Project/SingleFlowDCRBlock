@@ -6,23 +6,44 @@ build downloads `nc4.tgz` from the Package Registry of the project, under the
 version that `DATA_VERSION` in `CMakeLists.txt` names, and extracts it here
 (target `extract_dcr_nc4`).
 
+They come from 307 networks in four sets, each in a directory of its own,
+since two sets may have networks of the same name (Abilene is both in sndlib
+and in topo, in two different versions, and so are the ten GARR ones of garr
+and of topo):
+
+| set | networks | flows per network |
+|---|---|---|
+| `garr` | 10, the GARR network from 1999 to 2010 | 240 to 2970 |
+| `sndlib` | 23, from SNDlib | 24 to 1482 |
+| `topo` | 260, from the Internet Topology Zoo | 12 to 38612 |
+| `waxman` | 14, random Waxman graphs | 664 to 39800 |
+
+and for each network:
+
 | directory | Block | what |
 |---|---|---|
-| `nc4/single` | `SingleFlowDCRBlock` | flow `<i>` = 0..9 of each network, `<network>_<i>.nc4`, 140 instances |
-| `nc4/multi` | `MultiFlowDCRBlock` | the first `<k>` = 1..5 flows of each network, `<network>_<k>.nc4`, 70 instances |
+| `nc4/single/<set>` | `SingleFlowDCRBlock` | flow `<i>` = 0..9 on its own, `<network>_<i>.nc4`, each arc with its own capacity and cost |
+| `nc4/multi/<set>` | `MultiFlowDCRBlock` | the first `<k>` = 1..5 flows, `<network>_<k>.nc4`, sharing the capacity of the arcs |
 
-The networks are 14: the ten GARR ones, from `Garr199901` to `Garr201001`,
-and `Abilene`, `Cogentco`, `Colt` and `w1_100_04`. A network has from 110
-(`Abilene`) to 38612 (`Cogentco`) flows, hence a formulation holding all of
-them is not what one solves exactly, and the instances with the first few
-flows are; the mutual capacity of an arc depends on how many flows share it
-[see `MultiFlowDCRBlock::load()`], so that an instance with its first k
-flows is a problem of its own and not a part of the one with all of them.
+A formulation holding all the flows of a network is not what one solves
+exactly, hence the multi-flow instances have the first few; the mutual
+capacity of an arc depends on how many flows share it [see
+`MultiFlowDCRBlock::load()`], so that an instance with its first k flows is a
+problem of its own and not a part of the one with all of them, and with one
+flow it is infeasible on most networks.
 
-The multi-flow instances are written by `tools/dcr2nc4` out of the textual
-format that `MultiFlowDCRBlock::load()` reads; `make-nc4` rebuilds the whole
-directory out of the textual instances, which are kept in the tag
-`archive/dcr-flow` of the `tests` repository, and with `-a` it also writes
-the instances with all the flows of each network, which are not distributed:
-each flow is a group of the file, and they are up to 38612. New data go out as a new
-version: raise `DATA_VERSION`, then run `compress` and `upload-nc4`.
+The textual instances they are written from are in `txt.tgz`, in the same
+Package Registry under the same version (extracted into `txt/`, it is what
+`make-nc4` reads): the multi-file format of `MultiFlowDCRBlock::load()`, with
+the flows and the MTU in the `.dcr` (the "raw" one of `tools/dcr2nc4`), and,
+for sndlib and waxman, the CSV of the experiments the sets come from, one
+row per flow with the optimal value (`OVCplexInt`). `make-nc4` rebuilds
+this directory out of them, and with `-a` it also writes the instances with
+all the flows of each network, which are not distributed, each flow being a
+group of the file.
+The single-flow instances are the ones of the experiments the sets come
+from, whose optimal values they reproduce.
+
+New data go out as a new version, both archives together: raise
+`DATA_VERSION`, then run `compress`, `upload-nc4`, `compress-txt` and
+`upload-txt`.

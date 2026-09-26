@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+cd ../..
+# the textual instances go out under the version of the netCDF ones they are
+# written into [see DATA_VERSION in CMakeLists.txt]
+bash upload-to-package-registry SingleFlowDCRBlock/data/txt.tgz \
+     "$(sed -n 's/^set(DATA_VERSION \(.*\))$/\1/p' SingleFlowDCRBlock/CMakeLists.txt)"

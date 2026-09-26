@@ -10,15 +10,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - the instances of the module, as netCDF files downloaded from the Package
-  Registry into `data/nc4` [see `data/README.md`]: 140 `SingleFlowDCRBlock`,
-  one per flow of 14 networks (the ten GARR ones, Abilene, Cogentco, Colt and
-  w1_100_04), and 70 `MultiFlowDCRBlock`, each network with its first 1 to 5
-  flows, which is what a formulation holding all of them solves exactly
+  Registry into `data/nc4` [see `data/README.md`], out of 307 networks in
+  four sets (garr, sndlib, topo and waxman): 3070 `SingleFlowDCRBlock`, the
+  first 10 flows of each network on its own, and 1535 `MultiFlowDCRBlock`,
+  each network with its first 1 to 5 flows, which is what a formulation
+  holding all of them solves exactly; the textual instances they are written
+  from are in `txt.tgz` under the same version, and `data/make-nc4` rebuilds
+  the former out of the latter
 
 - `tools/dcr2nc4`, which writes a `MultiFlowDCRBlock` out of the multi-file
   textual format that `load()` reads, or out of the raw one of the data sets
-  it comes from, possibly keeping its first flows only, working in a
-  temporary directory, since `load()` writes its own files in the current one
+  it comes from, possibly keeping its first flows only, or with `-s` the
+  `SingleFlowDCRBlock` of one of its flows, each arc with its own capacity
+  and cost, working in a temporary directory, since `load()` writes its own
+  files in the current one
 
 ### Changed
 
