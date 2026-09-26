@@ -2388,6 +2388,15 @@ class DCRSolution : public Solution
 
  ~DCRSolution() = default;  ///< destructor: it is virtual, and empty
 
+/*--------------------------------------------------------------------------*/
+ /// a DCRSolution holds no dual values, hence none that is feasible
+ /** Returns false [see Solution::is_dual_feasible()]. */
+
+ bool is_dual_feasible( Block * block ,
+			Configuration * fsbc = nullptr ) override {
+  return( false );
+  }
+
 /*------------- METHODS DESCRIBING THE BEHAVIOR OF A DCRSolution -----------*/
  /// reads the solution from the given SingleFlowDCRBlock
  /** Reads into v_x and v_r (whichever of the two is not empty) the current

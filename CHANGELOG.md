@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `DCRSolution::is_dual_feasible()` returns false, the Solution holding no
+  dual values [see `Solution::is_dual_feasible()`]
+
 - the instances of the module, as netCDF files downloaded from the Package
   Registry into `data/nc4` [see `data/README.md`], out of 307 networks in
   four sets (garr, sndlib, topo and waxman): 3070 `SingleFlowDCRBlock`, the
