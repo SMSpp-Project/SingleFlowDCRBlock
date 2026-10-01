@@ -55,6 +55,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `SingleFlowDCRBlock::delay_feasible()`, `link_feasible()` and `min_rate()`
+  take an arc as used when its x exceeds the tolerance of the check (1e-6 at
+  least, `used_threshold()`), and check an unused one at x = 0: a solution
+  of Gurobi leaves x of the order of 1e-6 on unused arcs, inside its
+  integrality tolerance, which made r_min that small and the burst delay
+  huge (topo/Heanet_9 of `batch-instances`), or violated rho x <= r, which
+  the indicator constraints of the model read at x = 0 (topo/Shentel_4)
+
 - `load()` read m (or n) entries of the capacities and of the delays when
   they were given empty, which its documentation allows and which means all
   infinite, or all 0: it looks at them only when they are there

@@ -1154,21 +1154,20 @@ void SingleFlowDCRBlock::check_sizes( c_Vec_double & X , c_Vec_double & R ,
 
 /*--------------------------------------------------------------------------*/
 
-double SingleFlowDCRBlock::min_rate( c_Vec_double & X ,
-                                     c_Vec_double & R ) const
+double SingleFlowDCRBlock::min_rate( c_Vec_double & X , c_Vec_double & R ,
+                                     c_double feps ) const
 {
  double rmin = Inf< double >();
 
- // X[ i ] > 0, rather than > some small tolerance, would let a MIP solver's
- // numerical noise in on an arc that is not really used: a MILP solve can
- // (and does) leave arcs of a degenerate alternate path at a X[ i ] on the
- // order of 1e-9 rather than exactly 0, paired with R[ i ] == 0 (correctly,
- // since no rate need be reserved on an arc nobody uses); treating that as
- // "used" would drag rmin down to 0 and, from there, blow up the burst-delay
- // term FlowBursts / rmin in delay_feasible() into a bogus infeasibility.
- // 1e-6 matches the threshold used there, for the same reason
+ // an arc is used when X[ i ] exceeds used_threshold( feps ), not 0: a MILP
+ // solve can leave the arcs of a degenerate alternate path at a X[ i ]
+ // within the integrality tolerance of the Solver from 0, paired with a
+ // rate of the same order; treating that as "used" would drag rmin down to
+ // that rate and, from there, blow up the burst-delay term FlowBursts /
+ // rmin in delay_feasible() into a bogus infeasibility
+ c_double used = used_threshold( feps );
  for( Index i = 0 ; i < get_NArcs() ; ++i )
-  if( ( ! is_deleted( i ) ) && ( X[ i ] > 1e-6 ) )
+  if( ( ! is_deleted( i ) ) && ( X[ i ] > used ) )
    rmin = std::min( rmin , R[ i ] );
 
  return( rmin < Inf< double >() ? rmin : 0 );
@@ -1315,11 +1314,18 @@ bool SingleFlowDCRBlock::link_feasible( c_double feps , c_Vec_double & X ,
  // largest feasible one, which satisfies them by construction [see
  // min_rate()]
 
+ c_double used = used_threshold( feps );
+
  for( Index i = 0 ; i < get_NArcs() ; ++i ) {
   if( is_deleted( i ) )
    continue;
 
-  c_double xi = X[ i ];
+  // an arc whose X[ i ] is within used_threshold( feps ) from 0 is not
+  // used, and it is checked at X[ i ] = 0: the rates are linked to the
+  // routing by indicator constraints, which a Solver reads at the rounded
+  // value of X[ i ], so that rho x[ i ] <= r[ i ] at the X[ i ] it leaves
+  // on such an arc (2e-6 with a rho of 700) is a violation it never saw
+  c_double xi = ( X[ i ] <= used ) ? 0 : X[ i ];
   c_double ri = R[ i ];
 
   // r[ i ] <= U[ i ] x[ i ], which for an arc of infinite capacity only
@@ -1372,22 +1378,19 @@ bool SingleFlowDCRBlock::delay_feasible( c_double feps , c_Vec_double & X ,
  check_sizes( X , R , "delay_feasible" );
 
  double delay = 0;
+ c_double used = used_threshold( feps );
 
  for( Index i = 0 ; i < get_NArcs() ; ++i ) {
   if( is_deleted( i ) )
    continue;
 
   c_double xi = X[ i ];
-  // xi <= 0 (exact zero only) would leave in an arc that a MIP solver's
-  // numerical noise put at, say, xi == 1.24e-9 rather than exactly 0 --
-  // not really used by the flow, but paired with R[ i ] == 0 (correctly,
-  // since no rate need be reserved on an arc nobody uses), which the
-  // R[ i ] <= 0 guard below would then read as "an arc the flow uses,
-  // with no reserved rate", reporting a bogus infeasibility instead of
-  // silently skipping an arc that is not, in any meaningful sense, used.
-  // 1e-6 comfortably covers such noise (observed at ~1e-9) while staying
-  // far below any genuinely fractional x[ i ], let alone x[ i ] == 1
-  if( xi <= 1e-6 ) // an arc that the flow does not use contributes nothing
+  // an arc whose X[ i ] is within used_threshold( feps ) from 0 is not
+  // used: X[ i ] is 0 up to the tolerance of the check, as it is up to the
+  // integrality tolerance of the Solver that produced it, and its R[ i ]
+  // (correctly as small, since no rate need be reserved on an arc nobody
+  // uses) would otherwise read as an arc the flow uses with almost no rate
+  if( xi <= used ) // an arc that the flow does not use contributes nothing
    continue;
 
   // the per-hop packetization, propagation and node processing delays
@@ -1407,7 +1410,7 @@ bool SingleFlowDCRBlock::delay_feasible( c_double feps , c_Vec_double & X ,
 
  // the burst-delay term theta_min, taken as the smallest value the cone
  // constraint theta_min r_min >= FlowBursts allows
- c_double rmin = min_rate( X , R );
+ c_double rmin = min_rate( X , R , feps );
  if( rmin > 0 )
   delay += FlowBursts / rmin;
  else if( FlowBursts > 0 )
