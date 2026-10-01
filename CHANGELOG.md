@@ -9,9 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `DCRSolution::is_dual_feasible()` returns false, the Solution holding no
-  dual values [see `Solution::is_dual_feasible()`]
-
 - a tester of the module in `test/`, needing nothing but the core SMS++ and
   run by `ctest -L SingleFlowDCRBlock`, which on tiny graphs built in memory
   compares `SPT`, both heuristics of `DCR_SPT` and the two bounds of
