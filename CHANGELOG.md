@@ -37,6 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `MultiFlowDCRBlock::is_feasible()` accepts the relative violation
+  `Block::DefaultFeasTol` of the core when no Configuration gives a
+  tolerance, instead of none
+
 - whoever links the module keeps it: the classes of a module register
   themselves in the factory from a static initialiser, and a linker that
   drops what looks unused takes the registration away with it, so the target

@@ -337,7 +337,7 @@ void MultiFlowDCRBlock::generate_abstract_constraints( Configuration * stcc )
 
 bool MultiFlowDCRBlock::is_feasible( bool useabstract , Configuration * fsbc )
 {
- double tol = 0;
+ double tol = DefaultFeasTol;
  bool rel_viol = true;
 
  // try to extract, from "c", the parameters that determine feasibility; if
