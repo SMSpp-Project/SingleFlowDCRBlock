@@ -1385,6 +1385,38 @@ static void test_block_modifications( void )
  }
 
 /*--------------------------------------------------------------------------*/
+/// fixing a flow Variable is closing the arc, and only that
+
+static void test_block_fixing( void )
+{
+ Net g;
+ g.n = 2;
+ g.arc( 0 , 1 , 8 , 1 );
+ g.arc( 0 , 1 , 4 , 1 );
+ g.ndel.assign( 2 , 0 );
+ g.s = 0; g.t = 1;
+ g.burst = 1;
+ g.deadline = 10;
+ SingleFlowDCRBlock blk;
+ load( blk , g );
+ blk.generate_abstract_variables();
+ auto x0 = blk.i2p_x( 0 );
+
+ x0->set_value( 0 );
+ x0->is_fixed( true );
+ check( blk.is_closed( 0 ) , "Block fixing: fixed at 0, closed" );
+ x0->is_fixed( false );
+ check( ! blk.is_closed( 0 ) , "Block fixing: unfixed, open" );
+
+ bool refused = false;
+ x0->set_value( 1 );
+ try { x0->is_fixed( true ); }
+ catch( std::invalid_argument & ) { refused = true; }
+ check( refused , "Block fixing: fixed at 1, refused" );
+ x0->is_fixed( false );
+ }
+
+/*--------------------------------------------------------------------------*/
 /*--------------------------------- MAIN -----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -1401,6 +1433,7 @@ int main( void )
  test_block_serialize();
  test_block_feasible_instance();
  test_block_modifications();
+ test_block_fixing();
 
  if( failures )
   std::cout << failures << " checks failed" << std::endl;
