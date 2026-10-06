@@ -3326,6 +3326,15 @@ void SingleFlowDCRBlock::guts_of_add_Modification( p_Mod mod , ChnlName chnl )
   auto i = p2i_x( xi );
   if( std::isnan( C[ i ] ) )
    throw( std::logic_error( "[un]fixing deleted arc not allowed" ) );
+  // fixing is closing the arc, i.e. a flow of 0: any other value is one
+  // the arc cannot be told to carry
+  if( xi->is_fixed() && ( xi->get_value() != 0 ) )
+   throw( std::invalid_argument( "SingleFlowDCRBlock::guts_of_add_"
+				 "Modification: flow Variable of arc " +
+				 std::to_string( i ) +
+				 " fixed at " +
+				 std::to_string( xi->get_value() ) +
+				 ", only 0 (closing the arc) is allowed" ) );
   if( xi->is_fixed() )
    close_arc( i , make_par( eNoBlck , chnl ) , eDryRun );
   else

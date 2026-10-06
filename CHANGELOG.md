@@ -55,6 +55,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- a flow ColVariable fixed at a value other than 0 makes the
+  SingleFlowDCRBlock throw, as documented, instead of closing the arc as if
+  it were fixed at 0
+
 - `SingleFlowDCRBlock::delay_feasible()`, `link_feasible()` and `min_rate()`
   take an arc as used when its x exceeds the tolerance of the check (1e-6 at
   least, `used_threshold()`), and check an unused one at x = 0: a solution
