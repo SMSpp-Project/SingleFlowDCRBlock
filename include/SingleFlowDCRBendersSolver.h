@@ -467,7 +467,7 @@ public:
   }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
- /// returns true if the current BenBound solution meets the DCR deadline
+ /// returns true if the solution this Solver hands out meets the deadline
  /** Checks, within the relative tolerance feps, whether the worst-case
   * end-to-end delay of the routing found by BenBound meets the deadline of
   * the flow: the routing and the reserved rates are read out of BenBound
@@ -478,18 +478,42 @@ public:
   * SingleFlowDCRBlock::is_sol_feasible() on the Solution this Solver
   * produces to have them all checked.
   *
+  * The candidate checked is the one pick_solution_source() selects, i.e.
+  * exactly the one get_ub(), get_var_value(), get_var_solution() and
+  * get_Solution() report on, so that this method answers the question a
+  * caller actually asks of it: "is the solution I am being given
+  * feasible?". It deliberately does NOT default to BenBound's primary
+  * candidate: that one is tied to BestUB, it is frequently not the one
+  * handed out (whenever the heuristic candidate is the feasible or the
+  * cheaper of the two), and checking it produced an answer about a vector
+  * nobody ever receives -- on a sample of 44 flows whose bounds were
+  * being investigated, 7 reported "not DCR feasible" while the solution
+  * actually returned passed every DCR check, at this tolerance and at the
+  * looser one. When no candidate is feasible at all the Solver hands out
+  * nothing (get_ub() is +INF), and this correctly returns false rather
+  * than reporting on a vector that is not on offer.
+  *
   * The default tolerance is the one this Solver holds itself to when it
   * declares having a solution [see solution_is_feasible()], and it is
   * deliberately a tight one: a point that misses the deadline by a whisker
   * is still a point that misses the deadline, and its value bounds
-  * nothing. */
+  * nothing. Note that the *selection* above is made at
+  * pick_solution_source()'s own tolerance, not at feps: which candidate is
+  * on offer is a property of the Solver, not of how strictly the caller
+  * wants to inspect it, so that a caller tightening feps re-checks the
+  * same solution rather than silently being handed a different one. */
 
  bool is_DCR_feasible( double feps = 1e-6 )
  {
+  const SolSource src = pick_solution_source();
+
+  if( src == SolSource::None )  // nothing is being handed out at all
+   return( false );
+
   auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
 
   SingleFlowDCRBlock::Vec_double X , R;
-  get_solution_vectors( X , R );
+  get_solution_vectors( X , R , src == SolSource::Heuristic );
 
   return( DCRB->delay_feasible( feps , X , R ) );
   }

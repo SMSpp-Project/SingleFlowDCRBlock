@@ -60,3 +60,10 @@ ehthumbs.db
 .directory
 .fuse_hidden*
 .nfs*
+
+# --- Data ---------------------------------------------------
+data/nc4
+data/nc4*.tgz
+data/txt
+data/txt*.tgz
+data/.extracted*

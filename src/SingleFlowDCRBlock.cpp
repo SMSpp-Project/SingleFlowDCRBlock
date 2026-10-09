@@ -144,7 +144,8 @@ static double read_UB( std::istream & iStrm )
 /*--------------------------------------------------------------------------*/
 // returns the number of elements where two vectors differ
 
-template < typename T > static Index countdiff( T beg , T end , T cmp )
+template < class It , class Jt >
+static Index countdiff( It beg , It end , Jt cmp )
 {
  Index ndiff = 0;
  for( ; beg != end ; )
@@ -158,9 +159,8 @@ template < typename T > static Index countdiff( T beg , T end , T cmp )
 // returns true if two vectors differ, one of them being given as a base
 // vector and a subset of indices
 
-template < typename T >
-static bool is_equal( std::vector< T > & vec , c_Subset & nms ,
-                      typename std::vector< T >::const_iterator cmp ,
+template < typename T , class It >
+static bool is_equal( std::vector< T > & vec , c_Subset & nms , It cmp ,
                       Index n_max )
 {
  for( auto nm : nms ) {
@@ -177,9 +177,8 @@ static bool is_equal( std::vector< T > & vec , c_Subset & nms ,
 // returns the number of elements where two vectors differ, one of them
 // being given as a base vector and a subset of indices
 
-template < typename T >
-static Index countdiff( std::vector< T > & vec , c_Subset & nms ,
-                        typename std::vector< T >::const_iterator cmp ,
+template < typename T , class It >
+static Index countdiff( std::vector< T > & vec , c_Subset & nms , It cmp ,
                         Index n_max )
 {
  Index ndiff = 0;
@@ -196,9 +195,8 @@ static Index countdiff( std::vector< T > & vec , c_Subset & nms ,
 /*--------------------------------------------------------------------------*/
 // copys one vector to a given subset of another
 
-template < typename T >
-static void copyidx( std::vector< T > & vec , c_Subset & nms ,
-                     typename std::vector< T >::const_iterator cpy )
+template < typename T , class It >
+static void copyidx( std::vector< T > & vec , c_Subset & nms , It cpy )
 {
  for( auto nm : nms )
   vec[ nm ] = *( cpy++ );
@@ -287,7 +285,10 @@ void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pSn ,
   std::copy( pC.begin() , pC.begin() + m , C.begin() );
   }
 
- if( std::any_of( pU.begin() , pU.begin() + m ,
+ // an empty vector stands for all its entries at their default value, and
+ // it has no m (or n) entries to look at
+ if( ( ! pU.empty() ) &&
+     std::any_of( pU.begin() , pU.begin() + m ,
                   []( c_double ui ) { return( ui < Inf< double >() ); } ) ) {
   U.resize( MaxNArcs );
   std::copy( pU.begin() , pU.begin() + m , U.begin() );
@@ -295,7 +296,8 @@ void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pSn ,
  else
   U.clear();
 
- if( std::any_of( pNodeDelays.begin() , pNodeDelays.begin() + n ,
+ if( ( ! pNodeDelays.empty() ) &&
+     std::any_of( pNodeDelays.begin() , pNodeDelays.begin() + n ,
                   []( c_double NodeDelaysi ) {
                    return( NodeDelaysi < Inf< double >() );
                   } ) ) {
@@ -306,7 +308,8 @@ void SingleFlowDCRBlock::load( Index n , Index m , c_Subset & pSn ,
  else
   NodeDelays.clear();
 
- if( std::any_of( pLinkDelays.begin() , pLinkDelays.begin() + m ,
+ if( ( ! pLinkDelays.empty() ) &&
+     std::any_of( pLinkDelays.begin() , pLinkDelays.begin() + m ,
                   []( c_double LinkDelaysi ) {
                    return( LinkDelaysi < Inf< double >() );
                   } ) ) {
@@ -1151,21 +1154,20 @@ void SingleFlowDCRBlock::check_sizes( c_Vec_double & X , c_Vec_double & R ,
 
 /*--------------------------------------------------------------------------*/
 
-double SingleFlowDCRBlock::min_rate( c_Vec_double & X ,
-                                     c_Vec_double & R ) const
+double SingleFlowDCRBlock::min_rate( c_Vec_double & X , c_Vec_double & R ,
+                                     c_double feps ) const
 {
  double rmin = Inf< double >();
 
- // X[ i ] > 0, rather than > some small tolerance, would let a MIP solver's
- // numerical noise in on an arc that is not really used: a MILP solve can
- // (and does) leave arcs of a degenerate alternate path at a X[ i ] on the
- // order of 1e-9 rather than exactly 0, paired with R[ i ] == 0 (correctly,
- // since no rate need be reserved on an arc nobody uses); treating that as
- // "used" would drag rmin down to 0 and, from there, blow up the burst-delay
- // term FlowBursts / rmin in delay_feasible() into a bogus infeasibility.
- // 1e-6 matches the threshold used there, for the same reason
+ // an arc is used when X[ i ] exceeds used_threshold( feps ), not 0: a MILP
+ // solve can leave the arcs of a degenerate alternate path at a X[ i ]
+ // within the integrality tolerance of the Solver from 0, paired with a
+ // rate of the same order; treating that as "used" would drag rmin down to
+ // that rate and, from there, blow up the burst-delay term FlowBursts /
+ // rmin in delay_feasible() into a bogus infeasibility
+ c_double used = used_threshold( feps );
  for( Index i = 0 ; i < get_NArcs() ; ++i )
-  if( ( ! is_deleted( i ) ) && ( X[ i ] > 1e-6 ) )
+  if( ( ! is_deleted( i ) ) && ( X[ i ] > used ) )
    rmin = std::min( rmin , R[ i ] );
 
  return( rmin < Inf< double >() ? rmin : 0 );
@@ -1312,18 +1314,28 @@ bool SingleFlowDCRBlock::link_feasible( c_double feps , c_Vec_double & X ,
  // largest feasible one, which satisfies them by construction [see
  // min_rate()]
 
+ c_double used = used_threshold( feps );
+
  for( Index i = 0 ; i < get_NArcs() ; ++i ) {
   if( is_deleted( i ) )
    continue;
 
-  c_double xi = X[ i ];
+  // an arc whose X[ i ] is within used_threshold( feps ) from 0 is not
+  // used, and it is checked at X[ i ] = 0: the rates are linked to the
+  // routing by indicator constraints, which a Solver reads at the rounded
+  // value of X[ i ], so that rho x[ i ] <= r[ i ] at the X[ i ] it leaves
+  // on such an arc (2e-6 with a rho of 700) is a violation it never saw
+  c_double xi = ( X[ i ] <= used ) ? 0 : X[ i ];
   c_double ri = R[ i ];
 
   // r[ i ] <= U[ i ] x[ i ], which for an arc of infinite capacity only
-  // says that an arc the flow does not use reserves nothing
+  // says that an arc the flow does not use reserves nothing; the tolerance
+  // is relative to U[ i ], the size of the terms of the constraint, since a
+  // Solver leaves on an unused arc a rate as small as its tolerance allows
+  // relative to that, and x[ i ] = 0 would otherwise make it an absolute one
   c_double Ui = get_U( i );
   if( Ui < Inf< double >() ) {
-   if( violated( ri , Ui * xi , feps ) )
+   if( violated( ri , Ui * xi , feps , Ui ) )
     return( false );
    }
   else
@@ -1366,22 +1378,19 @@ bool SingleFlowDCRBlock::delay_feasible( c_double feps , c_Vec_double & X ,
  check_sizes( X , R , "delay_feasible" );
 
  double delay = 0;
+ c_double used = used_threshold( feps );
 
  for( Index i = 0 ; i < get_NArcs() ; ++i ) {
   if( is_deleted( i ) )
    continue;
 
   c_double xi = X[ i ];
-  // xi <= 0 (exact zero only) would leave in an arc that a MIP solver's
-  // numerical noise put at, say, xi == 1.24e-9 rather than exactly 0 --
-  // not really used by the flow, but paired with R[ i ] == 0 (correctly,
-  // since no rate need be reserved on an arc nobody uses), which the
-  // R[ i ] <= 0 guard below would then read as "an arc the flow uses,
-  // with no reserved rate", reporting a bogus infeasibility instead of
-  // silently skipping an arc that is not, in any meaningful sense, used.
-  // 1e-6 comfortably covers such noise (observed at ~1e-9) while staying
-  // far below any genuinely fractional x[ i ], let alone x[ i ] == 1
-  if( xi <= 1e-6 ) // an arc that the flow does not use contributes nothing
+  // an arc whose X[ i ] is within used_threshold( feps ) from 0 is not
+  // used: X[ i ] is 0 up to the tolerance of the check, as it is up to the
+  // integrality tolerance of the Solver that produced it, and its R[ i ]
+  // (correctly as small, since no rate need be reserved on an arc nobody
+  // uses) would otherwise read as an arc the flow uses with almost no rate
+  if( xi <= used ) // an arc that the flow does not use contributes nothing
    continue;
 
   // the per-hop packetization, propagation and node processing delays
@@ -1401,7 +1410,7 @@ bool SingleFlowDCRBlock::delay_feasible( c_double feps , c_Vec_double & X ,
 
  // the burst-delay term theta_min, taken as the smallest value the cone
  // constraint theta_min r_min >= FlowBursts allows
- c_double rmin = min_rate( X , R );
+ c_double rmin = min_rate( X , R , feps );
  if( rmin > 0 )
   delay += FlowBursts / rmin;
  else if( FlowBursts > 0 )
@@ -1513,7 +1522,9 @@ bool SingleFlowDCRBlock::is_feasible_instance( void )
  Vec_double c( get_NArcs() );
  for( Index i = 0 ; i < get_NArcs() ; ++i ) {
   u[ i ] = get_U( i );
-  c[ i ] = is_deleted( i ) ? 0 : get_C( i );
+  // a closed arc is given an infinite cost, which DCR_SPT does not use
+  c[ i ] = is_deleted( i ) ? 0 :
+           ( is_closed( i ) ? Inf< double >() : get_C( i ) );
   }
 
  DCR::DCRFlow flow = {};
@@ -1752,12 +1763,9 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
     if( tmod->rng().second == tmod->rng().first + 1 )
      DCRB->chg_ucap( U.empty() ? Inf< double >() : U[ tmod->rng().first ] ,
                      tmod->rng().first , iPM , iPA );
-    else if( U.empty() ) {
-     Vec_double NCap( tmod->rng().second - tmod->rng().first );
-     auto NCit = NCap.begin();
-     for( Index i = tmod->rng().first ; i < tmod->rng().second ; ++i )
-      *( NCit++ ) = U[ i ];
-
+    else if( U.empty() ) {  // all the capacities are infinite
+     Vec_double NCap( tmod->rng().second - tmod->rng().first ,
+                      Inf< double >() );
      DCRB->chg_ucaps( NCap.begin() , tmod->rng() , iPM , iPA );
      }
     else
@@ -1775,13 +1783,9 @@ bool SingleFlowDCRBlock::map_forward_Modification( Block * R3B , c_p_Mod mod ,
     if( tmod->rng().second == tmod->rng().first + 1 )
      DCRB->chg_dfct( B.empty() ? 0 : B[ tmod->rng().first ] ,
                      tmod->rng().first , iPM , iPA );
-    else if( B.empty() ) {
-     Vec_double NDfct( tmod->rng().second - tmod->rng().first );
-     auto NDit = NDfct.begin();
-     for( Index i = tmod->rng().first ; i < tmod->rng().second ; ++i )
-      *( NDit++ ) = B[ i ];
-
-     DCRB->chg_ucaps( NDfct.begin() , tmod->rng() , iPM , iPA );
+    else if( B.empty() ) {  // all the deficits are zero
+     Vec_double NDfct( tmod->rng().second - tmod->rng().first , 0 );
+     DCRB->chg_dfcts( NDfct.begin() , tmod->rng() , iPM , iPA );
      }
     else
      DCRB->chg_dfcts( B.begin() + tmod->rng().first , tmod->rng() ,
@@ -2602,8 +2606,8 @@ void SingleFlowDCRBlock::chg_ucap( double NCap , Index arc ,
  if( arc >= get_NArcs() )
   throw( std::invalid_argument( "invalid arc name" ) );
 
- if( U.empty() ) {
-  if( NCap < Inf< double >() )
+ if( U.empty() ) {  // all the capacities are infinite
+  if( NCap >= Inf< double >() )
    return;
 
   U.assign( get_MaxNArcs() , Inf< double >() );
@@ -3139,6 +3143,7 @@ void SingleFlowDCRBlock::guts_of_destructor( void )
  C.clear();
  B.clear();
  NodeDelays.clear();
+ LinkDelays.clear();
 
  // explicitly reset all Constraint and Variable
  // this is done for the case where this method is called prior to re-loading
@@ -3321,6 +3326,15 @@ void SingleFlowDCRBlock::guts_of_add_Modification( p_Mod mod , ChnlName chnl )
   auto i = p2i_x( xi );
   if( std::isnan( C[ i ] ) )
    throw( std::logic_error( "[un]fixing deleted arc not allowed" ) );
+  // fixing is closing the arc, i.e. a flow of 0: any other value is one
+  // the arc cannot be told to carry
+  if( xi->is_fixed() && ( xi->get_value() != 0 ) )
+   throw( std::invalid_argument( "SingleFlowDCRBlock::guts_of_add_"
+				 "Modification: flow Variable of arc " +
+				 std::to_string( i ) +
+				 " fixed at " +
+				 std::to_string( xi->get_value() ) +
+				 ", only 0 (closing the arc) is allowed" ) );
   if( xi->is_fixed() )
    close_arc( i , make_par( eNoBlck , chnl ) , eDryRun );
   else

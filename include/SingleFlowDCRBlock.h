@@ -51,6 +51,8 @@
 
 #include "Solution.h"
 
+#include <algorithm>
+
 /*--------------------------------------------------------------------------*/
 /*--------------------------- NAMESPACE ------------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -2103,18 +2105,36 @@ public:
   * which is the largest value the Indicator_cnst_rmin constraints allow
   * r_min to take, and therefore the one that makes the burst-delay term
   * FlowBursts / r_min of the delay constraint as small as possible; 0 if
-  * the flow uses no arc at all. */
+  * the flow uses no arc at all. An arc is used when its X[ i ] exceeds
+  * used_threshold( feps ). */
 
- double min_rate( c_Vec_double & X , c_Vec_double & R ) const;
+ double min_rate( c_Vec_double & X , c_Vec_double & R ,
+                  c_double feps = 0 ) const;
+
+/*--------------------------------------------------------------------------*/
+ /// the value of X[ i ] up to which the arc i is not used by the routing
+ /** X[ i ] is binary, and a Solver returns it up to its integrality
+  * tolerance (1e-5 for Gurobi): an arc whose X[ i ] is within the tolerance
+  * feps of the feasibility check from 0 is not used, and 1e-6 is the least
+  * threshold, which covers the noise of a Solver when the check is asked
+  * for no tolerance at all. */
+
+ static double used_threshold( c_double feps ) {
+  return( std::max( 1e-6 , feps ) );
+  }
 
 /*--------------------------------------------------------------------------*/
  /// true if lhs <= rhs is violated by more than the tolerance feps
- /** The tolerance is relative to rhs, save that a rhs smaller than one
-  * counts as one, so that the check does not become an exact one where the
-  * right-hand side happens to be zero. */
+ /** The tolerance is relative to rhs, save that a rhs smaller than \p scale
+  * (one by default) counts as \p scale, so that the check does not become
+  * an exact one where the right-hand side happens to be zero: \p scale is
+  * the size of the terms of the constraint, which a Solver measures its own
+  * tolerance against, e.g., the capacity U of r <= U x. */
 
- static bool violated( c_double lhs , c_double rhs , c_double feps ) {
-  return( lhs - rhs > feps * std::max( double( 1 ) , std::abs( rhs ) ) );
+ static bool violated( c_double lhs , c_double rhs , c_double feps ,
+                       c_double scale = 1 ) {
+  return( lhs - rhs > feps * std::max( { double( 1 ) , std::abs( scale ) ,
+                                         std::abs( rhs ) } ) );
   }
 
 /*--------------------------------------------------------------------------*/

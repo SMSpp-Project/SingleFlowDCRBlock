@@ -7,11 +7,128 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-09
+
 ### Added
+
+- a tester of the module in `test/`, needing nothing but the core SMS++ and
+  run by `ctest -L SingleFlowDCRBlock`, which on tiny graphs built in memory
+  compares `SPT`, both heuristics of `DCR_SPT` and the two bounds of
+  `DCRLagrangianSolver` with the enumeration of the paths, and checks the
+  feasibility of given solutions, the netCDF round trip, the feasibility of
+  the instance and the Modification issued by the changes of the
+  `SingleFlowDCRBlock`, the edge cases (source equal to sink, no path, every
+  path over the deadline, the deadline met with equality, ties, zero-cost,
+  parallel and closed arcs) each on its own
+
+- the instances of the module, as netCDF files downloaded from the Package
+  Registry into `data/nc4` [see `data/README.md`], out of 307 networks in
+  four sets (garr, sndlib, topo and waxman): 3070 `SingleFlowDCRBlock`, the
+  first 10 flows of each network on its own, and 1535 `MultiFlowDCRBlock`,
+  each network with its first 1 to 5 flows, which is what a formulation
+  holding all of them solves exactly; the textual instances they are written
+  from are in `txt.tgz` under the same version, and `data/make-nc4` rebuilds
+  the former out of the latter
+
+- `tools/dcr2nc4`, which writes a `MultiFlowDCRBlock` out of the multi-file
+  textual format that `load()` reads, or out of the raw one of the data sets
+  it comes from, possibly keeping its first flows only, or with `-s` the
+  `SingleFlowDCRBlock` of one of its flows, each arc with its own capacity
+  and cost, working in a temporary directory, since `load()` writes its own
+  files in the current one
 
 ### Changed
 
+- `MultiFlowDCRBlock::is_feasible()` accepts the relative violation
+  `Block::DefaultFeasTol` of the core when no Configuration gives a
+  tolerance, instead of none
+
+- whoever links the module keeps it: the classes of a module register
+  themselves in the factory from a static initialiser, and a linker that
+  drops what looks unused takes the registration away with it, so the target
+  now tells whoever links it to keep the symbol that forces the module in,
+  and on ELF, where naming the symbol is not enough, the library as a whole
+
+- `chg_costs()`, `chg_ucaps()` and `chg_dfcts()` take their data as a
+  `std::span< const double >`, whose length they check against the Range or
+  the Subset instead of reading past the end, and the first two are
+  registered in the methods factory in that form too; the forms taking an
+  iterator stay, and defer to the span ones
+
 ### Fixed
+
+- a flow ColVariable fixed at a value other than 0 makes the
+  SingleFlowDCRBlock throw, as documented, instead of closing the arc as if
+  it were fixed at 0
+
+- `SingleFlowDCRBlock::delay_feasible()`, `link_feasible()` and `min_rate()`
+  take an arc as used when its x exceeds the tolerance of the check (1e-6 at
+  least, `used_threshold()`), and check an unused one at x = 0: a solution
+  of Gurobi leaves x of the order of 1e-6 on unused arcs, inside its
+  integrality tolerance, which made r_min that small and the burst delay
+  huge (topo/Heanet_9 of `batch-instances`), or violated rho x <= r, which
+  the indicator constraints of the model read at x = 0 (topo/Shentel_4)
+
+- `load()` read m (or n) entries of the capacities and of the delays when
+  they were given empty, which its documentation allows and which means all
+  infinite, or all 0: it looks at them only when they are there
+
+- `chg_ucap()` did nothing on a `SingleFlowDCRBlock` whose capacities are
+  all infinite, the test on the new capacity being the other way round
+
+- `deserialize()` over a `SingleFlowDCRBlock` that had link delays kept
+  them when the file has none, since they were not cleared with the rest
+
+- `is_feasible_instance()` counted the closed arcs as usable: they are
+  given an infinite cost, which `DCR_SPT` now reads as closed
+
+- `DCR_SPT` routed through the arcs closed with `DCRcloseArcs()`, whose
+  infinite cost ERA-I could even return as the objective: both heuristics
+  skip them, and ERA-H accepts a path that meets the deadline with
+  equality, as ERA-I does, rather than only one that meets it strictly
+
+- `DCRLagrangianSolver` could not route through an arc of zero cost at
+  lambda = 0, where its rate came out as sqrt( 0 / 0 ), a NaN the shortest
+  path never takes, so that an instance whose paths all use one was found
+  infeasible: an arc of zero cost reserves its capacity, as one of negative
+  cost does; and after the first `LoadProblem()` the heuristic value started
+  at 0 instead of +Inf, so that `getHeurVal()` returned 0 whenever the
+  delay constraint binds
+
+- `dcr2nc4` did not build with MSVC, which has no `mkdtemp()`: the temporary
+  directory of a run is made with `std::filesystem::create_directory()` on a
+  random name, tried again while the name is already there
+
+- on macOS a program linking the module lost the classes the module
+  registers in the factories when the linker dropped the library, as it
+  does under `-dead_strip_dylibs`, which conda sets: the target now asks the
+  linker for the symbol that forces the module in (`-u`), which ld64,
+  unlike the ELF linker, counts as a use of the library
+
+- `is_sol_feasible()` declared infeasible a routing where an arc the flow
+  does not use reserves a rate of the order of the tolerance of the Solver:
+  r <= U x was checked against a tolerance relative to U x, i.e., an
+  absolute one when x = 0, and it is now relative to U, the size of the
+  terms of the constraint
+
+- a `MultiFlowDCRBlock` could not be read back from the netCDF file it
+  wrote: `serialize()` wrote the topology and the costs alone, leaving out
+  the data of the flows, and `deserialize()` built no `SingleFlowDCRBlock`
+  and kept the previous instance, so that generating the abstract
+  representation of what it read crashed. The file now holds the mutual
+  capacities, the data of each flow and the `SingleFlowDCRBlock` of each flow
+  in a group of its own, which `deserialize()` rebuilds; the matrices of the
+  costs, of the capacities and of the deficits of an earlier file are still
+  read, and no longer written, the costs being in the flows
+
+- `map_forward_Modification()` passed a change of the deficits on to the
+  other `SingleFlowDCRBlock` as a change of its capacities, and, when this
+  one had no capacities or no deficits, read them out of the empty vector
+  rather than passing on the infinite capacities and the zero deficits it
+  has
+
+- `BenBound.cpp` no longer includes `unistd.h`, which it does not use and
+  which MSVC does not have
 
 ## [0.1.1] - 2026-09-13
 
@@ -132,5 +249,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that is not a solution together with a value below the optimum. The
   point is now moved towards that endpoint, and stops there
 
-[Unreleased]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.1.0...develop
+[Unreleased]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.2.0...develop
+[0.2.0]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.1.1...0.2.0
+[0.1.1]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.1.0...0.1.1
 [0.1.0]: https://gitlab.com/smspp/singleflowdcrblock/-/tags/0.1.0

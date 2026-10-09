@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+#
+# usage: make-nc4 [-a] < instances > < dcr2nc4 >
+#        -a            = also the instances with all the flows of each network
+#        < instances > = the directory holding garr/, sndlib/, topo/ and
+#                        waxman/ in the raw textual format, i.e., what
+#                        txt.tgz in the Package Registry of the module holds
+#                        [see README.md]
+#        < dcr2nc4 >   = the converter of tools/, default ../tools/dcr2nc4
+#
+# builds nc4/ as it is distributed, one directory per set of networks, since
+# two sets may have networks of the same name (Abilene is both in sndlib and
+# in topo, in two different versions, and so are the GARR ones of garr and of
+# topo):
+#
+# - nc4/single/<set>/<network>_<i>.nc4, the SingleFlowDCRBlock of flow i of
+#   each network, i = 0..9, each arc with its own capacity and cost;
+#
+# - nc4/multi/<set>/<network>_<k>.nc4, the MultiFlowDCRBlock of the first k
+#   flows of each network, k = 1..5, which is what a formulation holding all
+#   of them can solve exactly; with -a, also nc4/multi/<set>/<network>.nc4,
+#   the one of all its flows, which are not distributed, since they are
+#   thousands (up to 39800) and each of them is a group of the file.
+
+set -eu
+ALL=0
+if [ "${1:-}" = -a ] ; then ALL=1 ; shift ; fi
+SRC=${1:?usage: make-nc4 [-a] instances [dcr2nc4]}
+DCR2NC4=${2:-../tools/dcr2nc4}
+HERE="$( cd "$( dirname "$0" )" && pwd )"
+
+for set in garr sndlib topo waxman ; do
+  mkdir -p "$HERE/nc4/single/$set" "$HERE/nc4/multi/$set"
+  for nod in "$SRC/$set"/*.nod ; do
+    base="${nod%.nod}"
+    n=$( basename "$base" )
+    for i in $( seq 0 9 ) ; do
+      "$DCR2NC4" -r -s $i "$base" "$HERE/nc4/single/$set/${n}_$i.nc4"
+    done
+    for k in 1 2 3 4 5 ; do
+      "$DCR2NC4" -r -k $k "$base" "$HERE/nc4/multi/$set/${n}_$k.nc4"
+    done
+    if [ $ALL -eq 1 ] ; then
+      "$DCR2NC4" -r "$base" "$HERE/nc4/multi/$set/$n.nc4"
+    fi
+  done
+done
