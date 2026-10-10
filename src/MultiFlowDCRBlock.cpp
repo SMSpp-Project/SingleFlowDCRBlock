@@ -559,10 +559,7 @@ void MultiFlowDCRBlock::guts_of_destructor( void )
     themselves from Variable that are going to be deleted anyway. Then
     deletes all the "abstract representation", if any. */
 
- for( auto & cnst : MCs )
-  cnst.clear();
-
- MCs.clear();
+ Constraint::clear( MCs );
 
  for( auto bk : v_Block )
   delete bk;
