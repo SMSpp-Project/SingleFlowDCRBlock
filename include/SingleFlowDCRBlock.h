@@ -2190,6 +2190,35 @@ class SingleFlowDCRBlockMod : public Modification
   eCloseArc    ,   ///< close arcs
   };
 
+ /// what a Modification of the given type changes
+ /** What a Modification of the given type changes of the model [see
+  * Modification::ModConcern], which is what changes() says and what the
+  * methods that issue it ask before issuing it [see
+  * Observer::issue_pmod()]: the costs are the Objective, opening an arc
+  * makes the feasible region grow and closing it makes it shrink, and the
+  * capacities and the deficits are said to change the Constraint. */
+
+ static ModConcern changes_of( int type ) {
+  switch( type ) {
+   case( eChgCost ):
+    return( ePhysObj );
+   case( eChgCaps ):
+   case( eChgDfct ):
+    return( ePhysCns );
+   case( eOpenArc ):
+    return( eModPhys | eModCnsSide | eRegnGrow );
+   case( eCloseArc ):
+    return( eModPhys | eModCnsSide | eRegnShrink );
+   default:
+    return( eModPhys | eEffAny );
+   }
+  }
+
+ /// what the Modification changes, as its type says [see changes_of()]
+ [[nodiscard]] ModConcern changes( void ) const override {
+  return( changes_of( type() ) );
+  }
+
 /*---------------------- CONSTRUCTOR & DESTRUCTOR --------------------------*/
 
  /// constructor: takes the SingleFlowDCRBlock and the type

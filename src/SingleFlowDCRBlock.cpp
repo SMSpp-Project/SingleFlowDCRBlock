@@ -2288,7 +2288,9 @@ void SingleFlowDCRBlock::chg_costs( c_Vec_double_it NCost , Range rng ,
 
  f_cond_lower = dNAN; // reset conditional bounds
 
- if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+ // issue "physical Modification" - - - - - - -
+ if( issue_pmod( issueMod , SingleFlowDCRBlockMod::changes_of(
+                 SingleFlowDCRBlockMod::eChgCost ) ) )
   Block::add_Modification( std::make_shared< SingleFlowDCRBlockRngdMod >(
                             this , SingleFlowDCRBlockMod::eChgCost , rng ) ,
                            Observer::par2chnl( issueMod ) );
@@ -2366,7 +2368,9 @@ void SingleFlowDCRBlock::chg_costs( c_Vec_double_it NCost , Subset && nms ,
 
  f_cond_lower = dNAN; // reset conditional bounds
 
- if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+ // issue "physical Modification" - - - - - - -
+ if( issue_pmod( issueMod , SingleFlowDCRBlockMod::changes_of(
+                 SingleFlowDCRBlockMod::eChgCost ) ) )
   Block::add_Modification(
    std::make_shared< SingleFlowDCRBlockSbstMod >(
     this , SingleFlowDCRBlockMod::eChgCost , std::move( nms ) ) ,
@@ -2404,7 +2408,9 @@ void SingleFlowDCRBlock::chg_cost( double NCost , Index arc ,
    if( not_dry_run( issueMod ) )
     C[ arc ] = NCost;
 
-  if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+  // issue "physical Modification" - - - - - - -
+  if( issue_pmod( issueMod , SingleFlowDCRBlockMod::changes_of(
+                  SingleFlowDCRBlockMod::eChgCost ) ) )
    Block::add_Modification(
     std::make_shared< SingleFlowDCRBlockRngdMod >(
      this , SingleFlowDCRBlockMod::eChgCost , Range( arc , arc + 1 ) ) ,
@@ -2488,7 +2494,9 @@ void SingleFlowDCRBlock::chg_ucaps( c_Vec_double_it NCap , Range rng ,
    std::copy( NCap , NCap + ( rng.second - rng.first ) ,
               U.begin() + rng.first );
 
- if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+ // issue "physical Modification" - - - - - - -
+ if( issue_pmod( issueMod , SingleFlowDCRBlockMod::changes_of(
+                 SingleFlowDCRBlockMod::eChgCaps ) ) )
   Block::add_Modification( std::make_shared< SingleFlowDCRBlockRngdMod >(
                             this , SingleFlowDCRBlockMod::eChgCaps , rng ) ,
                            Observer::par2chnl( issueMod ) );
@@ -2586,7 +2594,9 @@ void SingleFlowDCRBlock::chg_ucaps( c_Vec_double_it NCap , Subset && nms ,
   if( not_dry_run( issueMod ) )
    copyidx( U , nms , NC.begin() );
 
- if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+ // issue "physical Modification" - - - - - - -
+ if( issue_pmod( issueMod , SingleFlowDCRBlockMod::changes_of(
+                 SingleFlowDCRBlockMod::eChgCaps ) ) )
   Block::add_Modification(
    std::make_shared< SingleFlowDCRBlockSbstMod >(
     this , SingleFlowDCRBlockMod::eChgCaps , std::move( nms ) ) ,
@@ -2632,7 +2642,9 @@ void SingleFlowDCRBlock::chg_ucap( double NCap , Index arc ,
   UB[ arc ].set_rhs( NCap , issueAMod );
   }
 
- if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+ // issue "physical Modification" - - - - - - -
+ if( issue_pmod( issueMod , SingleFlowDCRBlockMod::changes_of(
+                 SingleFlowDCRBlockMod::eChgCaps ) ) )
   Block::add_Modification(
    std::make_shared< SingleFlowDCRBlockRngdMod >(
     this , SingleFlowDCRBlockMod::eChgCaps , Range( arc , arc + 1 ) ) ,
@@ -2692,7 +2704,9 @@ void SingleFlowDCRBlock::chg_dfcts( c_Vec_double_it NDfct , Range rng ,
 
  // TODO: if some changes are "fake", restrict the range
 
- if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+ // issue "physical Modification" - - - - - - -
+ if( issue_pmod( issueMod , SingleFlowDCRBlockMod::changes_of(
+                 SingleFlowDCRBlockMod::eChgDfct ) ) )
   Block::add_Modification( std::make_shared< SingleFlowDCRBlockRngdMod >(
                             this , SingleFlowDCRBlockMod::eChgDfct , rng ) ,
                            Observer::par2chnl( issueMod ) );
@@ -2734,7 +2748,9 @@ void SingleFlowDCRBlock::chg_dfcts( c_Vec_double_it NDfct , Subset && nms ,
 
  // TODO: eliminate from nms the "fake" changes
 
- if( issue_pmod( issueMod ) ) { // issue "physical Modification" - - - - - -
+ // issue "physical Modification" - - - - - -
+ if( issue_pmod( issueMod , SingleFlowDCRBlockMod::changes_of(
+                 SingleFlowDCRBlockMod::eChgDfct ) ) ) {
   // ensure the names are ordered even if they were not so originally
   if( ! ordered )
    std::sort( nms.begin() , nms.end() );
@@ -2779,7 +2795,9 @@ void SingleFlowDCRBlock::chg_dfct( double NDfct , Index nde ,
   E[ nde ].set_both( NDfct , issueAMod );
   }
 
- if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+ // issue "physical Modification" - - - - - - -
+ if( issue_pmod( issueMod , SingleFlowDCRBlockMod::changes_of(
+                 SingleFlowDCRBlockMod::eChgDfct ) ) )
   Block::add_Modification(
    std::make_shared< SingleFlowDCRBlockRngdMod >(
     this , SingleFlowDCRBlockMod::eChgDfct , Range( nde , nde + 1 ) ) ,
@@ -2853,7 +2871,9 @@ void SingleFlowDCRBlock::close_arcs( Range rng , ModParam issueMod ,
 
  // TODO: if some changes are "fake", restrict the range
 
- if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+ // issue "physical Modification" - - - - - - -
+ if( issue_pmod( issueMod , SingleFlowDCRBlockMod::changes_of(
+                 SingleFlowDCRBlockMod::eCloseArc ) ) )
   Block::add_Modification( std::make_shared< SingleFlowDCRBlockRngdMod >(
                             this , SingleFlowDCRBlockMod::eCloseArc , rng ) ,
                            Observer::par2chnl( issueMod ) );
@@ -2911,7 +2931,9 @@ void SingleFlowDCRBlock::close_arcs( Subset && nms , bool ordered ,
 
  f_cond_lower = dNAN; // reset conditional bounds
 
- if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+ // issue "physical Modification" - - - - - - -
+ if( issue_pmod( issueMod , SingleFlowDCRBlockMod::changes_of(
+                 SingleFlowDCRBlockMod::eCloseArc ) ) )
   Block::add_Modification(
    std::make_shared< SingleFlowDCRBlockSbstMod >(
     this , SingleFlowDCRBlockMod::eCloseArc , std::move( nms ) ) ,
@@ -2950,7 +2972,9 @@ void SingleFlowDCRBlock::close_arc( Index arc , ModParam issueMod ,
 
  f_cond_lower = dNAN; // reset conditional bounds
 
- if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+ // issue "physical Modification" - - - - - - -
+ if( issue_pmod( issueMod , SingleFlowDCRBlockMod::changes_of(
+                 SingleFlowDCRBlockMod::eCloseArc ) ) )
   Block::add_Modification(
    std::make_shared< SingleFlowDCRBlockRngdMod >(
     this , SingleFlowDCRBlockMod::eCloseArc , Range( arc , arc + 1 ) ) ,
@@ -3003,7 +3027,9 @@ void SingleFlowDCRBlock::open_arcs( Range rng , ModParam issueMod ,
 
  // TODO: if some changes are "fake", restrict the range
 
- if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+ // issue "physical Modification" - - - - - - -
+ if( issue_pmod( issueMod , SingleFlowDCRBlockMod::changes_of(
+                 SingleFlowDCRBlockMod::eOpenArc ) ) )
   Block::add_Modification( std::make_shared< SingleFlowDCRBlockRngdMod >(
                             this , SingleFlowDCRBlockMod::eOpenArc , rng ) ,
                            Observer::par2chnl( issueMod ) );
@@ -3059,7 +3085,9 @@ void SingleFlowDCRBlock::open_arcs( Subset && nms , bool ordered ,
 
  f_cond_lower = dNAN; // reset conditional bounds
 
- if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+ // issue "physical Modification" - - - - - - -
+ if( issue_pmod( issueMod , SingleFlowDCRBlockMod::changes_of(
+                 SingleFlowDCRBlockMod::eOpenArc ) ) )
   Block::add_Modification(
    std::make_shared< SingleFlowDCRBlockSbstMod >(
     this , SingleFlowDCRBlockMod::eOpenArc , std::move( nms ) ) ,
@@ -3096,7 +3124,9 @@ void SingleFlowDCRBlock::open_arc( Index arc , ModParam issueMod ,
 
  f_cond_lower = dNAN; // reset conditional bounds
 
- if( issue_pmod( issueMod ) ) // issue "physical Modification" - - - - - - -
+ // issue "physical Modification" - - - - - - -
+ if( issue_pmod( issueMod , SingleFlowDCRBlockMod::changes_of(
+                 SingleFlowDCRBlockMod::eOpenArc ) ) )
   Block::add_Modification(
    std::make_shared< SingleFlowDCRBlockRngdMod >(
     this , SingleFlowDCRBlockMod::eOpenArc , Range( arc , arc + 1 ) ) ,
