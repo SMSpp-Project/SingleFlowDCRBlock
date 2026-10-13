@@ -27,13 +27,19 @@
 
 # macros to be exported - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+SFDCRBkSDR ?= $(CURDIR)
+SMS++INC ?= -I$(SFDCRBkSDR)/../SMS++/include -I$(Eigen3_ROOT)/include/eigen3
+Eigen3_ROOT ?= /usr
+SW ?= -std=c++20
+
 SFDCRBkOBJ = $(SFDCRBkSDR)/obj/SingleFlowDCRBlock.o \
 	$(SFDCRBkSDR)/obj/MultiFlowDCRBlock.o \
 	$(SFDCRBkSDR)/obj/SingleFlowDCRBendersSolver.o \
 	$(SFDCRBkSDR)/obj/BenBound.o \
 	$(SFDCRBkSDR)/obj/DCRLagrangianSolver.o \
 	$(SFDCRBkSDR)/obj/DCR_SPT.o \
-	$(SFDCRBkSDR)/obj/SPT.o
+	$(SFDCRBkSDR)/obj/SPT.o \
+	$(SFDCRBkSDR)/obj/SFDCRBRelaxationSolver.o
 
 SFDCRBkINC = -I$(SFDCRBkSDR)/include
 
@@ -44,7 +50,12 @@ SFDCRBkH   = $(SFDCRBkSDR)/include/SingleFlowDCRBlock.h \
 	$(SFDCRBkSDR)/include/DCRLagrangianSolver.h \
 	$(SFDCRBkSDR)/include/DCR_SPT.h \
 	$(SFDCRBkSDR)/include/DCR.h \
-	$(SFDCRBkSDR)/include/SPT.h
+	$(SFDCRBkSDR)/include/SPT.h \
+	$(SFDCRBkSDR)/include/SFDCRBRelaxationSolver.h
+
+.PHONY: all clean
+
+all: $(SFDCRBkOBJ)
 
 # clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -91,4 +102,8 @@ $(SFDCRBkSDR)/obj/SPT.o: \
 	$(CC) -c $(SFDCRBkSDR)/src/SPT.cpp -o $@ \
 	$(SFDCRBkINC) $(SMS++INC) $(SW)
 
+$(SFDCRBkSDR)/obj/SFDCRBRelaxationSolver.o: \
+	$(SFDCRBkSDR)/src/SFDCRBRelaxationSolver.cpp $(SFDCRBkH)
+	$(CC) -c $(SFDCRBkSDR)/src/SFDCRBRelaxationSolver.cpp -o $@ \
+	$(SFDCRBkINC) $(SMS++INC) $(SW)
 ########################## End of makefile ###################################
