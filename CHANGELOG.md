@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `SFDCRBRelaxationSolver`, the `RelaxationSolver` of the nodes of a
+  `BranchAndXSolver` on a `SingleFlowDCRBlock`, built by CMake as well
+
 ### Changed
 
 - the instances of `data/` are downloaded and extracted by the targets

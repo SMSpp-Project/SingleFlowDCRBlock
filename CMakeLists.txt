@@ -128,6 +128,7 @@ target_sources(${modName} PRIVATE
         src/DCRLagrangianSolver.cpp
         src/DCR_SPT.cpp
         src/MultiFlowDCRBlock.cpp
+        src/SFDCRBRelaxationSolver.cpp
         src/SPT.cpp
         src/SingleFlowDCRBendersSolver.cpp
         src/SingleFlowDCRBlock.cpp)
