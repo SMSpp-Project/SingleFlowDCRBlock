@@ -104,14 +104,17 @@ namespace SMSpp_di_unipi_it
     {
     public:
         /// after Solve() at a fixed r_min: the two paths that define lambda*,
-        /// as arc indices of the *full* arc set (0-based, source-to-sink order)
-        bool two_paths(std::vector<int> &Pplus, std::vector<int> &Pminus)
+        /// as arc indices of the *full* arc set (0-based, source-to-sink
+        /// order); what is found is written on log, if any
+        bool two_paths(std::vector<int> &Pplus, std::vector<int> &Pminus,
+                       std::ostream *log = nullptr)
         {
             Solve();
 
-            std::cerr << "[probe] status=" << lagstat << " lambda=" << lambda
-                      << " pLambda=" << pLambda << " mLambda=" << mLambda
-                      << " rmin=" << rmin << std::endl;
+            if (log)
+                *log << "[probe] status=" << lagstat << " lambda=" << lambda
+                     << " pLambda=" << pLambda << " mLambda=" << mLambda
+                     << " rmin=" << rmin << std::endl;
 
             if ((lagstat != DCRLagrangianSolver::OK) || (lambda <= 0))
                 return (false);
@@ -128,8 +131,10 @@ namespace SMSpp_di_unipi_it
                 Pplus = path_at(mLambda);
             }
 
-            std::cerr << "[probe] |P-|=" << Pminus.size() << " |P+|=" << Pplus.size()
-                      << " equal=" << (Pminus == Pplus) << std::endl;
+            if (log)
+                *log << "[probe] |P-|=" << Pminus.size()
+                     << " |P+|=" << Pplus.size()
+                     << " equal=" << (Pminus == Pplus) << std::endl;
 
             return ((!Pminus.empty()) && (!Pplus.empty()) &&
                     (Pminus != Pplus));
@@ -160,6 +165,10 @@ namespace SMSpp_di_unipi_it
         }
     };
 
+    /// the RelaxationSolver of the nodes of a BranchAndXSolver on a
+    /// SingleFlowDCRBlock; when a log stream is set [see Solver::set_log()],
+    /// each compute(), branch() and certificate of the node writes one line
+    /// on it, and nothing is written otherwise
     class SFDCRBRelaxationSolver : public SingleFlowDCRBendersSolver,
                                    public RelaxationSolver
     {
@@ -199,9 +208,11 @@ namespace SMSpp_di_unipi_it
             load_node(); // always: BenBound::Solve() cannot be re-run
                          // on the same data (solvedflag), it needs a
                          // fresh LoadProblem()
-            std::cerr << "[compute] rho=" << f_flow.rate << " burst=" << f_flow.burst
-                      << " deadline=" << f_flow.deadline << " infeasible="
-                      << f_infeasible << std::endl;
+            if (f_log)
+                *f_log << "[compute] rho=" << f_flow.rate
+                       << " burst=" << f_flow.burst
+                       << " deadline=" << f_flow.deadline << " infeasible="
+                       << f_infeasible << std::endl;
             if (!owned)
                 f_Block->read_unlock();
 
@@ -245,12 +256,13 @@ namespace SMSpp_di_unipi_it
 
         std::vector<Change *> branch(void) override
         {
-            std::cerr << "[branch] stat=" << BenBound::getStat()
-                      << " r*=" << BenBound::getr_min()
-                      << " LB=" << get_lb() << " UB=" << get_ub()
-                      << " heur=" << BenBound::getHeurVal()
-                      << " benIt=" << BenBound::getNumIterationBender()
-                      << " narcs=" << f_narcs << std::endl;
+            if (f_log)
+                *f_log << "[branch] stat=" << BenBound::getStat()
+                       << " r*=" << BenBound::getr_min()
+                       << " LB=" << get_lb() << " UB=" << get_ub()
+                       << " heur=" << BenBound::getHeurVal()
+                       << " benIt=" << BenBound::getNumIterationBender()
+                       << " narcs=" << f_narcs << std::endl;
             if (f_infeasible || (BenBound::getStat() != BenBound::OK))
                 throw(std::logic_error("branch(): the node has no relaxation"));
 
@@ -259,7 +271,7 @@ namespace SMSpp_di_unipi_it
                            f_nodes.data(), f_mtu, BenBound::getr_min());
 
             std::vector<int> Pp, Pm;
-            if (!pr.two_paths(Pp, Pm))
+            if (!pr.two_paths(Pp, Pm, f_log))
                 throw(std::logic_error("branch(): no pair of distinct paths at r*"));
 
             std::size_t k = 0; // common prefix, arc by arc
@@ -313,7 +325,9 @@ namespace SMSpp_di_unipi_it
                            f_nodes.data(), f_mtu, rlow);
             if (pr.zero_opt())
                 f_cert = pr.getObjVal(); // optimum of the node
-            std::cerr << "[cert] rlow=" << rlow << " f_cert=" << f_cert << std::endl;
+            if (f_log)
+                *f_log << "[cert] rlow=" << rlow << " f_cert=" << f_cert
+                       << std::endl;
         }
 
         void load_node(void)

@@ -10,7 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `SFDCRBRelaxationSolver`, the `RelaxationSolver` of the nodes of a
-  `BranchAndXSolver` on a `SingleFlowDCRBlock`, built by CMake as well
+  `BranchAndXSolver` on a `SingleFlowDCRBlock`, built by CMake as well;
+  what it does at each node is written on the log of the `Solver` [see
+  `Solver::set_log()`], if any, and not on `std::cerr`
 
 ### Changed
 
