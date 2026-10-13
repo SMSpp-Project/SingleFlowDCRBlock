@@ -580,9 +580,14 @@ protected:
   * BenBound wants [see DCR.h] and hands it to BenBound::LoadProblem(). The
   * source and the sink of the flow are the nodes with, respectively,
   * negative and positive deficit; a Block with no source or no sink has
-  * nothing to route, and BenBound is left with whatever it had. This is
-  * done when the Block is attached and every time it changes [see
-  * set_Block() and process_outstanding_Modification()]. */
+  * nothing to route, and BenBound is left with whatever it had. The data
+  * handed to BenBound are kept in f_flow, v_links and v_nodes. An arc for
+  * which arc_closed() is true is given a capacity of half the smallest
+  * rate the flow can be routed at, \f$ \max\{ \rho , \sigma / D \} \f$
+  * (with \f$ \rho \f$ the rate, \f$ \sigma \f$ the burst and \f$ D \f$
+  * the deadline of the flow), so that no routing can use it. This is done
+  * when the Block is attached and every time it changes [see set_Block()
+  * and process_outstanding_Modification()]. */
 
  void load_BenBound( void )
  {
@@ -604,7 +609,8 @@ protected:
   if( ( source < 0 ) || ( sink < 0 ) )  // nothing to route
    return;
 
-  DCR::DCRFlow flow = {};
+  auto & flow = f_flow;
+  flow = {};
   flow.sourcenode = source;
   flow.sinknode = sink;
   flow.burst = DCRB->get_FlowBurst();
@@ -614,18 +620,32 @@ protected:
   auto & LD = DCRB->get_LinkDelays();
   auto & ND = DCRB->get_NodeDelays();
 
-  std::vector< DCR::DCRLink > links( narcs );
+  // no routing has a rate below rlow, hence none uses an arc whose
+  // capacity is half of it
+  const double rlow = std::max( flow.rate , flow.burst / flow.deadline );
+
+  auto & links = v_links;
+  links.assign( narcs , {} );
   for( Index i = 0 ; i < narcs ; ++i ) {
    links[ i ] = {};
    links[ i ].startnode = DCRB->get_SN( i ) - 1;
    links[ i ].endnode = DCRB->get_EN( i ) - 1;
    links[ i ].speed = DCRB->get_U( i );
-   links[ i ].capacity = DCRB->get_U( i );
+   if( arc_closed( i ) ) {
+    if( ! ( rlow > 0 ) )
+     throw( std::logic_error( "SingleFlowDCRBendersSolver::load_BenBound: "
+                              "an arc can only be closed if the rate or "
+                              "the burst of the flow is positive" ) );
+    links[ i ].capacity = rlow / 2;
+    }
+   else
+    links[ i ].capacity = DCRB->get_U( i );
    links[ i ].delay = LD.empty() ? 0 : LD[ i ];
    links[ i ].cost = DCRB->is_deleted( i ) ? 0 : DCRB->get_C( i );
    }
 
-  std::vector< DCR::DCRNode > nodes( nnodes );
+  auto & nodes = v_nodes;
+  nodes.assign( nnodes , {} );
   for( Index i = 0 ; i < nnodes ; ++i ) {
    nodes[ i ] = {};
    nodes[ i ].delay = ND.empty() ? 0 : ND[ i ];
@@ -634,6 +654,16 @@ protected:
   BenBound::LoadProblem( nnodes , narcs , flow , links , nodes ,
                          DCRB->get_MTU() );
  }
+
+/*--------------------------------------------------------------------------*/
+ /// true if arc i is not to be used by any routing [see load_BenBound()]
+ /** Tells load_BenBound() whether arc i is to be kept out of every routing.
+  * No arc is in this class, whose result does not depend on it: the method
+  * is there for derived classes that close arcs on their own, without
+  * changing the Block (such as a RelaxationSolver at the nodes of an
+  * enumeration tree). */
+
+ virtual bool arc_closed( Index i ) { return( false ); }
 
 /*--------------------------------------------------------------------------*/
  /// true if the solution BenBound found is feasible for the DCR problem
@@ -774,6 +804,13 @@ protected:
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PROTECTED FIELDS  ---------------------------*/
 /*--------------------------------------------------------------------------*/
+
+ // the instance as last handed to BenBound::LoadProblem() [see
+ // load_BenBound()], for derived classes that need it again
+
+ DCR::DCRFlow f_flow = {};               ///< the flow
+ std::vector< DCR::DCRLink > v_links;    ///< the arcs
+ std::vector< DCR::DCRNode > v_nodes;    ///< the nodes
 
 /*--------------------------------------------------------------------------*/
 /*--------------------- PRIVATE PART OF THE CLASS --------------------------*/

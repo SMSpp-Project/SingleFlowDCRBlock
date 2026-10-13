@@ -214,6 +214,10 @@ SMSpp_insert_in_factory_cpp_1( SingleFlowDCRBlock );
 
 SMSpp_insert_in_factory_cpp_0( DCRSolution );
 
+// register SingleFlowDCRBlockChange to the Change factory
+
+SMSpp_insert_in_factory_cpp_0( SingleFlowDCRBlockChange );
+
 /*--------------------------------------------------------------------------*/
 /*--------------------------- METHODS OF SingleFlowDCRBlock ----------------*/
 /*--------------------------------------------------------------------------*/
@@ -3550,6 +3554,74 @@ void SingleFlowDCRBlock::CheckAbsVSPhys( void )
  } // end( SingleFlowDCRBlock::CheckAbsVSPhys )
 
 #endif
+
+/*--------------------------------------------------------------------------*/
+/*------------------ METHODS OF SingleFlowDCRBlockChange -------------------*/
+/*--------------------------------------------------------------------------*/
+
+void SingleFlowDCRBlockChange::deserialize( const netCDF::NcGroup & group )
+{
+ auto ftype = group.getAtt( "SingleFlowDCRBlock_chg_type" );
+ auto farc = group.getAtt( "arc" );
+ if( ftype.isNull() || farc.isNull() )
+  throw( std::invalid_argument( "SingleFlowDCRBlockChange::deserialize: "
+                                "type or arc not found" ) );
+ ftype.getValues( &f_type );
+ unsigned long long arc;
+ farc.getValues( &arc );
+ f_arc = Block::Index( arc );
+
+ } // end( SingleFlowDCRBlockChange::deserialize )
+
+/*--------------------------------------------------------------------------*/
+
+void SingleFlowDCRBlockChange::serialize( netCDF::NcGroup & group ) const
+{
+ // always call the method of the base class first
+ Change::serialize( group );
+
+ group.putAtt( "SingleFlowDCRBlock_chg_type" , netCDF::NcInt() , f_type );
+ group.putAtt( "arc" , netCDF::NcUint64() ,
+               static_cast< unsigned long long >( f_arc ) );
+
+ } // end( SingleFlowDCRBlockChange::serialize )
+
+/*--------------------------------------------------------------------------*/
+
+Change * SingleFlowDCRBlockChange::apply( Block * block , bool doUndo ,
+                                          ModParam issueMod ,
+                                          ModParam issueAMod )
+{
+ auto DCRB = dynamic_cast< SingleFlowDCRBlock * >( block );
+ if( ! DCRB )
+  throw( std::invalid_argument( "SingleFlowDCRBlockChange::apply: block "
+                                "is not a SingleFlowDCRBlock" ) );
+ if( f_arc >= DCRB->get_NArcs() )
+  throw( std::invalid_argument( "SingleFlowDCRBlockChange::apply: invalid "
+                                "arc " + std::to_string( f_arc ) ) );
+
+ // the undo puts the arc back as it is now, whatever the Change does
+ Change * undo = nullptr;
+ if( doUndo )
+  undo = new SingleFlowDCRBlockChange( DCRB->is_closed( f_arc ) ? eCloseArc
+                                                                : eOpenArc ,
+                                       f_arc );
+ switch( f_type ) {
+  case( eCloseArc ):
+   DCRB->close_arc( f_arc , issueMod , issueAMod );
+   break;
+  case( eOpenArc ):
+   DCRB->open_arc( f_arc , issueMod , issueAMod );
+   break;
+  default:
+   delete undo;
+   throw( std::invalid_argument( "SingleFlowDCRBlockChange::apply: invalid "
+                                 "type " + std::to_string( f_type ) ) );
+  }
+
+ return( undo );
+
+ } // end( SingleFlowDCRBlockChange::apply )
 
 /*--------------------------------------------------------------------------*/
 /*-------------------------- METHODS OF DCRSolution ------------------------*/

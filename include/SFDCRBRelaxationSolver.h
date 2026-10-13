@@ -1,425 +1,297 @@
-#pragma once
+/*--------------------------------------------------------------------------*/
+/*-------------------- File SFDCRBRelaxationSolver.h -----------------------*/
+/*--------------------------------------------------------------------------*/
+/** @file
+ * Header file for the *concrete* class SFDCRBRelaxationSolver, which
+ * implements the RelaxationSolver concept [see ChangeSolver.h] for a
+ * SingleFlowDCRBlock, by means of the "Benders with nested Lagrange" scheme
+ * of SingleFlowDCRBendersSolver, so that it can solve the nodes of an
+ * enumeration tree (as in BranchAndXSolver) branching on the arcs.
+ *
+ * \author Antonio Frangioni \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \author Filippo Magi \n
+ *         Dipartimento di Informatica \n
+ *         Universita' di Pisa \n
+ *
+ * \copyright &copy; by Antonio Frangioni, Filippo Magi
+ */
+/*--------------------------------------------------------------------------*/
+/*----------------------------- DEFINITIONS --------------------------------*/
+/*--------------------------------------------------------------------------*/
+
+#ifndef __SFDCRBRelaxationSolver
+ #define __SFDCRBRelaxationSolver
+                      /* self-identification: #endif at the end of the file */
+
+/*--------------------------------------------------------------------------*/
+/*------------------------------ INCLUDES ----------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 #include "SingleFlowDCRBendersSolver.h"
-#include "ChangeSolver.h"
-#include <queue>
 
+#include "ChangeSolver.h"
+
+/*--------------------------------------------------------------------------*/
+/*-------------------------- NAMESPACE & USING -----------------------------*/
+/*--------------------------------------------------------------------------*/
+
+/// namespace for the Structured Modeling System++ (SMS++)
 namespace SMSpp_di_unipi_it
 {
 
-    class SFDCRBChange : public Change
-    {
-    public:
-        // valutare, dato che so se è fissata o meno
-        enum SFDCRBChangeType
-        {
-            eFixX = 0,                // fix an arc to not be used in the solution
-            eUnfixX = 1,              // restore an arc to the solution
-            eLastSFDCRBChangeType = 2 // first allowed new change type for derived classes
-        };
-        // constructor
-        SFDCRBChange() = default;
+/*--------------------------------------------------------------------------*/
+/*------------------------------- CLASSES ----------------------------------*/
+/*--------------------------------------------------------------------------*/
 
-        SFDCRBChange(Block::Index arc, SFDCRBChangeType type) : Change(), f_Arc(arc), f_Type(type) {}
+/*--------------------------------------------------------------------------*/
+/*-------------------- CLASS SFDCRBRelaxationSolver ------------------------*/
+/*--------------------------------------------------------------------------*/
+/*--------------------------- GENERAL NOTES --------------------------------*/
+/*--------------------------------------------------------------------------*/
+/// RelaxationSolver of a SingleFlowDCRBlock that branches on the arcs
+/** The relaxation of a node is solved by SingleFlowDCRBendersSolver, which
+ * gives a lower bound on the cost of the flow and, when it finds one, a
+ * routing that meets the deadline, i.e., a feasible solution of the true
+ * problem [see has_true_var_solution()].
+ *
+ * The children of a node close one arc each [see branch()]. The closing
+ * Changes (SingleFlowDCRBlockChange) are applied to the Solver and not to
+ * the Block [see apply()], which then keeps the arcs out of every routing
+ * at the next compute() [see arc_closed()]; the arcs closed or deleted in
+ * the Block are kept out as well. A node in which the sink cannot be
+ * reached from the source on the arcs left open is infeasible, and
+ * compute() says so without running the Benders scheme at all.
+ *
+ * When the relaxation leaves a gap, compute() also tries a certificate on
+ * the node [see get_lb()].
+ *
+ * When a log stream is set [see Solver::set_log()], compute(), branch()
+ * and the certificate write one line each on it, and nothing is written
+ * otherwise. */
 
-        // destructor
-        virtual ~SFDCRBChange() = default;
+class SFDCRBRelaxationSolver : public SingleFlowDCRBendersSolver ,
+                               public RelaxationSolver
+{
 
-        // getter
+/*--------------------------------------------------------------------------*/
+/*----------------------- PUBLIC PART OF THE CLASS -------------------------*/
+/*--------------------------------------------------------------------------*/
 
-        Block::Index get_arc(void) const
-        {
-            return f_Arc;
-        }
+public:
 
-        SFDCRBChangeType get_type(void) const
-        {
-            return f_Type;
-        }
+/*--------------------------------------------------------------------------*/
+/*--------------------- PUBLIC METHODS OF THE CLASS ------------------------*/
+/*--------------------------------------------------------------------------*/
+/*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
+/*--------------------------------------------------------------------------*/
+/** @name Constructor and Destructor
+ *  @{ */
 
-        void serialize(netCDF::NcGroup &group) const override
-        {
-            Change::serialize(group);
-            group.addVar("arc", netCDF::NcType::nc_UINT64);
-            group.addVar("type", netCDF::NcType::nc_INT);
-            group.getVar("arc").putVar(&f_Arc);
-            group.getVar("type").putVar(&f_Type);
-        }
+/*--------------------------------------------------------------------------*/
+ /// constructor: no arc is closed
 
-        void deserialize(const netCDF::NcGroup &group) override
-        {
-            group.getVar("arc").getVar(&f_Arc);
-            group.getVar("type").getVar(&f_Type);
-        }
+ SFDCRBRelaxationSolver( void ) : SingleFlowDCRBendersSolver() {}
 
-        Change *apply(Block *block, bool doUndo = false, ModParam issueMod = eNoBlck, ModParam issueAMod = eNoBlck) override
-        {
-            auto B = dynamic_cast<SingleFlowDCRBlock *>(block);
-            if (!B)
-                throw(std::invalid_argument("SFDCRBChange::apply: block is not a SingleFlowDCRBlock"));
-            if (f_Arc >= B->get_NArcs())
-                throw(std::invalid_argument("SFDCRBChange::apply: arc index is out of bounds"));
+/*--------------------------------------------------------------------------*/
+ /// destructor: does nothing
 
-            if (f_Type == eFixX && B->is_closed(f_Arc))
-            {
-                throw std::invalid_argument("SFDCRBChange::apply: arc is already fixed");
-            }
-            else if (f_Type == eUnfixX && !B->is_closed(f_Arc))
-            {
-                throw std::invalid_argument("SFDCRBChange::apply: arc is already unfixed");
-            }
-            else if (f_Type == eFixX)
-            {
-                B->close_arc(f_Arc, issueMod, issueAMod);
-            }
-            else if (f_Type == eUnfixX)
-            {
-                B->open_arc(f_Arc, issueMod, issueAMod);
-            }
-            else
-            {
-                throw std::runtime_error("Unknown SFDCRBChangeType");
-            }
+ ~SFDCRBRelaxationSolver() override = default;
 
-            if (doUndo)
-            {
-                return new SFDCRBChange(f_Arc, f_Type == eFixX ? eUnfixX : eFixX);
-            }
-            else
-            {
-                return nullptr;
-            }
-        }
+/** @} ---------------------------------------------------------------------*/
+/*-------------------------- OTHER INITIALIZATIONS -------------------------*/
+/*--------------------------------------------------------------------------*/
+/** @name Other initializations
+ *  @{ */
 
-    protected:
-        Block::Index f_Arc;      // the arc to be fixed/unfixed
-        SFDCRBChangeType f_Type; // the type of change (fix/unfix)
+ /// set the (pointer to the) Block that the Solver has to solve
+ /** As SingleFlowDCRBendersSolver::set_Block(); besides, all the arcs are
+  * open for the Solver [see apply()]. */
 
-    private:
-        SMSpp_insert_in_factory_h;
-    };
+ void set_Block( Block * block ) override;
 
-    // Gives access to the protected state of DCRLagrangianSolver, nothing more
-    class SFDCRBProbe : public DCRLagrangianSolver
-    {
-    public:
-        /// after Solve() at a fixed r_min: the two paths that define lambda*,
-        /// as arc indices of the *full* arc set (0-based, source-to-sink
-        /// order); what is found is written on log, if any
-        bool two_paths(std::vector<int> &Pplus, std::vector<int> &Pminus,
-                       std::ostream *log = nullptr)
-        {
-            Solve();
+/*--------------------------------------------------------------------------*/
 
-            if (log)
-                *log << "[probe] status=" << lagstat << " lambda=" << lambda
-                     << " pLambda=" << pLambda << " mLambda=" << mLambda
-                     << " rmin=" << rmin << std::endl;
+ using SingleFlowDCRBendersSolver::set_par;  // keep the other set_par()
 
-            if ((lagstat != DCRLagrangianSolver::OK) || (lambda <= 0))
-                return (false);
+ /// set the double parameters of the Solver
+ /** Only dblRelAcc [1e-6] is used: compute() tries the certificate of the
+  * node [see get_lb()] only when the relaxation leaves a relative gap
+  * larger than it. The other parameters are ignored. */
 
-            const double ls = lambda; // path_at() overwrites lambda
-            const double d = 1e-6 * ls;
+ void set_par( idx_type par , double value ) override;
 
-            Pminus = path_at(ls - d); // just below: P- (beta >= 0)
-            Pplus = path_at(ls + d);  // just above: P+ (beta <  0)
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
-            if (Pminus == Pplus)
-            { // fallback: the two cut points
-                Pminus = path_at(pLambda);
-                Pplus = path_at(mLambda);
-            }
+ [[nodiscard]] double get_dbl_par( idx_type par ) const override;
 
-            if (log)
-                *log << "[probe] |P-|=" << Pminus.size()
-                     << " |P+|=" << Pplus.size()
-                     << " equal=" << (Pminus == Pplus) << std::endl;
+/** @} ---------------------------------------------------------------------*/
+/*--------------------- METHODS FOR SOLVING THE MODEL ----------------------*/
+/*--------------------------------------------------------------------------*/
+/** @name Solving the relaxation of the current node
+ *  @{ */
 
-            return ((!Pminus.empty()) && (!Pplus.empty()) &&
-                    (Pminus != Pplus));
-        }
-        /// true if, at the loaded r_min, lambda = 0 is optimal and its path feasible
-        bool zero_opt(void)
-        {
-            if (isFeasible()) // returns 0 when the relaxation is OK
-                return (false);
-            return ((getLambda() == 0) && (getHeurVal() < Inf<double>()));
-        }
+ /// solve the relaxation of the current node
+ /** Loads the instance with the arcs closed by the Solver, then runs the
+  * "Benders with nested Lagrange" scheme of SingleFlowDCRBendersSolver [see
+  * SingleFlowDCRBendersSolver::compute()] on it. Returns kInfeasible if the
+  * sink cannot be reached from the source on the open arcs, or if the
+  * scheme finds the node infeasible, kError if the Block has no source or
+  * no sink or if the scheme ends in error, and kOK otherwise. */
 
-    private:
-        std::vector<int> path_at(double lam)
-        {
-            lambda = lam;
-            setSPTcosts(); // same costs as when the cut was generated
-            spt.updCosts(Linksp);
-            spt.Solve();
-            if (spt.getStatus() != SPT::OK)
-                return (std::vector<int>());
+ int compute( bool changedvars = true ) override;
 
-            auto p = spt.getPath();
-            std::vector<int> out(p.size());
-            for (std::size_t k = 0; k < p.size(); ++k)
-                out[k] = RedGraPos[p[k]]; // reduced index -> arc index
-            return (out);
-        }
-    };
+/** @} ---------------------------------------------------------------------*/
+/*---------------------- METHODS FOR READING RESULTS -----------------------*/
+/*--------------------------------------------------------------------------*/
+/** @name Accessing the found solutions (if any)
+ *  @{ */
 
-    /// the RelaxationSolver of the nodes of a BranchAndXSolver on a
-    /// SingleFlowDCRBlock; when a log stream is set [see Solver::set_log()],
-    /// each compute(), branch() and certificate of the node writes one line
-    /// on it, and nothing is written otherwise
-    class SFDCRBRelaxationSolver : public SingleFlowDCRBendersSolver,
-                                   public RelaxationSolver
-    {
+ /// return a valid lower bound on the cost of the flow in the node
+ /** The lower bound of SingleFlowDCRBendersSolver, or the certificate of
+  * the node if it is larger: when the relaxation leaves a gap [see
+  * dblRelAcc], compute() solves the Lagrangian relaxation at the smallest
+  * rate the flow can be routed at, \f$ \max\{ \rho , \sigma / D \} \f$
+  * (with \f$ \rho \f$ the rate, \f$ \sigma \f$ the burst and \f$ D \f$ the
+  * deadline of the flow), and if its optimal multiplier is 0 and the path
+  * it gives meets the deadline, its value is a lower bound on the node.
+  * +Inf if the node is infeasible, -Inf if the last compute() did not
+  * solve it. */
 
-    public:
-        // constructor
-        SFDCRBRelaxationSolver() : SingleFlowDCRBendersSolver() {}
+ OFValue get_lb( void ) override;
 
-        // destructor
-        virtual ~SFDCRBRelaxationSolver() = default;
+/*--------------------------------------------------------------------------*/
+ /// return a valid lower bound on the cost of the flow (as get_lb())
 
-        /*--------------------------------------------------------------------------*/
-        void set_Block(Block *block) override
-        {
-            SingleFlowDCRBendersSolver::set_Block(block);
-            f_closed.clear();
-            f_infeasible = false;
-            if (auto B = dynamic_cast<SingleFlowDCRBlock *>(block))
-                f_closed.assign(B->get_NArcs(), 0);
-        }
+ OFValue get_true_lb( void ) override { return( get_lb() ); }
 
-        /*--------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
+ /// return a valid upper bound on the cost of the flow (as get_ub())
+ /** The cost of the feasible routing found [see
+  * SingleFlowDCRBendersSolver::get_ub()], +Inf if there is none. */
 
-        // COMPUTE: reload BenBound with the arcs this node has closed, then solve
+ OFValue get_true_ub( void ) override { return( get_ub() ); }
 
-        int compute(bool changedvars = true) override
-        {
-            if (!f_Block)
-                return (kBlockLocked);
+/*--------------------------------------------------------------------------*/
+ /// tells whether a feasible routing of the true problem is available
+ /** The routing found by the relaxation is a solution of the true problem
+  * whenever it is there at all [see
+  * SingleFlowDCRBendersSolver::has_var_solution()], since the arcs closed
+  * by the Solver are open in the Block. */
 
-            const bool owned = f_Block->is_owned_by(f_id);
-            if ((!owned) && (!f_Block->read_lock()))
-                return (kBlockLocked);
+ bool has_true_var_solution( void ) override {
+  return( has_var_solution() );
+  }
 
-            // Block changes first: the base would reload them *without* our closures
-            process_outstanding_Modification();
-            load_node(); // always: BenBound::Solve() cannot be re-run
-                         // on the same data (solvedflag), it needs a
-                         // fresh LoadProblem()
-            if (f_log)
-                *f_log << "[compute] rho=" << f_flow.rate
-                       << " burst=" << f_flow.burst
-                       << " deadline=" << f_flow.deadline << " infeasible="
-                       << f_infeasible << std::endl;
-            if (!owned)
-                f_Block->read_unlock();
+/*--------------------------------------------------------------------------*/
+ /// write the feasible routing in the Variable of the Block
 
-            if (f_infeasible) // no s-t path left: nothing to solve
-                return (kOK);
-            const int rc = SingleFlowDCRBendersSolver::compute(changedvars);
+ void get_true_var_solution( Configuration * solc = nullptr ) override {
+  get_var_solution( solc );
+  }
 
-            f_cert = -SMSpp_di_unipi_it::Inf<OFValue>();
-            if ((!f_infeasible) &&
-                (get_ub() - SingleFlowDCRBendersSolver::get_lb() >
-                 1e-6 * std::max(1.0, std::abs(get_ub()))))
-                certify_left();
+/*--------------------------------------------------------------------------*/
+ /// physically construct the Solution holding the feasible routing
 
-            return (rc);
-        }
+ Solution * get_true_solution( Configuration * solc = nullptr ) override {
+  return( get_Solution( solc ) );
+  }
 
-        /*--------------------------------------------------------------------------*/
-        // APPLY: closures live in the solver, the Block is not touched
+/** @} ---------------------------------------------------------------------*/
+/*------------- METHODS FOR ADDING / REMOVING / CHANGING DATA --------------*/
+/*--------------------------------------------------------------------------*/
+/** @name Changing the data of the model
+ *  @{ */
 
-        Change *apply(Change *chg, bool doUndo = false) override
-        {
-            if (auto ac = dynamic_cast<SFDCRBChange *>(chg))
-            {
-                const auto a = ac->get_arc();
-                if (a >= f_closed.size())
-                    throw(std::invalid_argument("SFDCRBRelaxationSolver::apply: bad arc"));
+ /// branch on the first arc where two paths of the relaxation split
+ /** At the optimal r_min of the relaxation, the optimal Lagrangian
+  * multiplier is defined by two paths, one meeting the deadline and one
+  * not; the two children close, respectively, the arcs of the two paths
+  * that leave the last node they have in common. A simple path uses at most
+  * one of the two arcs, hence every routing of the node is in one of the
+  * children. The child that closes the arc of the path not meeting the
+  * deadline comes first, since it keeps the other path. An exception is
+  * thrown if the node has no relaxation, or if the two paths cannot be
+  * found. */
 
-                const bool was_closed = f_closed[a]; // state BEFORE acting
-                f_closed[a] = (ac->get_type() == SFDCRBChange::eFixX);
+ std::vector< Change * > branch( void ) override;
 
-                return (doUndo ? new SFDCRBChange(a, was_closed ? SFDCRBChange::eFixX
-                                                                : SFDCRBChange::eUnfixX)
-                               : nullptr);
-            }
+/*--------------------------------------------------------------------------*/
+ /// apply the Change; SingleFlowDCRBlockChange are applied to the Solver
+ /** A SingleFlowDCRBlockChange, as those produced by branch(), closes or
+  * opens the arc for the Solver alone, the Block being left as it is, and
+  * the next compute() solves the relaxation with it; with doUndo, the
+  * returned Change brings the arc back to the state it had for the Solver.
+  * Any other Change is applied to the Block. */
 
-            return (chg->apply(f_Block, doUndo)); // anything else: the Block
-        }
+ Change * apply( Change * chg , bool doUndo = false ) override;
 
-        /*--------------------------------------------------------------------------*/
-        // BRANCH: first arc where the feasible and the infeasible path split
+/** @} ---------------------------------------------------------------------*/
+/*--------------------- PROTECTED PART OF THE CLASS ------------------------*/
+/*--------------------------------------------------------------------------*/
 
-        std::vector<Change *> branch(void) override
-        {
-            if (f_log)
-                *f_log << "[branch] stat=" << BenBound::getStat()
-                       << " r*=" << BenBound::getr_min()
-                       << " LB=" << get_lb() << " UB=" << get_ub()
-                       << " heur=" << BenBound::getHeurVal()
-                       << " benIt=" << BenBound::getNumIterationBender()
-                       << " narcs=" << f_narcs << std::endl;
-            if (f_infeasible || (BenBound::getStat() != BenBound::OK))
-                throw(std::logic_error("branch(): the node has no relaxation"));
+protected:
 
-            SFDCRBProbe pr;
-            pr.LoadProblem(f_nnodes, f_narcs, f_flow, f_links.data(),
-                           f_nodes.data(), f_mtu, BenBound::getr_min());
+/*--------------------------------------------------------------------------*/
+/*--------------------------- PROTECTED METHODS ----------------------------*/
+/*--------------------------------------------------------------------------*/
 
-            std::vector<int> Pp, Pm;
-            if (!pr.two_paths(Pp, Pm, f_log))
-                throw(std::logic_error("branch(): no pair of distinct paths at r*"));
+ /// true if arc i is closed by the Solver, or closed or deleted in the Block
+ /** Tells SingleFlowDCRBendersSolver::load_BenBound() which arcs to keep
+  * out of every routing [see SingleFlowDCRBendersSolver::arc_closed()]. */
 
-            std::size_t k = 0; // common prefix, arc by arc
-            while ((k < Pp.size()) && (k < Pm.size()) && (Pp[k] == Pm[k]))
-                ++k;
-            if ((k >= Pp.size()) || (k >= Pm.size()))
-                throw(std::logic_error("branch(): one path is a prefix of the other"));
+ bool arc_closed( Index i ) override;
 
-            // both arcs leave the same node u, and a simple path uses at most one
-            // of them: every routing avoids a+ or avoids a-, so the children cover
-            // the node. Closing a- first keeps the feasible path P+ in the first
-            // child (a heuristic order: it favours the incumbent, test it)
-            return (std::vector<Change *>{new SFDCRBChange(Pm[k], SFDCRBChange::eFixX),
-                                          new SFDCRBChange(Pp[k], SFDCRBChange::eFixX)});
-        }
+/*--------------------------------------------------------------------------*/
+/*---------------------------- PROTECTED FIELDS ----------------------------*/
+/*--------------------------------------------------------------------------*/
 
-        /*--------------------------------------------------------------------------*/
+ std::vector< bool > v_closed;  ///< the arcs closed by the Solver
 
-        // getter
-        OFValue get_lb(void) override
-        {
-            if (f_infeasible || (BenBound::getStat() != BenBound::OK))
-                return (SMSpp_di_unipi_it::Inf<OFValue>());
-            return (std::max(SingleFlowDCRBendersSolver::get_lb(), f_cert));
-        }
-        OFValue get_true_lb(void) override { return (get_lb()); }
-        OFValue get_true_ub(void) override { return (get_ub()); }
-        bool has_true_var_solution(void) override { return (has_var_solution()); }
+ bool f_infeasible = false;     ///< the node has no path on the open arcs
 
-        void get_true_var_solution(Configuration *solc = nullptr) override
-        {
-            get_var_solution(solc);
-        }
+ /// the certificate of the node [see get_lb()], -Inf if there is none
+ OFValue f_cert = - SMSpp_di_unipi_it::Inf< OFValue >();
 
-        Solution *get_true_solution(Configuration *solc = nullptr) override
-        {
-            return (get_Solution(solc));
-        }
+ double f_RelAcc = 1e-6;        ///< the parameter dblRelAcc
 
-    private:
-        void certify_left(void)
-        {
-            f_cert = -SMSpp_di_unipi_it::Inf<OFValue>();
-            if (f_infeasible)
-                return;
+/*--------------------------------------------------------------------------*/
+/*----------------------- PRIVATE PART OF THE CLASS ------------------------*/
+/*--------------------------------------------------------------------------*/
 
-            const double rlow = std::max(f_flow.rate,
-                                         f_flow.burst / f_flow.deadline);
-            SFDCRBProbe pr;
-            pr.LoadProblem(f_nnodes, f_narcs, f_flow, f_links.data(),
-                           f_nodes.data(), f_mtu, rlow);
-            if (pr.zero_opt())
-                f_cert = pr.getObjVal(); // optimum of the node
-            if (f_log)
-                *f_log << "[cert] rlow=" << rlow << " f_cert=" << f_cert
-                       << std::endl;
-        }
+private:
 
-        void load_node(void)
-        {
-            auto DCRB = static_cast<SingleFlowDCRBlock *>(f_Block);
-            f_nnodes = DCRB->get_NNodes();
-            f_narcs = DCRB->get_NArcs();
-            f_mtu = DCRB->get_MTU();
-            if (f_closed.size() != f_narcs)
-                f_closed.assign(f_narcs, 0);
+/*--------------------------------------------------------------------------*/
+/*--------------------------- PRIVATE METHODS ------------------------------*/
+/*--------------------------------------------------------------------------*/
 
-            int source = -1, sink = -1;
-            for (Index i = 0; i < f_nnodes; ++i)
-            {
-                const auto Bi = DCRB->get_B(i);
-                if (Bi < 0)
-                    source = i;
-                else if (Bi > 0)
-                    sink = i;
-            }
-            if ((source < 0) || (sink < 0))
-                throw(std::logic_error("load_node: no source or no sink"));
+ /// true if the sink can be reached from the source on the open arcs
 
-            f_flow = {};
-            f_flow.sourcenode = source;
-            f_flow.sinknode = sink;
-            f_flow.burst = DCRB->get_FlowBurst();
-            f_flow.rate = DCRB->get_rho();
-            f_flow.deadline = DCRB->get_FlowDeadline();
+ bool sink_reachable( void );
 
-            // no feasible r_min is below this, so an arc with less capacity than
-            // half of it can never be in the reduced graph
-            const double rlow = std::max(f_flow.rate,
-                                         f_flow.burst / f_flow.deadline);
-            if (!(rlow > 0))
-                throw(std::logic_error("load_node: needs rho > 0 or burst > 0"));
+/*--------------------------------------------------------------------------*/
+ /// compute the certificate of the node [see get_lb()] in f_cert
 
-            auto &LD = DCRB->get_LinkDelays();
-            auto &ND = DCRB->get_NodeDelays();
+ void certify( void );
 
-            f_links.assign(f_narcs, {});
-            std::vector<std::vector<Index>> adj(f_nnodes);
-            for (Index i = 0; i < f_narcs; ++i)
-            {
-                const bool closed = f_closed[i] || DCRB->is_closed(i) ||
-                                    DCRB->is_deleted(i);
-                auto &l = f_links[i];
-                l.startnode = DCRB->get_SN(i) - 1;
-                l.endnode = DCRB->get_EN(i) - 1;
-                l.speed = DCRB->get_U(i);
-                l.capacity = closed ? 0.5 * rlow : DCRB->get_U(i);
-                l.delay = LD.empty() ? 0 : LD[i];
-                l.cost = DCRB->is_deleted(i) ? 0 : DCRB->get_C(i);
-                if (!closed)
-                    adj[l.startnode].push_back(l.endnode);
-            }
+/*--------------------------------------------------------------------------*/
 
-            f_nodes.assign(f_nnodes, {});
-            for (Index i = 0; i < f_nnodes; ++i)
-                f_nodes[i].delay = ND.empty() ? 0 : ND[i];
+ SMSpp_insert_in_factory_h;
+ // insert SFDCRBRelaxationSolver in the factory
 
-            // is the sink still reachable on the open arcs?
-            std::vector<char> seen(f_nnodes, 0);
-            std::queue<Index> q;
-            q.push(source);
-            seen[source] = 1;
-            while (!q.empty())
-            {
-                const auto u = q.front();
-                q.pop();
-                for (auto v : adj[u])
-                    if (!seen[v])
-                    {
-                        seen[v] = 1;
-                        q.push(v);
-                    }
-            }
-            f_infeasible = !seen[sink];
+/*--------------------------------------------------------------------------*/
 
-            BenBound::LoadProblem(f_nnodes, f_narcs, f_flow, f_links, f_nodes,
-                                  f_mtu);
-        }
+ }; // end( class( SFDCRBRelaxationSolver ) )
 
-        std::vector<char> f_closed; ///< arcs closed by apply()
-        bool f_infeasible = false;  ///< no s-t path on the open arcs
-        DCR::DCRFlow f_flow;
-        std::vector<DCR::DCRLink> f_links;
-        std::vector<DCR::DCRNode> f_nodes;
-        Index f_nnodes = 0, f_narcs = 0;
-        double f_mtu = 0;
-        OFValue f_cert = -SMSpp_di_unipi_it::Inf<OFValue>(); ///< lower bound at r_min = rlow
+}  // end( namespace SMSpp_di_unipi_it )
 
-        SMSpp_insert_in_factory_h;
-    };
-}
+/*--------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
+
+#endif  /* SFDCRBRelaxationSolver.h included */
+
+/*--------------------------------------------------------------------------*/
+/*------------------- End File SFDCRBRelaxationSolver.h --------------------*/
+/*--------------------------------------------------------------------------*/

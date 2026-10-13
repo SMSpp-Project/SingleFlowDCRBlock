@@ -20,14 +20,21 @@ The module provides:
   the same problem: one `SingleFlowDCRBlock` sub-Block per flow, coupled by
   the mutual capacity constraints of the arcs;
 
-- `DCRSolution`, the :Solution of `SingleFlowDCRBlock`;
+- `DCRSolution`, the :Solution of `SingleFlowDCRBlock`, and
+  `SingleFlowDCRBlockChange`, the :Change that closes or opens one of its
+  arcs;
 
 - `SingleFlowDCRBendersSolver`, a :Solver for `SingleFlowDCRBlock`
   implementing a "Benders with nested Lagrangian relaxation" approach: the
   problem is decomposed along the minimum reserved rate, whose (scalar,
   nonconvex) value function is approximated by a cutting-plane scheme, each
   evaluation of which is a Lagrangian relaxation solved by a sequence of
-  Shortest Path Tree computations.
+  Shortest Path Tree computations;
+
+- `SFDCRBRelaxationSolver`, the :RelaxationSolver that solves the nodes of
+  an enumeration tree (as that of `BranchAndXSolver`) on a
+  `SingleFlowDCRBlock` by means of `SingleFlowDCRBendersSolver`, branching
+  on the arcs by `SingleFlowDCRBlockChange`.
 
 The three "supporting" classes `DCR` (the abstract interface of a DCR
 solver), `DCR_SPT` (two Shortest-Path-Tree heuristics for the single-flow,

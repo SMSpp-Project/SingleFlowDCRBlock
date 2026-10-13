@@ -39,6 +39,8 @@
 
 #include "Block.h"
 
+#include "Change.h"
+
 #include "LinearFunction.h"
 
 #include "QuadFunction.h"
@@ -2384,6 +2386,125 @@ class SingleFlowDCRBlockSbstMod : public SingleFlowDCRBlockMod
 /*--------------------------------------------------------------------------*/
 
  };  // end( class( SingleFlowDCRBlockSbstMod ) )
+
+/*--------------------------------------------------------------------------*/
+/*------------------- CLASS SingleFlowDCRBlockChange -----------------------*/
+/*--------------------------------------------------------------------------*/
+/*--------------------------- GENERAL NOTES --------------------------------*/
+/*--------------------------------------------------------------------------*/
+/// derived class from Change for a SingleFlowDCRBlock
+/** A SingleFlowDCRBlockChange closes or (re-)opens one arc of a
+ * SingleFlowDCRBlock [see SingleFlowDCRBlock::close_arc() and
+ * SingleFlowDCRBlock::open_arc()]. These are the Change by which the
+ * SFDCRBRelaxationSolver branches, and which it applies to itself rather
+ * than to the Block [see SFDCRBRelaxationSolver::apply()]. */
+
+class SingleFlowDCRBlockChange : public Change
+{
+/*--------------------------------------------------------------------------*/
+/*----------------------- PUBLIC PART OF THE CLASS -------------------------*/
+/*--------------------------------------------------------------------------*/
+
+ public:
+
+/*--------------------------------------------------------------------------*/
+/*---------------------------- PUBLIC TYPES --------------------------------*/
+/*--------------------------------------------------------------------------*/
+ /// public enum for the types of SingleFlowDCRBlockChange
+
+ enum SingleFlowDCRBlock_chg_type {
+  eCloseArc = 0 ,           ///< close the arc
+  eOpenArc ,                ///< (re-)open the arc
+  eLastSingleFlowDCRBlockChg  ///< first allowed new type for derived classes
+  };
+
+/*--------------------------------------------------------------------------*/
+/*--------------------- CONSTRUCTOR AND DESTRUCTOR -------------------------*/
+/*--------------------------------------------------------------------------*/
+ /// constructor: takes the type and the arc
+
+ explicit SingleFlowDCRBlockChange( int type = eCloseArc ,
+                                    Block::Index arc = 0 )
+  : f_type( type ) , f_arc( arc ) {}
+
+/*--------------------------------------------------------------------------*/
+ /// destructor: does nothing
+
+ ~SingleFlowDCRBlockChange() override = default;
+
+/*--------------------------------------------------------------------------*/
+/*-------------------- PUBLIC METHODS OF THE CLASS -------------------------*/
+/*--------------------------------------------------------------------------*/
+ /// de-serialize a SingleFlowDCRBlockChange out of a netCDF::NcGroup
+ /** The type and the arc are read out of the attributes
+  * "SingleFlowDCRBlock_chg_type" and "arc" of the group [see
+  * serialize()]. */
+
+ void deserialize( const netCDF::NcGroup & group ) override;
+
+/*--------------------------------------------------------------------------*/
+ /// serialize a SingleFlowDCRBlockChange into a netCDF::NcGroup
+ /** Besides the "type" attribute written by Change::serialize(), the type
+  * of the Change and the arc go in the attributes
+  * "SingleFlowDCRBlock_chg_type" and "arc". */
+
+ void serialize( netCDF::NcGroup & group ) const override;
+
+/*--------------------------------------------------------------------------*/
+ /// apply the SingleFlowDCRBlockChange to a SingleFlowDCRBlock
+ /** Closes or opens the arc [see SingleFlowDCRBlock::close_arc() and
+  * SingleFlowDCRBlock::open_arc()], issuing the Modification as told by
+  * issueMod and issueAMod; as there, closing a closed arc and opening an
+  * open one do nothing. With doUndo, the returned Change brings the arc
+  * back to the state it had before. An exception is thrown if block is not
+  * a SingleFlowDCRBlock, or if the arc is not one of its arcs. */
+
+ Change * apply( Block * block , bool doUndo = false ,
+                 ModParam issueMod = eNoBlck ,
+                 ModParam issueAMod = eNoBlck ) override;
+
+/*--------------------------------------------------------------------------*/
+ /// the type of the Change [see SingleFlowDCRBlock_chg_type]
+
+ [[nodiscard]] int type( void ) const { return( f_type ); }
+
+/*--------------------------------------------------------------------------*/
+ /// the arc the Change acts upon
+
+ [[nodiscard]] Block::Index arc( void ) const { return( f_arc ); }
+
+/*--------------------------------------------------------------------------*/
+/*-------------------- PROTECTED PART OF THE CLASS -------------------------*/
+/*--------------------------------------------------------------------------*/
+
+ protected:
+
+/*--------------------------------------------------------------------------*/
+ /// print the SingleFlowDCRBlockChange
+
+ void print( std::ostream & output ) const override {
+  output << "SingleFlowDCRBlockChange [" << this << "]: "
+         << ( f_type == eCloseArc ? "close" : "open" ) << " arc " << f_arc;
+  }
+
+/*--------------------------------------------------------------------------*/
+/*--------------------------- PROTECTED FIELDS -----------------------------*/
+/*--------------------------------------------------------------------------*/
+
+ int f_type;           ///< the type of the Change
+ Block::Index f_arc;   ///< the arc the Change acts upon
+
+/*--------------------------------------------------------------------------*/
+/*--------------------- PRIVATE PART OF THE CLASS --------------------------*/
+/*--------------------------------------------------------------------------*/
+
+ private:
+
+ SMSpp_insert_in_factory_h;
+
+/*--------------------------------------------------------------------------*/
+
+ };  // end( class( SingleFlowDCRBlockChange ) )
 
 /*--------------------------------------------------------------------------*/
 /*-------------------------- CLASS DCRSolution -----------------------------*/

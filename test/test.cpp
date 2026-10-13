@@ -44,6 +44,8 @@
 
 #include "SingleFlowDCRBlock.h"
 
+#include "SFDCRBRelaxationSolver.h"
+
 #include "DCRLagrangianSolver.h"
 
 #include "DCR_SPT.h"
@@ -1417,6 +1419,112 @@ static void test_block_fixing( void )
  }
 
 /*--------------------------------------------------------------------------*/
+/// SingleFlowDCRBlockChange: closing, opening, undo, netCDF round trip
+
+static void test_block_change( void )
+{
+ Net g = base_path();
+ g.arc( 0 , 2 , 1 , 1 );
+ SingleFlowDCRBlock blk;
+ load( blk , g );
+ blk.generate_abstract_variables();
+
+ SingleFlowDCRBlockChange close( SingleFlowDCRBlockChange::eCloseArc , 2 );
+ auto undo = close.apply( &blk , true );
+ check( blk.is_closed( 2 ) , "Change: the arc is not closed" );
+ check( undo != nullptr , "Change: no undo" );
+
+ // closing it again does nothing, and its undo leaves it closed
+ auto undo2 = close.apply( &blk , true );
+ check( blk.is_closed( 2 ) , "Change: closing twice opened the arc" );
+ delete( undo2->apply( &blk ) );
+ check( blk.is_closed( 2 ) , "Change: the undo of a second closing "
+        "opened the arc" );
+ delete undo2;
+
+ delete( undo->apply( &blk ) );
+ check( ! blk.is_closed( 2 ) , "Change: the undo did not open the arc" );
+ delete undo;
+
+ bool refused = false;
+ SingleFlowDCRBlockChange bad( SingleFlowDCRBlockChange::eCloseArc , 3 );
+ try { bad.apply( &blk ); }
+ catch( std::invalid_argument & ) { refused = true; }
+ check( refused , "Change: an arc out of range was not refused" );
+
+ const std::string file = "SingleFlowDCRBlockChange_unit_test.nc4";
+ {
+  netCDF::NcFile f( file , netCDF::NcFile::replace );
+  SingleFlowDCRBlockChange open( SingleFlowDCRBlockChange::eOpenArc , 1 );
+  open.serialize( f );
+  }
+ {
+  netCDF::NcFile f( file , netCDF::NcFile::read );
+  SingleFlowDCRBlockChange copy;
+  copy.deserialize( f );
+  check( ( copy.type() == SingleFlowDCRBlockChange::eOpenArc ) &&
+         ( copy.arc() == 1 ) , "Change: the netCDF round trip differs" );
+  }
+ std::remove( file.c_str() );
+ }
+
+/*--------------------------------------------------------------------------*/
+/// SFDCRBRelaxationSolver: the arcs it closes, its infeasible nodes, undo
+
+static void test_relaxation_solver( void )
+{
+ // two parallel arcs from the source to the sink
+ Net g;
+ g.n = 2;
+ g.arc( 0 , 1 , 8 , 1 );
+ g.arc( 0 , 1 , 4 , 1 );
+ g.ndel.assign( 2 , 0 );
+ g.s = 0; g.t = 1;
+ g.burst = 1;
+ g.deadline = 10;
+ SingleFlowDCRBlock blk;
+ load( blk , g );
+
+ SFDCRBRelaxationSolver rs;
+ blk.register_Solver( &rs );
+
+ check( rs.compute() == Solver::kOK , "RelaxationSolver: the root is not "
+        "solved" );
+ const double root = rs.get_lb();
+ check( rs.has_true_var_solution() && ( root <= rs.get_true_ub() ) ,
+        "RelaxationSolver: no feasible routing at the root" );
+
+ // the two arcs closed for the Solver: the node is infeasible, the Block
+ // is not touched
+ SingleFlowDCRBlockChange c0( SingleFlowDCRBlockChange::eCloseArc , 0 );
+ SingleFlowDCRBlockChange c1( SingleFlowDCRBlockChange::eCloseArc , 1 );
+ auto u0 = rs.apply( &c0 , true );
+ auto u1 = rs.apply( &c1 , true );
+ check( ( ! blk.is_closed( 0 ) ) && ( ! blk.is_closed( 1 ) ) ,
+        "RelaxationSolver: apply() closed the arc in the Block" );
+ check( rs.compute() == Solver::kInfeasible ,
+        "RelaxationSolver: a node with no path is not kInfeasible" );
+ check( rs.get_lb() == Inf< double >() , "RelaxationSolver: the lower "
+        "bound of an infeasible node is not +Inf" );
+
+ // undone in reverse order: the root again
+ delete( rs.apply( u1 ) );
+ delete( rs.apply( u0 ) );
+ delete u1;
+ delete u0;
+ check( ( rs.compute() == Solver::kOK ) && near( rs.get_lb() , root ) ,
+        "RelaxationSolver: the undo does not give the root back" );
+
+ bool refused = false;
+ SingleFlowDCRBlockChange bad( SingleFlowDCRBlockChange::eCloseArc , 2 );
+ try { rs.apply( &bad ); }
+ catch( std::invalid_argument & ) { refused = true; }
+ check( refused , "RelaxationSolver: an arc out of range was not refused" );
+
+ blk.unregister_Solver( &rs );
+ }
+
+/*--------------------------------------------------------------------------*/
 /*--------------------------------- MAIN -----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -1434,6 +1542,8 @@ int main( void )
  test_block_feasible_instance();
  test_block_modifications();
  test_block_fixing();
+ test_block_change();
+ test_relaxation_solver();
 
  if( failures )
   std::cout << failures << " checks failed" << std::endl;

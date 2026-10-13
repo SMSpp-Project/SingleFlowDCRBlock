@@ -9,10 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `SFDCRBRelaxationSolver`, the `RelaxationSolver` of the nodes of a
-  `BranchAndXSolver` on a `SingleFlowDCRBlock`, built by CMake as well;
+- `SFDCRBRelaxationSolver`, the `RelaxationSolver` of the nodes of an
+  enumeration tree (as that of `BranchAndXSolver`) on a
+  `SingleFlowDCRBlock`: it solves them by `SingleFlowDCRBendersSolver` and
+  branches on the arcs, an infeasible node being told by `kInfeasible`;
   what it does at each node is written on the log of the `Solver` [see
-  `Solver::set_log()`], if any, and not on `std::cerr`
+  `Solver::set_log()`], if any
+- `SingleFlowDCRBlockChange`, the `Change` that closes or opens one arc of
+  a `SingleFlowDCRBlock`, by which `SFDCRBRelaxationSolver` branches
+- `SingleFlowDCRBendersSolver::arc_closed()`, by which a derived class keeps
+  arcs out of every routing without changing the `Block`, and the instance
+  last loaded into `BenBound` kept in `f_flow`, `v_links` and `v_nodes`
 
 ### Changed
 
