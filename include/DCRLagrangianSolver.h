@@ -768,6 +768,7 @@ protected:
   WarmPair p , m;
   };
 
+ bool inShadow = false;   ///< inside the cold run of the SFDCR_WARMCHECK test
  bool warmOn = false;
  std::vector< WarmPoint > warmPts;
  std::vector< double > warmKey;       ///< what the points are about
@@ -786,6 +787,13 @@ protected:
  double warmHint( void ) const;
  /// remembers the critical pairs of the solve that has just ended
  void recordWarm( void );
+ /// the delay-feasible path (beta < 0) of the last shortest path solve,
+ /// at the present lambda, tightened and kept as HeurVal if it is the best
+ /** What Solve() does with such a path inside its loop; used in the doubling
+  * stage of Inizial() when the warm start is on, since with a good starting
+  * multiplier the loop of Solve() may never evaluate a feasible path. */
+ void keepFeasible( const std::vector< int > & path , int nhops ,
+                    double alpha , double beta );
  /// forgets the points unless they are about the same network and flow
  void checkWarmKey( void );
 

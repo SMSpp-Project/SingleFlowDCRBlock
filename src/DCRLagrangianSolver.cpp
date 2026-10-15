@@ -632,6 +632,36 @@ void DCRLagrangianSolver::DCRsetTimeLimit( long secs )
 
 void DCRLagrangianSolver::Solve( void )
 {
+ // diagnostic (SFDCR_WARMCHECK): solve the same state twice, cold and with
+ // the warm start, compare, and go on with the warm results
+ static const bool warmcheck = ( std::getenv( "SFDCR_WARMCHECK" ) != nullptr );
+ if( warmcheck && warmOn && ( ! inShadow ) && ( inizialflag == 0 ) &&
+     ( solvedflag == 0 ) ) {
+  const int it0 = num_ite;
+  inShadow = true;
+  warmOn = false;
+  Solve();                       // the cold run
+  const double cObj = ObjVal , cHeur = HeurVal;
+  const int cIte = num_ite - it0;
+  const LAGStatus cStat = lagstat;
+  warmOn = true;               // inShadow stays set: no check inside the warm run
+
+  solvedflag = 0;                // back to the state before the cold run
+  inizialflag = 0;
+  lambda = 0;
+  ObjVal = -Inf< double >();
+  HeurVal = Inf< double >();
+  HeurRSOLS.assign( numLinks , 0.0 );
+
+  const int u0 = warmUsed , it1 = num_ite;
+  Solve();                       // the warm run
+  inShadow = false;
+  std::fprintf( stderr , "WARMCHK %.10g %.10g %.10g %.10g %.10g %d %d %d %d\n" ,
+                rmin , cObj , ObjVal , cHeur , HeurVal , cIte ,
+                num_ite - it1 , warmUsed - u0 , int( cStat == lagstat ) );
+  return;
+  }
+
  int i;
  int opt = 1; //signals whether Reopt() has replaced the initialization
  std::vector< int > path;
@@ -1371,6 +1401,11 @@ void DCRLagrangianSolver::Inizial( void )
     //cout<<"beta = "<<beta<<endl;
     //cout<<"ObjVal ="<<ObjVal<<endl;
 
+    // a delay-feasible path found on the way is a primal solution as well
+    // (only with the warm start, so that without it nothing changes)
+    if( warmOn && ( spstat == 0 ) && ( beta < -1e-20 ) )
+     keepFeasible( path , nhops , alpha , beta );
+
     ObjVal = alpha + lambda * beta;
     lambda = 2 * lambda; //other growth sequences could be chosen as well
     } // while searching for a negative beta
@@ -1668,6 +1703,26 @@ void DCRLagrangianSolver::recordWarm( void )
  if( warmPts.size() >= maxWarmPts )
   warmPts.erase( warmPts.begin() );
  warmPts.push_back( std::move( w ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void DCRLagrangianSolver::keepFeasible( const std::vector< int > & path ,
+                                        int nhops , double alpha ,
+                                        double beta )
+{
+ double t_alpha = alpha , t_beta = beta;
+ std::vector< double > t_rstar( nhops );
+ for( int hi = 0 ; hi < nhops ; hi++ )
+  t_rstar[ hi ] = Linksp[ path[ hi ] ].rstar;
+ tightenPath( path , nhops , t_alpha , t_beta , t_rstar );
+
+ if( t_alpha <= HeurVal ) {
+  HeurVal = t_alpha;
+  HeurRSOLS.assign( numLinks , 0.0 );
+  for( int hi = 0 ; hi < nhops ; hi++ )
+   HeurRSOLS[ RedGraPos[ path[ hi ] ] ] = t_rstar[ hi ];
+  }
  }
 
 /*--------------------------------------------------------------------------*/
