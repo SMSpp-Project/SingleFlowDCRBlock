@@ -52,6 +52,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
+#include <iostream>
 #include <limits>
 
 /*--------------------------------------------------------------------------*/
@@ -129,7 +131,11 @@ public:
   * care of releasing their own resources (comprised any pending
   * Modification) via their own destructors. */
 
- virtual ~SingleFlowDCRBendersSolver() {}
+ virtual ~SingleFlowDCRBendersSolver() {
+  if( f_reuse_tried && std::getenv( "SFDCR_REUSE_STATS" ) )
+   std::cerr << "SFDCR cut reuse: " << f_reuse_used << " of " << f_reuse_tried
+             << " compute() started from earlier cuts" << std::endl;
+  }
 
  /** @} ---------------------------------------------------------------------*/
 /*-------------------------- OTHER INITIALIZATIONS -------------------------*/
@@ -266,9 +272,31 @@ public:
    */
   // ensure the timer exists (or reset it)
   BenBound::DCRsetTime( true );
+
+  // if asked to, start from the cuts of the earlier compute() calls whose
+  // costs are not larger than the present ones (and whose capacities are not
+  // smaller), unless cuts have been explicitly offered with seed_cuts()
+  if( f_reuse_cuts && ( ! BenBound::seedPending() ) ) {
+   ++f_reuse_tried;
+   if( BenBound::seedCuts( mem_last ) || BenBound::seedCuts( mem_base ) )
+    ++f_reuse_used;
+   }
+
   // then (try to) solve the SingleFlowDCR
   BenBound::Solve();
   BenBound::DCRstopTime();
+
+  if( f_reuse_cuts ) {
+   auto m = BenBound::getCutMemory();
+   if( ! m.empty() ) {
+    mem_last = m;
+    // mem_base is the memory valid for most cost vectors: one whose costs
+    // are not larger than those of the new one is valid wherever the new
+    // one is, so it is replaced only by a memory with costs not larger
+    if( mem_base.empty() || cheaper( m , mem_base ) )
+     mem_base = std::move( m );
+    }
+   }
 
   //std::cout << "LB = " << get_lb() << std::endl;
   //std::cout << "UB = " << get_ub() << std::endl;
@@ -395,6 +423,69 @@ public:
   process_outstanding_Modification();
   return( this->BenBound::seedCuts( mem ) );
   }
+
+/*--------------------------------------------------------------------------*/
+ /// reuse the cuts across the calls to compute() [off by default]
+ /** If on, every compute() starts from the cuts of the earlier ones that are
+  * valid for the present data: those of the same instance with no larger
+  * capacity and no smaller cost [see BenBound::seedCuts()], as it happens
+  * across the iterations of a Lagrangian-type algorithm, whose costs are
+  * the original ones plus nonnegative multipliers. The last memory and the
+  * one with the smallest costs are kept. */
+
+ void set_reuse_cuts( bool reuse )
+ {
+  f_reuse_cuts = reuse;
+  if( ! reuse ) {
+   mem_last = BenBound::CutMemory();
+   mem_base = BenBound::CutMemory();
+   }
+  }
+
+ /// the int parameter of the solver
+ enum int_par_type_SFDCRB {
+  intReuseCuts = intLastAlgPar   ///< 0/1: see set_reuse_cuts() [0]
+  };
+
+ using Solver::set_par;   // restore the hidden overloaded methods
+
+ void set_par( idx_type par , int value ) override
+ {
+  if( par == intReuseCuts )
+   set_reuse_cuts( value != 0 );
+  else
+   Solver::set_par( par , value );
+  }
+
+ [[nodiscard]] idx_type get_num_int_par( void ) const override {
+  return( idx_type( intReuseCuts ) + 1 );
+  }
+
+ [[nodiscard]] int get_dflt_int_par( idx_type par ) const override {
+  return( par == intReuseCuts ? 0 : Solver::get_dflt_int_par( par ) );
+  }
+
+ [[nodiscard]] int get_int_par( idx_type par ) const override {
+  return( par == intReuseCuts ? ( f_reuse_cuts ? 1 : 0 )
+                              : Solver::get_int_par( par ) );
+  }
+
+ [[nodiscard]] idx_type int_par_str2idx( const std::string & name )
+  const override {
+  return( name == "intReuseCuts" ? idx_type( intReuseCuts )
+                                 : Solver::int_par_str2idx( name ) );
+  }
+
+ [[nodiscard]] const std::string & int_par_idx2str( idx_type idx )
+  const override {
+  static const std::string par = "intReuseCuts";
+  return( idx == intReuseCuts ? par : Solver::int_par_idx2str( idx ) );
+  }
+
+ /// number of compute() that have looked for cuts to start from, and number
+ /// of those that have found some
+ Index get_reuse_tried( void ) const { return( f_reuse_tried ); }
+ Index get_reuse_used( void ) const { return( f_reuse_used ); }
 
 /*--------------------------------------------------------------------------*/
  /// returns true if BenBound found a feasible (primal) solution
@@ -806,6 +897,28 @@ protected:
 /*--------------------------------------------------------------------------*/
 
 private:
+ bool f_reuse_cuts = false;           ///< see set_reuse_cuts()
+ BenBound::CutMemory mem_last;        ///< cuts of the last compute()
+ BenBound::CutMemory mem_base;        ///< cuts valid for most costs
+ Index f_reuse_tried = 0;
+ Index f_reuse_used = 0;
+
+ /// true if a has the same instance as b with no larger costs
+ static bool cheaper( const BenBound::CutMemory & a ,
+                      const BenBound::CutMemory & b )
+ {
+  if( ( a.numLinks != b.numLinks ) || ( a.numNodes != b.numNodes ) ||
+      ( a.source != b.source ) || ( a.sink != b.sink ) ||
+      ( a.burst != b.burst ) || ( a.rate != b.rate ) ||
+      ( a.deadline != b.deadline ) || ( a.capacity != b.capacity ) ||
+      ( a.speed != b.speed ) )
+   return( false );
+  for( int i = 0 ; i < a.numLinks ; ++i )
+   if( a.cost[ i ] > b.cost[ i ] )
+    return( false );
+  return( true );
+  }
+
  double bound_PC = 0.0; ///< bound on r_min computed by an (optional)
                         ///< warm-start
                         ///< primal heuristic Solver; currently only set by

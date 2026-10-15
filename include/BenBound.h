@@ -384,23 +384,30 @@ public:
   * instance, which is the case when
   *
   * - the instance is the same as the one they come from save for the
-  *   capacities: the same network (nodes, links with their end nodes, costs
-  *   and delays, node delays), the same MTU and the same flow (source, sink,
-  *   burst, rate, deadline); and
+  *   capacities and costs: the same network (nodes, links with their end
+  *   nodes and delays, node delays), the same MTU and the same flow (source,
+  *   sink, burst, rate, deadline); and
   *
-  * - no link has a larger capacity or speed than in that instance.
+  * - no link has a larger capacity or speed, or a smaller cost, than in that
+  *   instance.
   *
   * The second condition is what makes them valid: the dual function d( . )
   * of an instance with less capacity is, at every r_min, not smaller than
   * that of the one with more (the Lagrangian subproblem has fewer links to
-  * use and the link delays are not smaller), so a line below the one is
-  * below the other where it was. A subinterval of the new partition gets the
+  * use and the link delays are not smaller), and the same holds if the costs
+  * are larger (the rates are nonnegative), so a line below the one is
+  * below the other where it was. This is what lets the cuts be used across
+  * the iterations of a Lagrangian-type algorithm, whose costs are the
+  * original ones plus nonnegative multipliers. A subinterval of the new partition gets the
   * cuts that were in all the old subintervals that it overlaps, and none if
   * part of it was outside of the old range of r_min.
   *
   * Returns true if the cuts have been accepted (and will be used by the next
   * Solve(), once), false if they have not. */
  bool seedCuts( const CutMemory & mem );
+
+ /// true if seedCuts() has accepted cuts that no Solve() has used yet
+ bool seedPending( void ) const { return( hasSeed ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns the status of the bounding procedure

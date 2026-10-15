@@ -1406,8 +1406,13 @@ bool BenBound::seedCuts( const CutMemory & mem )
  for( int i = 0 ; i < numLinks ; ++i )
   if( ( mem.startnode[ i ] != Links[ i ].startnode ) ||
       ( mem.endnode[ i ] != Links[ i ].endnode ) ||
-      ( mem.cost[ i ] != Links[ i ].cost ) ||
       ( mem.delay[ i ] != Links[ i ].delay ) )
+   return( false );
+
+ // ...with costs that are nowhere smaller (r >= 0, so d( . ) does not
+ // decrease when a cost increases)
+ for( int i = 0 ; i < numLinks ; ++i )
+  if( Links[ i ].cost < mem.cost[ i ] )
    return( false );
 
  for( int i = 0 ; i < numNodes ; ++i )
