@@ -768,7 +768,6 @@ protected:
   WarmPair p , m;
   };
 
- bool inShadow = false;   ///< inside the cold run of the SFDCR_WARMCHECK test
  bool warmOn = false;
  std::vector< WarmPoint > warmPts;
  std::vector< double > warmKey;       ///< what the points are about

@@ -52,8 +52,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdlib>
-#include <iostream>
 #include <limits>
 
 /*--------------------------------------------------------------------------*/
@@ -131,11 +129,7 @@ public:
   * care of releasing their own resources (comprised any pending
   * Modification) via their own destructors. */
 
- virtual ~SingleFlowDCRBendersSolver() {
-  if( f_reuse_tried && std::getenv( "SFDCR_REUSE_STATS" ) )
-   std::cerr << "SFDCR cut reuse: " << f_reuse_used << " of " << f_reuse_tried
-             << " compute() started from earlier cuts" << std::endl;
-  }
+ virtual ~SingleFlowDCRBendersSolver() {}
 
  /** @} ---------------------------------------------------------------------*/
 /*-------------------------- OTHER INITIALIZATIONS -------------------------*/

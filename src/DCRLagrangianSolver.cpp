@@ -44,8 +44,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <cstdio>
-#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <vector>
@@ -632,36 +630,6 @@ void DCRLagrangianSolver::DCRsetTimeLimit( long secs )
 
 void DCRLagrangianSolver::Solve( void )
 {
- // diagnostic (SFDCR_WARMCHECK): solve the same state twice, cold and with
- // the warm start, compare, and go on with the warm results
- static const bool warmcheck = ( std::getenv( "SFDCR_WARMCHECK" ) != nullptr );
- if( warmcheck && warmOn && ( ! inShadow ) && ( inizialflag == 0 ) &&
-     ( solvedflag == 0 ) ) {
-  const int it0 = num_ite;
-  inShadow = true;
-  warmOn = false;
-  Solve();                       // the cold run
-  const double cObj = ObjVal , cHeur = HeurVal;
-  const int cIte = num_ite - it0;
-  const LAGStatus cStat = lagstat;
-  warmOn = true;               // inShadow stays set: no check inside the warm run
-
-  solvedflag = 0;                // back to the state before the cold run
-  inizialflag = 0;
-  lambda = 0;
-  ObjVal = -Inf< double >();
-  HeurVal = Inf< double >();
-  HeurRSOLS.assign( numLinks , 0.0 );
-
-  const int u0 = warmUsed , it1 = num_ite;
-  Solve();                       // the warm run
-  inShadow = false;
-  std::fprintf( stderr , "WARMCHK %.10g %.10g %.10g %.10g %.10g %d %d %d %d\n" ,
-                rmin , cObj , ObjVal , cHeur , HeurVal , cIte ,
-                num_ite - it1 , warmUsed - u0 , int( cStat == lagstat ) );
-  return;
-  }
-
  int i;
  int opt = 1; //signals whether Reopt() has replaced the initialization
  std::vector< int > path;
@@ -970,14 +938,6 @@ void DCRLagrangianSolver::Solve( void )
   if( warmOn )
    recordWarm();
 
-  if( std::getenv( "SFDCR_LAGLOG" ) ) {
-   double cs = 0;
-   for( int k = 0 ; k < numLinks ; ++k )
-    cs += Links[ k ].cost * ( 1 + k % 7 );
-   std::fprintf( stderr , "LAGLOG %d %d %.10g %.10g %.10g %.10g %.10g %d\n" ,
-                 Flow.sourcenode , Flow.sinknode , Flow.burst , cs , rmin ,
-                 ObjVal , HeurVal , num_ite );
-   }
   } //if it had not already been solved and is not already deemed infeasible
  //if(solvedflag == 1)
  //cout<<"number of saved cuts"<<Cuts.size()<<endl;
