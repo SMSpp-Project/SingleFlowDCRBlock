@@ -406,6 +406,13 @@ public:
   * Solve(), once), false if they have not. */
  bool seedCuts( const CutMemory & mem );
 
+ /// warm start of the Lagrangian subproblems from the pairs of the past
+ /** See DCRLagrangianSolver::setWarmStart(). It does not change the validity
+  * of the cuts and survives LoadProblem() for the same network and flow. */
+ void setWarmLambda( bool on ) { lagSol.setWarmStart( on ); }
+ int getWarmTried( void ) const { return( lagSol.getWarmTried() ); }
+ int getWarmUsed( void ) const { return( lagSol.getWarmUsed() ); }
+
  /// true if seedCuts() has accepted cuts that no Solve() has used yet
  bool seedPending( void ) const { return( hasSeed ); }
 

@@ -444,7 +444,8 @@ public:
 
  /// the int parameter of the solver
  enum int_par_type_SFDCRB {
-  intReuseCuts = intLastAlgPar   ///< 0/1: see set_reuse_cuts() [0]
+  intReuseCuts = intLastAlgPar ,   ///< 0/1: see set_reuse_cuts() [0]
+  intWarmLambda                    ///< 0/1: see BenBound::setWarmLambda() [0]
   };
 
  using Solver::set_par;   // restore the hidden overloaded methods
@@ -453,33 +454,50 @@ public:
  {
   if( par == intReuseCuts )
    set_reuse_cuts( value != 0 );
+  else if( par == intWarmLambda )
+{
+   f_warm = ( value != 0 );
+   BenBound::setWarmLambda( f_warm );
+   }
   else
    Solver::set_par( par , value );
   }
 
  [[nodiscard]] idx_type get_num_int_par( void ) const override {
-  return( idx_type( intReuseCuts ) + 1 );
+  return( idx_type( intWarmLambda ) + 1 );
   }
 
  [[nodiscard]] int get_dflt_int_par( idx_type par ) const override {
-  return( par == intReuseCuts ? 0 : Solver::get_dflt_int_par( par ) );
+  return( ( par == intReuseCuts ) || ( par == intWarmLambda )
+          ? 0 : Solver::get_dflt_int_par( par ) );
   }
 
  [[nodiscard]] int get_int_par( idx_type par ) const override {
-  return( par == intReuseCuts ? ( f_reuse_cuts ? 1 : 0 )
-                              : Solver::get_int_par( par ) );
+  if( par == intReuseCuts )
+   return( f_reuse_cuts ? 1 : 0 );
+  if( par == intWarmLambda )
+   return( f_warm ? 1 : 0 );
+  return( Solver::get_int_par( par ) );
   }
 
  [[nodiscard]] idx_type int_par_str2idx( const std::string & name )
   const override {
-  return( name == "intReuseCuts" ? idx_type( intReuseCuts )
-                                 : Solver::int_par_str2idx( name ) );
+  if( name == "intReuseCuts" )
+   return( intReuseCuts );
+  if( name == "intWarmLambda" )
+   return( intWarmLambda );
+  return( Solver::int_par_str2idx( name ) );
   }
 
  [[nodiscard]] const std::string & int_par_idx2str( idx_type idx )
   const override {
   static const std::string par = "intReuseCuts";
-  return( idx == intReuseCuts ? par : Solver::int_par_idx2str( idx ) );
+  static const std::string par2 = "intWarmLambda";
+  if( idx == intReuseCuts )
+   return( par );
+  if( idx == intWarmLambda )
+   return( par2 );
+  return( Solver::int_par_idx2str( idx ) );
   }
 
  /// number of compute() that have looked for cuts to start from, and number
@@ -898,6 +916,7 @@ protected:
 
 private:
  bool f_reuse_cuts = false;           ///< see set_reuse_cuts()
+ bool f_warm = false;                 ///< see intWarmLambda
  BenBound::CutMemory mem_last;        ///< cuts of the last compute()
  BenBound::CutMemory mem_base;        ///< cuts valid for most costs
  Index f_reuse_tried = 0;

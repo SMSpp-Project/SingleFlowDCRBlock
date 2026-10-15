@@ -451,6 +451,37 @@ public:
                    double r_min );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// warm start of the search for lambda from the critical pairs of the past
+ /** If on, every Solve() that has to start from scratch (Inizial()) begins
+  * its search for a negative-slope cut at a multiplier suggested by the
+  * points solved earlier, instead of at lambda = 1. For each point z = r_min
+  * that Solve() has solved, the two critical (path, rates) pairs, the one
+  * with beta >= 0 and the one with beta < 0, are kept. The pair of the
+  * point closest to the present r_min is re-evaluated with the *present*
+  * costs and delays at the present r_min (alpha = sum c_a r_a, beta = burst
+  * / r_min - deadline + sum( MTU / r_a + MTU / speed_a + delay_a + node
+  * delay )), and the multiplier is the intersection of the two lines.
+  * Nothing of this affects the validity of the bounds: the multiplier is only
+  * the first trial of a search that always evaluates the shortest path
+  * problem exactly, and any multiplier >= 0 gives a valid lower bound. The
+  * points are kept while the network size and the flow (source, sink,
+  * burst, rate, deadline) stay the same, also across LoadProblem() with
+  * different costs; they are forgotten if it changes. Off by default. */
+ void setWarmStart( bool on )
+ {
+  warmOn = on;
+  if( ! on )
+   warmPts.clear();
+  }
+
+ bool getWarmStart( void ) const { return( warmOn ); }
+
+ /// number of times Inizial() has looked for a hint and number of those that
+ /// have found one
+ int getWarmTried( void ) const { return( warmTried ); }
+ int getWarmUsed( void ) const { return( warmUsed ); }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// loads a new flow, keeping the previously loaded network data
  /** Alternative, lighter-weight loading method to be used only *after* the
   * network has already been loaded with LoadProblem(memory): it changes
@@ -719,6 +750,44 @@ protected:
   * combinatorial kind that no amount of further bisection can close. */
  double pLambda = 0;
  double mLambda = 0;
+
+
+ /// a path with the rate it carries on each of its arcs (original indices)
+ struct WarmPair
+ {
+  std::vector< int > arcs;
+  std::vector< double > rates;
+  };
+
+ /// the critical pairs found at one value of r_min, see setWarmStart()
+ struct WarmPoint
+ {
+  double z = 0;
+  double lambda = 0;
+  bool hasP = false , hasM = false;
+  WarmPair p , m;
+  };
+
+ bool warmOn = false;
+ std::vector< WarmPoint > warmPts;
+ std::vector< double > warmKey;       ///< what the points are about
+ WarmPair pPair , mPair;              ///< the pairs behind pCut and mCut
+ bool hasPPair = false , hasMPair = false;
+ int warmTried = 0 , warmUsed = 0;
+ static constexpr std::size_t maxWarmPts = 64;
+
+ /// stores the path of the last shortest path solve as the pair behind pCut
+ /// (positive = true) or mCut
+ void capturePair( bool positive );
+ /// alpha and beta of a pair with the present costs, delays and r_min;
+ /// false if the pair does not fit the present data
+ bool evalPair( const WarmPair & w , double & alpha , double & beta ) const;
+ /// the multiplier suggested by the closest point, or -1
+ double warmHint( void ) const;
+ /// remembers the critical pairs of the solve that has just ended
+ void recordWarm( void );
+ /// forgets the points unless they are about the same network and flow
+ void checkWarmKey( void );
 
  std::vector< Cut_Val >
   Cuts;           ///< cache of the cuts currently in play (for Reopt())
