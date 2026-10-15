@@ -98,6 +98,7 @@ void BenBound::LoadProblem( int nnodes , int nlinks , DCR::DCRFlow flow ,
                             std::vector< DCR::DCRNode > nodes , double mtu )
 {
  clean_up();
+ hasSeed = false;   // cuts to start from are about another instance
 
  numNodes = nnodes;
  numLinks = nlinks;
@@ -132,6 +133,7 @@ void BenBound::LoadProblem( int nnodes , int nlinks , DCR::DCRFlow flow ,
 void BenBound::LoadProblem( DCR::DCRFlow flow )
 {
  int i;
+ hasSeed = false;
 
  for( int i = 0 ; i < Q.size() ; i++ )
   Q[ i ].Cuts.clear();
@@ -619,6 +621,8 @@ void BenBound::Solve()
  double ms;      //helper for the computation, partial value of the slope
 
  Inizial();
+
+ applySeed();   // start from the cuts of an earlier solve, if asked to
 
  //std::cout << "Inizial()" << std::endl;
 
@@ -1344,6 +1348,187 @@ void BenBound::Solve()
  lagSol.Solve();
 
  SOLUTION = lagSol.getRSOLS();
+ }
+
+/*--------------------------------------------------------------------------*/
+/*--------------------------- REUSE OF THE CUTS ----------------------------*/
+/*--------------------------------------------------------------------------*/
+
+BenBound::CutMemory BenBound::getCutMemory() const
+{
+ CutMemory mem;
+ if( ( Links == 0 ) || ( Nodes == 0 ) || ( Q.size() < 2 ) )
+  return( mem );
+
+ mem.numNodes = numNodes;
+ mem.numLinks = numLinks;
+ mem.MTU = MTU;
+ mem.source = Flow.sourcenode;
+ mem.sink = Flow.sinknode;
+ mem.burst = Flow.burst;
+ mem.rate = Flow.rate;
+ mem.deadline = Flow.deadline;
+ for( int i = 0 ; i < numLinks ; ++i ) {
+  mem.startnode.push_back( Links[ i ].startnode );
+  mem.endnode.push_back( Links[ i ].endnode );
+  mem.cost.push_back( Links[ i ].cost );
+  mem.delay.push_back( Links[ i ].delay );
+  mem.speed.push_back( Links[ i ].speed );
+  mem.capacity.push_back( Links[ i ].capacity );
+  }
+ for( int i = 0 ; i < numNodes ; ++i )
+  mem.nodeDelay.push_back( Nodes[ i ].delay );
+
+ mem.lo = Q[ 0 ].rmin;
+ for( std::size_t i = 1 ; i < Q.size() ; ++i ) {
+  mem.hi.push_back( Q[ i ].rmin );
+  mem.cuts.push_back( Q[ i ].Cuts );
+  }
+ return( mem );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+bool BenBound::seedCuts( const CutMemory & mem )
+{
+ hasSeed = false;
+
+ if( mem.empty() || ( Links == 0 ) || ( Nodes == 0 ) )
+  return( false );
+
+ // the same instance, save for the capacities...
+ if( ( mem.numNodes != numNodes ) || ( mem.numLinks != numLinks ) ||
+     ( mem.MTU != MTU ) || ( mem.source != Flow.sourcenode ) ||
+     ( mem.sink != Flow.sinknode ) || ( mem.burst != Flow.burst ) ||
+     ( mem.rate != Flow.rate ) || ( mem.deadline != Flow.deadline ) )
+  return( false );
+
+ for( int i = 0 ; i < numLinks ; ++i )
+  if( ( mem.startnode[ i ] != Links[ i ].startnode ) ||
+      ( mem.endnode[ i ] != Links[ i ].endnode ) ||
+      ( mem.cost[ i ] != Links[ i ].cost ) ||
+      ( mem.delay[ i ] != Links[ i ].delay ) )
+   return( false );
+
+ for( int i = 0 ; i < numNodes ; ++i )
+  if( mem.nodeDelay[ i ] != Nodes[ i ].delay )
+   return( false );
+
+ // ...and nowhere more capacity or speed than there was
+ for( int i = 0 ; i < numLinks ; ++i )
+  if( ( Links[ i ].capacity > mem.capacity[ i ] ) ||
+      ( Links[ i ].speed > mem.speed[ i ] ) )
+   return( false );
+
+ seedMem = mem;
+ hasSeed = true;
+ return( true );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void BenBound::applySeed( void )
+{
+ if( ! hasSeed )
+  return;
+ hasSeed = false;   // it is used once
+
+ // only the general case, where Inizial() has left the partition { Q[ 0 ],
+ // Q[ 1 ] } and the starting point still has to be evaluated
+ if( ( BenStat != 0 ) || ( solvedflag != 0 ) || ( Q.size() != 2 ) ||
+     ( Q[ 1 ].solflag == 1 ) )
+  return;
+
+ const CutMemory & M = seedMem;
+ const double L = Q[ 0 ].rmin;
+ const double R = Q[ 1 ].rmin;
+ if( ! ( R > L ) )
+  return;
+
+ const SubInterval T = Q[ 1 ];   // what Inizial() has built
+
+ // the new breakpoints: those of the old partition that are in ( T.inter ,
+ // R ) (the first piece keeps the point Inizial() has found feasible to
+ // start from), and R
+ std::vector< double > bp;
+ for( double b : M.hi )
+  if( ( b > T.inter ) && ( b < R ) )
+   bp.push_back( b );
+ bp.push_back( R );
+
+ const double tol = 1e-12;
+ const double oldHi = M.hi.back();
+
+ auto same = []( const DCRLagrangianSolver::LinearCut & a ,
+                 const DCRLagrangianSolver::LinearCut & b ) {
+  return( ( a.m == b.m ) && ( a.q == b.q ) );
+  };
+
+ std::vector< SubInterval > nq;
+ nq.push_back( Q[ 0 ] );
+
+ double a = L;
+ for( double b : bp ) {
+  SubInterval P = T;
+  P.rmin = b;
+  P.inter = ( nq.size() == 1 ) ? T.inter : a;
+  P.lbBound = -Inf< double >();
+  P.lbArg = 0;
+  P.lbCuts = 0;
+  P.lbA = P.lbB = 0;
+  P.solflag = 0;
+  P.branchedflag = 0;
+  P.Val = Inf< double >();
+  P.bisect_retries = 0;
+
+  // the cuts of the old partition that are valid on the whole of [ a , b ]:
+  // those in every old subinterval that overlaps it, if the old partition
+  // covers it
+  std::vector< DCRLagrangianSolver::LinearCut > seeds;
+  if( ( a >= M.lo - tol ) && ( b <= oldHi + tol ) ) {
+   bool first = true;
+   for( std::size_t j = 0 ; j < M.hi.size() ; ++j ) {
+    const double left = ( j == 0 ) ? M.lo : M.hi[ j - 1 ];
+    const double right = M.hi[ j ];
+    if( std::min( b , right ) - std::max( a , left ) <= tol )
+     continue;                       // no overlap
+    if( first ) {
+     seeds = M.cuts[ j ];
+     first = false;
+     }
+    else {
+     std::vector< DCRLagrangianSolver::LinearCut > keep;
+     for( const auto & s : seeds )
+      for( const auto & o : M.cuts[ j ] )
+       if( same( s , o ) ) {
+        keep.push_back( s );
+        break;
+        }
+     seeds = std::move( keep );
+     }
+    }
+   }
+
+  // the seeded cuts go first, the cuts Inizial() has built stay the last
+  std::vector< DCRLagrangianSolver::LinearCut > all;
+  for( const auto & s : seeds ) {
+   bool dup = false;
+   for( const auto & t : T.Cuts )
+    if( same( s , t ) ) {
+     dup = true;
+     break;
+     }
+   if( ! dup )
+    all.push_back( s );
+   }
+  all.insert( all.end() , T.Cuts.begin() , T.Cuts.end() );
+  P.Cuts = std::move( all );
+
+  nq.push_back( std::move( P ) );
+  a = b;
+  }
+
+ Q = std::move( nq );
  }
 
 /*--------------------------------------------------------------------------*/

@@ -224,6 +224,30 @@ public:
                                                  /// subinterval
   };
 
+ /// the cuts a solve has collected, and what tells whether they can be reused
+ /** After Solve(), getCutMemory() hands out the partition of the r_min axis
+  * with the cuts of each subinterval (each of them a lower bound of d( . ) on
+  * the whole of the subinterval it is in), together with the instance they
+  * come from: everything of it but the capacities is kept to be compared
+  * with another instance, and the capacities and speeds to know whether the
+  * other one has less. See seedCuts(). */
+ struct CutMemory
+ {
+  int numNodes = 0;
+  int numLinks = 0;
+  double MTU = 0;
+  int source = -1 , sink = -1;
+  double burst = 0 , rate = 0 , deadline = 0;
+  std::vector< int > startnode , endnode;
+  std::vector< double > cost , delay , speed , capacity , nodeDelay;
+  double lo = 0;                 ///< left endpoint of the first subinterval
+  std::vector< double > hi;      ///< right endpoint of each subinterval
+  std::vector< std::vector< DCRLagrangianSolver::LinearCut > > cuts;
+                                 ///< the cuts of each subinterval
+
+  bool empty( void ) const { return( hi.empty() ); }
+  };
+
  /** @} ---------------------------------------------------------------------*/
 
 /*--------------------------------------------------------------------------*/
@@ -348,6 +372,35 @@ public:
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns the elapsed running time, in seconds
  double getTime() const;
+
+ /// the cuts collected by the last Solve(), with the instance they come from
+ /** Empty if there is nothing to hand out (the problem was not loaded, or
+  * Solve() did not need to build any cut). */
+ CutMemory getCutMemory() const;
+
+ /// asks the next Solve() to start from the cuts of an earlier one
+ /** To be called after LoadProblem() (which forgets any such request) and
+  * before Solve(). The cuts are used only if they are valid for the loaded
+  * instance, which is the case when
+  *
+  * - the instance is the same as the one they come from save for the
+  *   capacities: the same network (nodes, links with their end nodes, costs
+  *   and delays, node delays), the same MTU and the same flow (source, sink,
+  *   burst, rate, deadline); and
+  *
+  * - no link has a larger capacity or speed than in that instance.
+  *
+  * The second condition is what makes them valid: the dual function d( . )
+  * of an instance with less capacity is, at every r_min, not smaller than
+  * that of the one with more (the Lagrangian subproblem has fewer links to
+  * use and the link delays are not smaller), so a line below the one is
+  * below the other where it was. A subinterval of the new partition gets the
+  * cuts that were in all the old subintervals that it overlaps, and none if
+  * part of it was outside of the old range of r_min.
+  *
+  * Returns true if the cuts have been accepted (and will be used by the next
+  * Solve(), once), false if they have not. */
+ bool seedCuts( const CutMemory & mem );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns the status of the bounding procedure
@@ -515,6 +568,13 @@ private:
  DCRLagrangianSolver lagSol; ///< the Lagrangian subproblem solver used to
                              /// evaluate d( r_min ) and obtain the cuts
  std::vector< SubInterval > Q;    //subintervals of V considered.
+
+ CutMemory seedMem;      ///< the cuts seedCuts() has accepted
+ bool hasSeed = false;   ///< whether there are cuts to start the next Solve() from
+
+ /// splits the first subinterval at the breakpoints of seedMem and gives
+ /// each piece the cuts of seedMem that are valid on all of it
+ void applySeed( void );
 
  /// set by LineSearch() when every subinterval of Q has been fathomed
  /** No subinterval is left that could still be explored: either its cut

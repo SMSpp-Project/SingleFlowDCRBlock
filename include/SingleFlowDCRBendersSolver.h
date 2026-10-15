@@ -370,6 +370,32 @@ public:
 
  Index get_LagIt( void ) { return( this->BenBound::getNumIterationLagr() ); }
 
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// the cuts the last compute() has collected, with the instance they are for
+ /** See BenBound::getCutMemory(). */
+
+ BenBound::CutMemory get_cut_memory( void ) const
+ {
+  return( this->BenBound::getCutMemory() );
+  }
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+ /// starts the next compute() from the cuts of an earlier one, if valid
+ /** Any change the SingleFlowDCRBlock has made since the last compute() is
+  * taken into account first (it reloads the data into BenBound, which forgets
+  * any cut to start from), and then the cuts are offered to BenBound, which
+  * accepts them only if they are valid for the instance it holds, i.e., if it
+  * is the same save for capacities that are not larger [see
+  * BenBound::seedCuts()]. Returns true if they have been accepted. */
+
+ bool seed_cuts( const BenBound::CutMemory & mem )
+ {
+  if( ! f_Block )
+   return( false );
+  process_outstanding_Modification();
+  return( this->BenBound::seedCuts( mem ) );
+  }
+
 /*--------------------------------------------------------------------------*/
  /// returns true if BenBound found a feasible (primal) solution
  /** Returns true if and only if BenBound terminated properly
