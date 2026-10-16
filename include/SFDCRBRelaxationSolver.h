@@ -112,7 +112,7 @@ public:
 
  void set_Block( Block * block ) override;
 
-/*--------------------------------------------------------------------------*/
+ /*--------------------------------------------------------------------------*/
 
  using SingleFlowDCRBendersSolver::set_par;  // keep the other set_par()
 
@@ -257,6 +257,20 @@ protected:
 
  double f_RelAcc = 1e-6;        ///< the parameter dblRelAcc
 
+ double f_AbsAcc = 1e-6;        ///< the parameter dblAbsAcc
+
+ /// the middle point of the r_min interval that gives the lower bound
+ /** Set by refine_lb(), 0 if it has not been run; branch() looks for the two
+  * paths at this r_min rather than at that of BenBound. */
+
+ double f_zstar = 0;
+
+ double f_za = 0; ///< the left end of the r_min interval that gives the bound
+
+ int f_MaxIv = 200;   ///< the maximum number of bisections of refine_lb()
+
+ 
+
 /*--------------------------------------------------------------------------*/
 /*----------------------- PRIVATE PART OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -267,6 +281,25 @@ private:
 /*--------------------------- PRIVATE METHODS ------------------------------*/
 /*--------------------------------------------------------------------------*/
 
+ /// lower bound on the cost of the flows whose r_min is in [ a , b ]
+ /** Solves the Lagrangian relaxation in which every rate is at least a and
+  * the burst term is that of b, which contains all the routings with r_min
+  * in [ a , b ]; +Inf if it is empty, -Inf if nothing can be said. */
+
+ double interval_lb( double a , double b );
+
+/*--------------------------------------------------------------------------*/
+ /// refine the lower bound of the node by bisecting the domain of r_min
+ /** Bisects [ max{ rho , burst / deadline } , largest capacity ] keeping the
+  * interval with the smallest lower bound, until it is not below the upper
+  * bound, it is narrow, or f_MaxIv bisections have been done; the least
+  * lower bound found goes in f_cert, and the middle point of the interval
+  * that attains it in f_zstar. */
+
+ void refine_lb( void );
+
+ /*--------------------------------------------------------------------------*/
+
  /// true if the sink can be reached from the source on the open arcs
 
  bool sink_reachable( void );
@@ -274,7 +307,7 @@ private:
 /*--------------------------------------------------------------------------*/
  /// compute the certificate of the node [see get_lb()] in f_cert
 
- void certify( void );
+ //void certify( void );
 
 /*--------------------------------------------------------------------------*/
 

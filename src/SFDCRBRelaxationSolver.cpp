@@ -70,10 +70,16 @@ class SFDCRBProbe : public DCRLagrangianSolver
                  std::ostream * log = nullptr ) {
   Solve();
 
-  if( log )
-   *log << "[probe] status=" << lagstat << " lambda=" << lambda
-        << " pLambda=" << pLambda << " mLambda=" << mLambda
-        << " rmin=" << rmin << std::endl;
+  if( log ){
+    log->precision( 12 );
+    *log << "[probe] status=" << lagstat << " lambda=" << lambda
+    << " pLambda=" << pLambda << " mLambda=" << mLambda
+    << " rmin=" << rmin << " d(r*)=" << getObjVal() 
+    << " heur=" << getHeurVal() 
+    << " pCut(q,m)=(" << pCut.q << "," << pCut.m << ")"
+    << " mCut(q,m)=(" << mCut.q << "," << mCut.m << ")" 
+    << std::endl;
+  }
 
   if( ( lagstat != DCRLagrangianSolver::OK ) || ( lambda <= 0 ) )
    return( false );
@@ -147,6 +153,8 @@ void SFDCRBRelaxationSolver::set_Block( Block * block )
  v_closed.clear();  // before the base loads the instance [see arc_closed()]
  f_infeasible = false;
  f_cert = - SMSpp_di_unipi_it::Inf< OFValue >();
+ f_zstar = 0;
+ f_za = 0;
 
  SingleFlowDCRBendersSolver::set_Block( block );
 
@@ -162,6 +170,8 @@ void SFDCRBRelaxationSolver::set_par( idx_type par , double value )
 {
  if( par == dblRelAcc )
   f_RelAcc = value;
+ else if (par == dblAbsAcc)
+  f_AbsAcc = value;
  else
   SingleFlowDCRBendersSolver::set_par( par , value );
 
@@ -173,6 +183,8 @@ double SFDCRBRelaxationSolver::get_dbl_par( idx_type par ) const
 {
  if( par == dblRelAcc )
   return( f_RelAcc );
+ else if (par == dblAbsAcc)
+  return( f_AbsAcc );
  return( SingleFlowDCRBendersSolver::get_dbl_par( par ) );
 
  }  // end( SFDCRBRelaxationSolver::get_dbl_par )
@@ -185,6 +197,8 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
   return( kError );
 
  f_cert = - SMSpp_di_unipi_it::Inf< OFValue >();
+ f_zstar = 0;
+ f_za = 0;
 
  const bool owned = f_Block->is_owned_by( f_id );
  if( ( ! owned ) && ( ! f_Block->read_lock() ) )
@@ -216,6 +230,7 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
   return( kError );
 
  if( f_log )
+  f_log->precision( 17 );
   *f_log << "[compute] rho=" << f_flow.rate << " burst=" << f_flow.burst
          << " deadline=" << f_flow.deadline << " infeasible="
          << f_infeasible << std::endl;
@@ -239,7 +254,11 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
  const OFValue ub = get_ub();
  if( ub - SingleFlowDCRBendersSolver::get_lb() >
      f_RelAcc * std::max( OFValue( 1 ) , std::abs( ub ) ) )
-  certify();
+  refine_lb();
+ // closed within the tolerance: report LB == UB exactly, so that a driver
+ // with zero tolerance does not branch on roundoff
+ if (ub - get_lb() <= f_RelAcc * std::max(OFValue(1), std::abs(ub)))
+   f_cert = std::max(f_cert, ub);
 
  return( kOK );
 
@@ -261,28 +280,58 @@ Solver::OFValue SFDCRBRelaxationSolver::get_lb( void )
 
 std::vector< Change * > SFDCRBRelaxationSolver::branch( void )
 {
- if( f_log )
+ if( f_log ) {
+  f_log->precision( 17 );
   *f_log << "[branch] stat=" << BenBound::getStat()
          << " r*=" << BenBound::getr_min()
+         << " za=" << f_za << " zstar=" << f_zstar
          << " LB=" << get_lb() << " UB=" << get_ub()
          << " heur=" << BenBound::getHeurVal()
+         << " approx=" << BenBound::getApproxVal()
+         << " objval=" << BenBound::getObjVal()
          << " benIt=" << BenBound::getNumIterationBender()
-         << " narcs=" << v_links.size() << std::endl;
+         << " narcs=" << v_links.size() << std::endl
+         << "[true] has=" << has_true_var_solution()
+         << " tub=" << get_true_ub() << " tlb=" << get_true_lb()
+         << std::endl;
+  }
 
  if( f_infeasible || ( BenBound::getStat() != BenBound::OK ) )
   throw( std::logic_error( "SFDCRBRelaxationSolver::branch: the node has "
                            "no relaxation" ) );
 
- SFDCRBProbe pr;
- pr.LoadProblem( int( v_nodes.size() ) , int( v_links.size() ) , f_flow ,
-                 v_links.data() , v_nodes.data() ,
-                 static_cast< SingleFlowDCRBlock * >( f_Block )->get_MTU() ,
-                 BenBound::getr_min() );
+ // the values of r_min at which to look for the two paths, in order: the
+ // left end of the interval that gives the bound (it is in the domain by
+ // construction), the point BenBound found, the middle of the interval
+ // (which can fall just past the end of the domain)
+ std::vector< double > cands;
+ if( f_za > 0 )
+  cands.push_back( f_za );
+ cands.push_back( BenBound::getr_min() );
+ if( f_zstar > 0 )
+  cands.push_back( f_zstar );
+
+ const double mtu =
+  static_cast< SingleFlowDCRBlock * >( f_Block )->get_MTU();
 
  std::vector< int > Pp , Pm;
- if( ! pr.two_paths( Pp , Pm , f_log ) )
+ bool found = false;
+ for( const double z : cands ) {
+  SFDCRBProbe pr;
+  pr.LoadProblem( int( v_nodes.size() ) , int( v_links.size() ) , f_flow ,
+                  v_links.data() , v_nodes.data() , mtu , z );
+
+  Pp.clear();
+  Pm.clear();
+  if( pr.two_paths( Pp , Pm , f_log ) ) {
+   found = true;
+   break;
+   }
+  }
+
+ if( ! found )
   throw( std::logic_error( "SFDCRBRelaxationSolver::branch: no pair of "
-                           "distinct paths at the optimal r_min" ) );
+                           "distinct paths at any candidate r_min" ) );
 
  // the arcs of the two paths after their common prefix leave the same node
  std::size_t k = 0;
@@ -292,6 +341,11 @@ std::vector< Change * > SFDCRBRelaxationSolver::branch( void )
   throw( std::logic_error( "SFDCRBRelaxationSolver::branch: one path is a "
                            "prefix of the other" ) );
 
+ if( f_log )
+  *f_log << "[branch] close arc " << Pm[ k ] << " (path not meeting the "
+         << "deadline) / arc " << Pp[ k ] << " (path meeting it), common "
+         << "prefix " << k << " arcs" << std::endl;
+
  // the child that keeps the path meeting the deadline comes first
  return( std::vector< Change * >{
           new SingleFlowDCRBlockChange( SingleFlowDCRBlockChange::eCloseArc ,
@@ -300,7 +354,6 @@ std::vector< Change * > SFDCRBRelaxationSolver::branch( void )
                                         Index( Pp[ k ] ) ) } );
 
  }  // end( SFDCRBRelaxationSolver::branch )
-
 /*--------------------------------------------------------------------------*/
 
 Change * SFDCRBRelaxationSolver::apply( Change * chg , bool doUndo )
@@ -368,7 +421,57 @@ bool SFDCRBRelaxationSolver::sink_reachable( void )
 
 /*--------------------------------------------------------------------------*/
 
-void SFDCRBRelaxationSolver::certify( void )
+double SFDCRBRelaxationSolver::interval_lb( double a , double b )
+{
+ DCR::DCRFlow fl = f_flow;
+ fl.burst = f_flow.burst * a / b;           // burst' / a == burst / b
+
+ SFDCRBProbe pr;
+ pr.LoadProblem( int( v_nodes.size() ) , int( v_links.size() ) , fl ,
+                 v_links.data() , v_nodes.data() ,
+                 static_cast< SingleFlowDCRBlock * >( f_Block )->get_MTU() ,
+                 a );
+ pr.Solve();
+
+ if( pr.getStatus() == DCRLagrangianSolver::Infeasible )
+  return( SMSpp_di_unipi_it::Inf< OFValue >() );     // no solution here
+ if( pr.getStatus() != DCRLagrangianSolver::OK )
+  return( - SMSpp_di_unipi_it::Inf< OFValue >() );   // claim nothing
+ return( pr.getObjVal() );
+ }//end (SFDCRBRelaxationSolver::interval_lb )
+
+void SFDCRBRelaxationSolver::refine_lb( void )
+{
+ struct Iv { double a , b , lb; };
+ auto cmp = []( const Iv & x , const Iv & y ) { return( x.lb > y.lb ); };
+ std::priority_queue< Iv , std::vector< Iv > , decltype( cmp ) > Q( cmp );
+
+ const double L = std::max( f_flow.rate , f_flow.burst / f_flow.deadline );
+ double U = L;
+ for( auto & l : v_links )
+  U = std::max( U , double( l.capacity ) );
+
+ Q.push( { L , U , interval_lb( L , U ) } );
+ const OFValue ub = get_ub();
+
+ for( int it = 0 ; it < f_MaxIv ; ++it ) {
+  const Iv top = Q.top();
+  if (top.lb >= ub - f_RelAcc * std::max(1.0, std::abs(ub)) )
+    break; // node closed
+  if( top.b - top.a <= 1e-1*f_RelAcc * top.b )
+   break;                                           // interval narrow enough
+  Q.pop();
+  const double m = 0.5 * ( top.a + top.b );
+  Q.push( { top.a , m , interval_lb( top.a , m ) } );
+  Q.push( { m , top.b , interval_lb( m , top.b ) } );
+  }
+
+ f_cert = std::max( f_cert , Q.top().lb );          // valid: min over leaves
+ f_za = Q.top().a;
+ f_zstar = 0.5 * ( Q.top().a + Q.top().b );         // where the bound is lowest
+ }//end (SFDCRBRelaxationSolver::refine_lb )
+
+/* void SFDCRBRelaxationSolver::certify( void )
 {
  const double rlow = std::max( f_flow.rate ,
                                f_flow.burst / f_flow.deadline );
@@ -383,7 +486,7 @@ void SFDCRBRelaxationSolver::certify( void )
  if( f_log )
   *f_log << "[cert] rlow=" << rlow << " f_cert=" << f_cert << std::endl;
 
- }  // end( SFDCRBRelaxationSolver::certify )
+ }  // end( SFDCRBRelaxationSolver::certify ) */
 
 /*--------------------------------------------------------------------------*/
 /*------------------- End File SFDCRBRelaxationSolver.cpp ------------------*/
