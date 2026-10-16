@@ -149,6 +149,8 @@ void DCRLagrangianSolver::LoadProblem( int nnodes , int nlinks ,
 
  RSOLS.resize( nlinks );
  HeurRSOLS.assign( nlinks , 0.0 );
+
+ checkWarmKey();
  }
 
 /*--------------------------------------------------------------------------*/
@@ -188,6 +190,7 @@ void DCRLagrangianSolver::LoadProblem( DCR::DCRFlow flow )
  ModCaps.resize( numLinks );
 
  Flow = flow;
+ checkWarmKey();
 
  for( i = 0 ; i < numLinks ; i++ ) {
   Links[ i ].cost = Flow.costs[ i ];
@@ -830,6 +833,7 @@ void DCRLagrangianSolver::Solve( void )
 
    UpdCut( alpha , beta ,
           lambda ); //update the value of one of the two optimal cuts.
+   capturePair( beta >= 0 );
 
    ObjVal =
     alpha +
@@ -930,6 +934,10 @@ void DCRLagrangianSolver::Solve( void )
 
   numHops = nhops;
   solvedflag = 1;
+
+  if( warmOn )
+   recordWarm();
+
   } //if it had not already been solved and is not already deemed infeasible
  //if(solvedflag == 1)
  //cout<<"number of saved cuts"<<Cuts.size()<<endl;
@@ -1172,6 +1180,8 @@ void DCRLagrangianSolver::Inizial( void )
  double alpha = 0;     //initialized
  double beta = beta_0; //to the constant term.
 
+ hasPPair = hasMPair = false;
+
  lambda = 0; // the first trial of the two-cut search is always at
              // lambda = 0, made explicit here (rather than relying on the
              // caller to have left it there) since it is recorded as
@@ -1220,6 +1230,7 @@ void DCRLagrangianSolver::Inizial( void )
   //cout<<"beta = "<<beta<<endl;
 
   UpdCut( alpha , beta , lambda ); //update the first optimal cut.
+  capturePair( beta >= 0 );
 
   /////check whether 0 is already the optimal lambda
   if( beta <= 0 ) {
@@ -1310,6 +1321,17 @@ void DCRLagrangianSolver::Inizial( void )
    //cout<<"searching for the cut with negative slope"<<endl;
    lambda = 1;
 
+   // the multiplier suggested by the critical pairs of the points solved
+   // earlier, if asked to (it is only the first trial of the search)
+   if( warmOn ) {
+    ++warmTried;
+    const double hint = warmHint();
+    if( hint > 0 ) {
+     lambda = hint;
+     ++warmUsed;
+     }
+    }
+
    // repeatedly double lambda and re-solve SP, until either a
    // delay-feasible (beta <= 0) path is found, the running
    // Lagrangian value exceeds the trivial upper bound LimitVal
@@ -1338,6 +1360,11 @@ void DCRLagrangianSolver::Inizial( void )
 
     //cout<<"beta = "<<beta<<endl;
     //cout<<"ObjVal ="<<ObjVal<<endl;
+
+    // a delay-feasible path found on the way is a primal solution as well
+    // (only with the warm start, so that without it nothing changes)
+    if( warmOn && ( spstat == 0 ) && ( beta < -1e-20 ) )
+     keepFeasible( path , nhops , alpha , beta );
 
     ObjVal = alpha + lambda * beta;
     lambda = 2 * lambda; //other growth sequences could be chosen as well
@@ -1384,6 +1411,7 @@ void DCRLagrangianSolver::Inizial( void )
    // actually produced this (alpha, beta): halve it back to record the
    // multiplier that was really used
    UpdCut( alpha , beta , lambda / 2 ); //update the second optimal cut.
+   capturePair( beta >= 0 );
    //cout<<"LimitVal="<<LimitVal<<endl;
    //cout<<"ObjVal="<<ObjVal<<endl;
 
@@ -1534,6 +1562,142 @@ void DCRLagrangianSolver::clean_up()
 
 /*--------------------------------------------------------------------------*/
 /*----------------------------------MODIFIERS-------------------------------*/
+/*--------------------------------------------------------------------------*/
+/*------------------------------ WARM START --------------------------------*/
+/*--------------------------------------------------------------------------*/
+// see setWarmStart() in DCRLagrangianSolver.h
+
+void DCRLagrangianSolver::capturePair( bool positive )
+{
+ if( ! warmOn )
+  return;
+
+ // the last shortest path solve is the one the cut being stored comes from
+ const std::vector< int > path = spt.getPath();
+ WarmPair w;
+ w.arcs.reserve( path.size() );
+ w.rates.reserve( path.size() );
+ for( int k : path ) {
+  w.arcs.push_back( RedGraPos[ k ] );
+  w.rates.push_back( Linksp[ k ].rstar );
+  }
+
+ if( positive ) {
+  pPair = std::move( w );
+  hasPPair = true;
+  }
+ else {
+  mPair = std::move( w );
+  hasMPair = true;
+  }
+ }
+
+/*--------------------------------------------------------------------------*/
+
+bool DCRLagrangianSolver::evalPair( const WarmPair & w , double & alpha ,
+                                    double & beta ) const
+{
+ alpha = 0;
+ beta = Flow.burst / rmin - Flow.deadline;
+ for( std::size_t k = 0 ; k < w.arcs.size() ; ++k ) {
+  const int a = w.arcs[ k ];
+  if( ( a < 0 ) || ( a >= numLinks ) )
+   return( false );
+  const double r = std::max( w.rates[ k ] , rmin );
+  if( ! ( r > 0 ) )
+   return( false );
+  alpha += Links[ a ].cost * r;
+  beta += MTU / r + MTU / Links[ a ].speed + Links[ a ].delay +
+          Nodes[ Links[ a ].startnode ].delay;
+  }
+ return( std::isfinite( alpha ) && std::isfinite( beta ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+double DCRLagrangianSolver::warmHint( void ) const
+{
+ if( warmPts.empty() )
+  return( -1 );
+
+ const WarmPoint * w = &warmPts[ 0 ];
+ for( const auto & p : warmPts )
+  if( std::abs( p.z - rmin ) < std::abs( w->z - rmin ) )
+   w = &p;
+
+ double hint = -1;
+ double aP , bP , aM , bM;
+ if( w->hasP && w->hasM && evalPair( w->p , aP , bP ) &&
+     evalPair( w->m , aM , bM ) && ( bP - bM > 1e-20 ) ) {
+  const double l = ( aM - aP ) / ( bP - bM );   // intersection of the lines
+  if( std::isfinite( l ) && ( l > 0 ) )
+   hint = l;
+  }
+ if( ( hint <= 0 ) && ( w->lambda > 0 ) )
+  hint = w->lambda;
+ return( hint );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void DCRLagrangianSolver::recordWarm( void )
+{
+ if( lagstat != OK )
+  return;
+
+ WarmPoint w;
+ w.z = rmin;
+ w.lambda = lambda;
+ w.hasP = hasPPair;
+ w.hasM = hasMPair;
+ if( hasPPair )
+  w.p = pPair;
+ if( hasMPair )
+  w.m = mPair;
+
+ for( auto & p : warmPts )
+  if( std::abs( p.z - rmin ) < 1e-9 ) {
+   p = std::move( w );
+   return;
+   }
+ if( warmPts.size() >= maxWarmPts )
+  warmPts.erase( warmPts.begin() );
+ warmPts.push_back( std::move( w ) );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void DCRLagrangianSolver::keepFeasible( const std::vector< int > & path ,
+                                        int nhops , double alpha ,
+                                        double beta )
+{
+ double t_alpha = alpha , t_beta = beta;
+ std::vector< double > t_rstar( nhops );
+ for( int hi = 0 ; hi < nhops ; hi++ )
+  t_rstar[ hi ] = Linksp[ path[ hi ] ].rstar;
+ tightenPath( path , nhops , t_alpha , t_beta , t_rstar );
+
+ if( t_alpha <= HeurVal ) {
+  HeurVal = t_alpha;
+  HeurRSOLS.assign( numLinks , 0.0 );
+  for( int hi = 0 ; hi < nhops ; hi++ )
+   HeurRSOLS[ RedGraPos[ path[ hi ] ] ] = t_rstar[ hi ];
+  }
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void DCRLagrangianSolver::checkWarmKey( void )
+{
+ const std::vector< double > key = {
+  double( numNodes ) , double( numLinks ) , double( Flow.sourcenode ) ,
+  double( Flow.sinknode ) , Flow.burst , Flow.rate , Flow.deadline };
+ if( key != warmKey ) {
+  warmPts.clear();
+  warmKey = key;
+  }
+ }
+
 /*--------------------------------------------------------------------------*/
 
 

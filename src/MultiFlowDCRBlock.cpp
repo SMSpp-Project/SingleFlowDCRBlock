@@ -67,7 +67,7 @@ SMSpp_insert_in_factory_cpp_1( MultiFlowDCRBlock );
 // capacity at the same time, so the arcs can be "oversubscribed" w.r.t.
 // the sum of the individual capacities
 
-static const auto FACTOR = 0.8;
+static const auto FACTOR = 1.0;
 
 /*--------------------------------------------------------------------------*/
 /*------------------------ OTHER INITIALIZATIONS ---------------------------*/
