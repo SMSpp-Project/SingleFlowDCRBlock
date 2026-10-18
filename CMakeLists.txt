@@ -182,7 +182,7 @@ endif ()
 # tree holding the data of an older version (a cache of the CI, or a clone
 # that has been extracted before) downloads and extracts again instead of
 # taking them for the current ones.
-set(DATA_VERSION 2026-09-26b)
+set(DATA_VERSION 2026-10-18)
 set(DATA_PROJECT 51070974)
 set(DATA_PREFIX dcr)
 set(DATA_FORMATS nc4)

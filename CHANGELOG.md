@@ -29,7 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `FACTOR`, the oversubscription factor with which
   `MultiFlowDCRBlock::load()` computes the mutual capacity of an arc out of
   the individual ones of a textual instance, is 1 (formerly 0.8), so that
-  the mutual capacity is the sum of the individual ones
+  the mutual capacity is the sum of the individual ones; the multi-flow
+  instances of `data/` are written anew with it, as the data version
+  2026-10-18, the single-flow ones being the same as before
 
 - the instances of `data/` are downloaded and extracted by the targets
   `download_dcr_<fmt>` and `extract_dcr_<fmt>`, written as in every module

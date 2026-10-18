@@ -30,7 +30,7 @@ exactly, hence the multi-flow instances have the first few; the mutual
 capacity of an arc depends on how many flows share it [see
 `MultiFlowDCRBlock::load()`], so that an instance with its first k flows is a
 problem of its own and not a part of the one with all of them, and with one
-flow it is infeasible on most networks.
+flow it is the capacity of the arc itself.
 
 The textual instances they are written from are in `txt.tgz`, in the same
 Package Registry under the same version (extracted into `txt/`, it is what
