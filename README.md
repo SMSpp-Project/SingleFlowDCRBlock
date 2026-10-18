@@ -1,5 +1,10 @@
 # SingleFlowDCRBlock
 
+[![Pipeline](https://gitlab.com/smspp/singleflowdcrblock/badges/develop/pipeline.svg)](https://gitlab.com/smspp/singleflowdcrblock/-/pipelines?ref=develop)
+[![Documentation](https://img.shields.io/badge/docs-Doxygen-blue)](https://smspp.gitlab.io/smspp-project/)
+[![C++ Standard](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
+[![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
+
 `SingleFlowDCRBlock` is a SMS++ module for Delay-Constrained Routing (DCR)
 problems, i.e., the problem of routing one or more flows on a network so that
 the worst-case end-to-end delay of each flow, as given by a network-calculus
