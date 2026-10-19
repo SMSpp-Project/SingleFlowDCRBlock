@@ -21,7 +21,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   arcs out of every routing without changing the `Block`, and the instance
   last loaded into `BenBound` kept in `f_flow`, `v_links` and `v_nodes`
 
+### Added
+
+- `SingleFlowDCRBendersSolver` reuses its cuts across the calls of
+  `compute()` with `intReuseCuts` 1 (0 by default): a call starts from the
+  cuts of an earlier one when the instance is the same save for capacities
+  and speeds that are not larger and costs that are not smaller, which is
+  what makes them valid, as across the iterations of a Lagrangian method
+  whose costs are the original ones plus nonnegative multipliers; the cuts
+  can also be taken out and offered explicitly [see `get_cut_memory()` and
+  `seed_cuts()`, and `BenBound::getCutMemory()` and `BenBound::seedCuts()`]
+
+- with `intWarmLambda` 1 (0 by default) the search for the multiplier of
+  `DCRLagrangianSolver` starts from the critical pairs of the points solved
+  earlier, re-evaluated with the present costs, instead of from 1, and the
+  delay-feasible path found while doubling it is kept as the heuristic
+  value [see `DCRLagrangianSolver::setWarmStart()`]
+
 ### Changed
+
+- `FACTOR`, the oversubscription factor with which
+  `MultiFlowDCRBlock::load()` computes the mutual capacity of an arc out of
+  the individual ones of a textual instance, is 1 (formerly 0.8), so that
+  the mutual capacity is the sum of the individual ones; the multi-flow
+  instances of `data/` are written anew with it, as the data version
+  2026-10-18, the single-flow ones being the same as before
 
 - the instances of `data/` are downloaded and extracted by the targets
   `download_dcr_<fmt>` and `extract_dcr_<fmt>`, written as in every module
