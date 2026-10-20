@@ -516,9 +516,33 @@ public:
  /** @} ---------------------------------------------------------------------*/
 
 /*--------------------------------------------------------------------------*/
-/*--------------------- PRIVATE PART OF THE CLASS --------------------------*/
+/*-------------------- PROTECTED PART OF THE CLASS -------------------------*/
 /*--------------------------------------------------------------------------*/
 
+protected:
+
+ /// a snapshot of a subinterval whose cut-envelope minimum is available
+ struct BranchInterval {
+  double a , b;  ///< endpoints of the subinterval
+  double lb;     ///< cached lower bound on the whole subinterval
+  double arg;    ///< cached minimizer of the cut envelope
+  };
+
+ /// the subintervals ordered by increasing cached lower bound
+ /** For use after Solve(). Returns copies, without exposing Q or solving
+  * any further subproblem. Intervals without a cached envelope minimum
+  * for their current endpoints are omitted. Retired intervals are kept:
+  * an unsuccessful feasibility scan can retire an interval without
+  * proving it infeasible or raising its lower bound. Equal bounds retain
+  * the order of the intervals along the r_min axis. The returned arg is
+  * a branching candidate, not necessarily a minimizer of d( . ).
+  * Returns an empty vector unless the solver status is OK. */
+
+ std::vector< BranchInterval > get_branch_intervals( void ) const;
+
+/*--------------------------------------------------------------------------*/
+/*--------------------- PRIVATE PART OF THE CLASS --------------------------*/
+/*--------------------------------------------------------------------------*/
 
 private:
  // instance data - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

@@ -65,12 +65,14 @@ namespace SMSpp_di_unipi_it
  * reached from the source on the arcs left open is infeasible, and
  * compute() says so without running the Benders scheme at all.
  *
- * When the relaxation leaves a gap, compute() also tries a certificate on
- * the node [see get_lb()].
+ * When a gap remains, compute() reuses the intervals computed by BenBound
+ * to locate two distinct paths for branch(). Only if these probes fail
+ * does it refine an independent lower bound [see get_lb()]. This happens
+ * before returning to the driver, since refinement can close the node.
  *
  * When a log stream is set [see Solver::set_log()], compute(), branch()
- * and the certificate write one line each on it, and nothing is written
- * otherwise. */
+ * write diagnostic information on it, including the number of probes and
+ * whether refinement was needed; nothing is written otherwise. */
 
 class SFDCRBRelaxationSolver : public SingleFlowDCRBendersSolver ,
                                public RelaxationSolver
@@ -117,9 +119,9 @@ public:
  using SingleFlowDCRBendersSolver::set_par;  // keep the other set_par()
 
  /// set the double parameters of the Solver
- /** Only dblRelAcc [1e-6] is used: compute() tries the certificate of the
-  * node [see get_lb()] only when the relaxation leaves a relative gap
-  * larger than it. The other parameters are ignored. */
+ /** dblRelAcc [1e-6] controls closure of the relative gap in compute() and
+  * stopping of the fallback refinement in compute(). dblAbsAcc is stored;
+  * the other parameters are passed to SingleFlowDCRBendersSolver. */
 
  void set_par( idx_type par , double value ) override;
 
@@ -150,13 +152,11 @@ public:
  *  @{ */
 
  /// return a valid lower bound on the cost of the flow in the node
- /** The lower bound of SingleFlowDCRBendersSolver, or the certificate of
-  * the node if it is larger: when the relaxation leaves a gap [see
-  * dblRelAcc], compute() solves the Lagrangian relaxation at the smallest
-  * rate the flow can be routed at, \f$ \max\{ \rho , \sigma / D \} \f$
-  * (with \f$ \rho \f$ the rate, \f$ \sigma \f$ the burst and \f$ D \f$ the
-  * deadline of the flow), and if its optimal multiplier is 0 and the path
-  * it gives meets the deadline, its value is a lower bound on the node.
+ /** The lower bound of SingleFlowDCRBendersSolver, or the independent
+  * certificate if it is larger. The latter is computed only as a fallback
+  * in compute(), by bisecting the domain of r_min and taking the minimum of
+  * the lower bounds on the resulting intervals. compute() reports LB == UB
+  * when a finite upper bound is reached within dblRelAcc.
   * +Inf if the node is infeasible, -Inf if the last compute() did not
   * solve it. */
 
@@ -206,9 +206,14 @@ public:
  *  @{ */
 
  /// branch on the first arc where two paths of the relaxation split
- /** At the optimal r_min of the relaxation, the optimal Lagrangian
-  * multiplier is defined by two paths, one meeting the deadline and one
-  * not; the two children close, respectively, the arcs of the two paths
+ /** Uses the pair cached by compute(), which probes the envelope minima
+  * of up to eight BenBound intervals with the smallest lower bounds,
+  * then BenBound's reported r_min, then the endpoints and midpoints of
+  * those intervals. Duplicate candidates are tried only once. If no pair
+  * is found, refine_lb() can close the gap or provide further candidates.
+  * A node closed by refinement is reported to the driver by compute(),
+  * so branch() need not be called for it. The two children close,
+  * respectively, the arcs of the two paths
   * that leave the last node they have in common. A simple path uses at most
   * one of the two arcs, hence every routing of the node is in one of the
   * children. The child that closes the arc of the path not meeting the
@@ -260,8 +265,9 @@ protected:
  double f_AbsAcc = 1e-6;        ///< the parameter dblAbsAcc
 
  /// the middle point of the r_min interval that gives the lower bound
- /** Set by refine_lb(), 0 if it has not been run; branch() looks for the two
-  * paths at this r_min rather than at that of BenBound. */
+ /** Set by the fallback refine_lb(), 0 if it has not been run;
+  * prepare_branch() probes it after the BenBound candidates have failed,
+  * unless refinement has already closed the node. */
 
  double f_zstar = 0;
 
@@ -269,7 +275,8 @@ protected:
 
  int f_MaxIv = 200;   ///< the maximum number of bisections of refine_lb()
 
- 
+ /// distinct paths cached by compute() for branch(), empty if none found
+ std::vector< int > v_branch_plus , v_branch_minus;
 
 /*--------------------------------------------------------------------------*/
 /*----------------------- PRIVATE PART OF THE CLASS ------------------------*/
@@ -279,6 +286,14 @@ private:
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------- PRIVATE METHODS ------------------------------*/
+/*--------------------------------------------------------------------------*/
+
+ /// cache a branching pair, refining the bound only if the probes fail
+ /** Called by compute() before its final gap check, so a node closed by
+  * refinement is pruned by the driver before branch() is requested. */
+
+ void prepare_branch( void );
+
 /*--------------------------------------------------------------------------*/
 
  /// lower bound on the cost of the flows whose r_min is in [ a , b ]

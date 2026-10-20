@@ -43,6 +43,7 @@
 #include <stdexcept>
 #include <ctime>
 #include <cstdlib>
+#include <algorithm>
 
 
 /*--------------------------------------------------------------------------*/
@@ -217,6 +218,34 @@ double BenBound::getLB()
 {
  return( std::max( 0.0 , std::min( HeurVal , BestLB ) ) );
  }
+
+/*--------------------------------------------------------------------------*/
+
+std::vector< BenBound::BranchInterval > BenBound::get_branch_intervals() const
+{
+ std::vector< BranchInterval > intervals;
+ if( BenStat != OK )
+  return( intervals );
+
+ for( std::size_t i = 1 ; i < Q.size() ; ++i ) {
+  const auto & iv = Q[ i ];
+  const double a = Q[ i - 1 ].rmin;
+  const double b = iv.rmin;
+  if( ( iv.lbCuts == 0 ) || ( iv.lbA != a ) || ( iv.lbB != b ) ||
+      ! std::isfinite( a ) || ! std::isfinite( b ) || ( a > b ) ||
+      std::isnan( iv.lbBound ) || ! std::isfinite( iv.lbArg ) ||
+      ( iv.lbArg < a ) || ( iv.lbArg > b ) )
+   continue;
+
+  intervals.push_back( { a , b , iv.lbBound , iv.lbArg } );
+  }
+
+ std::stable_sort( intervals.begin() , intervals.end() ,
+                   []( const BranchInterval & x , const BranchInterval & y ) {
+                    return( x.lb < y.lb );
+                    } );
+ return( intervals );
+}
 
 /*--------------------------------------------------------------------------*/
 

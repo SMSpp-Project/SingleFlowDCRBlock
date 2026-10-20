@@ -24,6 +24,8 @@
 
 #include "SFDCRBRelaxationSolver.h"
 
+#include <algorithm>
+#include <cmath>
 #include <queue>
 
 /*--------------------------------------------------------------------------*/
@@ -155,6 +157,8 @@ void SFDCRBRelaxationSolver::set_Block( Block * block )
  f_cert = - SMSpp_di_unipi_it::Inf< OFValue >();
  f_zstar = 0;
  f_za = 0;
+ v_branch_plus.clear();
+ v_branch_minus.clear();
 
  SingleFlowDCRBendersSolver::set_Block( block );
 
@@ -199,6 +203,8 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
  f_cert = - SMSpp_di_unipi_it::Inf< OFValue >();
  f_zstar = 0;
  f_za = 0;
+ v_branch_plus.clear();
+ v_branch_minus.clear();
 
  const bool owned = f_Block->is_owned_by( f_id );
  if( ( ! owned ) && ( ! f_Block->read_lock() ) )
@@ -230,10 +236,12 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
   return( kError );
 
  if( f_log )
-  f_log->precision( 17 );
-  *f_log << "[compute] rho=" << f_flow.rate << " burst=" << f_flow.burst
-         << " deadline=" << f_flow.deadline << " infeasible="
-         << f_infeasible << std::endl;
+ {
+   f_log->precision( 17 );
+   *f_log << "[compute] rho=" << f_flow.rate << " burst=" << f_flow.burst
+            << " deadline=" << f_flow.deadline << " infeasible="
+            << f_infeasible << std::endl;
+ }
 
  if( f_infeasible )    // no path left: nothing to solve
   return( kInfeasible );
@@ -252,13 +260,19 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
   }
 
  const OFValue ub = get_ub();
- if( ub - SingleFlowDCRBendersSolver::get_lb() >
-     f_RelAcc * std::max( OFValue( 1 ) , std::abs( ub ) ) )
-  refine_lb();
+ const OFValue tol =
+  f_RelAcc * std::max( OFValue( 1 ) , std::abs( ub ) );
+
+ // Prepare the branching pair while still in compute(): the fallback can
+ // prove the node closed, and the driver must see that bound before it
+ // decides whether to call branch(). A finite UB is needed for closure.
+ if( ! std::isfinite( ub ) || ( ub - get_lb() > tol ) )
+  prepare_branch();
+
  // closed within the tolerance: report LB == UB exactly, so that a driver
  // with zero tolerance does not branch on roundoff
- if (ub - get_lb() <= f_RelAcc * std::max(OFValue(1), std::abs(ub)))
-   f_cert = std::max(f_cert, ub);
+ if( std::isfinite( ub ) && ( ub - get_lb() <= tol ) )
+  f_cert = std::max( f_cert , ub );
 
  return( kOK );
 
@@ -275,6 +289,74 @@ Solver::OFValue SFDCRBRelaxationSolver::get_lb( void )
  return( std::max( SingleFlowDCRBendersSolver::get_lb() , f_cert ) );
 
  }  // end( SFDCRBRelaxationSolver::get_lb )
+
+/*--------------------------------------------------------------------------*/
+
+void SFDCRBRelaxationSolver::prepare_branch( void )
+{
+ const double mtu =
+  static_cast< SingleFlowDCRBlock * >( f_Block )->get_MTU();
+
+ auto & Pp = v_branch_plus;
+ auto & Pm = v_branch_minus;
+ std::vector< double > tried;
+ auto try_candidate = [ & ]( double z ) {
+  if( ! std::isfinite( z ) || ( z <= 0 ) ||
+      ( std::find( tried.begin() , tried.end() , z ) != tried.end() ) )
+   return( false );
+  tried.push_back( z );
+
+  SFDCRBProbe pr;
+  pr.LoadProblem( int( v_nodes.size() ) , int( v_links.size() ) , f_flow ,
+                  v_links.data() , v_nodes.data() , mtu , z );
+
+  Pp.clear();
+  Pm.clear();
+  return( pr.two_paths( Pp , Pm , f_log ) );
+  };
+
+ // Reuse the cached envelope minima, starting with the weakest bounds.
+ // Limit the search so that probing does not become another full solve.
+ const auto intervals = get_branch_intervals();
+ const std::size_t n = std::min( intervals.size() , std::size_t( 8 ) );
+ bool found = false;
+ for( std::size_t i = 0 ; i < n ; ++i )
+  if( ( found = try_candidate( intervals[ i ].arg ) ) )
+   break;
+
+ if( ! found )
+  found = try_candidate( BenBound::getr_min() );
+
+ for( std::size_t i = 0 ; ( i < n ) && ! found ; ++i ) {
+  const auto & iv = intervals[ i ];
+  found = try_candidate( iv.a ) ||
+          try_candidate( iv.a + 0.5 * ( iv.b - iv.a ) ) ||
+          try_candidate( iv.b );
+  }
+
+ if( ! found ) {
+  if( f_log )
+   *f_log << "[prepare_branch] no distinct paths after " << tried.size()
+          << " probes; falling back to refine_lb" << std::endl;
+
+  refine_lb();
+  const OFValue ub = get_ub();
+  const bool closed = std::isfinite( ub ) &&
+   ( ub - get_lb() <= f_RelAcc * std::max( OFValue( 1 ) , std::abs( ub ) ) );
+  if( ! closed )
+   found = try_candidate( f_za ) || try_candidate( f_zstar );
+  }
+
+ if( ! found ) {
+  Pp.clear();
+  Pm.clear();
+  }
+
+ if( f_log )
+  *f_log << "[prepare_branch] probes=" << tried.size()
+         << " refined=" << ( f_za > 0 ) << " found=" << found
+         << " LB=" << get_lb() << " UB=" << get_ub() << std::endl;
+}
 
 /*--------------------------------------------------------------------------*/
 
@@ -300,36 +382,9 @@ std::vector< Change * > SFDCRBRelaxationSolver::branch( void )
   throw( std::logic_error( "SFDCRBRelaxationSolver::branch: the node has "
                            "no relaxation" ) );
 
- // the values of r_min at which to look for the two paths, in order: the
- // left end of the interval that gives the bound (it is in the domain by
- // construction), the point BenBound found, the middle of the interval
- // (which can fall just past the end of the domain)
- std::vector< double > cands;
- if( f_za > 0 )
-  cands.push_back( f_za );
- cands.push_back( BenBound::getr_min() );
- if( f_zstar > 0 )
-  cands.push_back( f_zstar );
-
- const double mtu =
-  static_cast< SingleFlowDCRBlock * >( f_Block )->get_MTU();
-
- std::vector< int > Pp , Pm;
- bool found = false;
- for( const double z : cands ) {
-  SFDCRBProbe pr;
-  pr.LoadProblem( int( v_nodes.size() ) , int( v_links.size() ) , f_flow ,
-                  v_links.data() , v_nodes.data() , mtu , z );
-
-  Pp.clear();
-  Pm.clear();
-  if( pr.two_paths( Pp , Pm , f_log ) ) {
-   found = true;
-   break;
-   }
-  }
-
- if( ! found )
+ const auto & Pp = v_branch_plus;
+ const auto & Pm = v_branch_minus;
+ if( Pp.empty() || Pm.empty() )
   throw( std::logic_error( "SFDCRBRelaxationSolver::branch: no pair of "
                            "distinct paths at any candidate r_min" ) );
 
@@ -392,7 +447,7 @@ bool SFDCRBRelaxationSolver::arc_closed( Index i )
  }  // end( SFDCRBRelaxationSolver::arc_closed )
 
 /*--------------------------------------------------------------------------*/
-
+-
 bool SFDCRBRelaxationSolver::sink_reachable( void )
 {
  const auto nn = v_nodes.size();
@@ -456,7 +511,8 @@ void SFDCRBRelaxationSolver::refine_lb( void )
 
  for( int it = 0 ; it < f_MaxIv ; ++it ) {
   const Iv top = Q.top();
-  if (top.lb >= ub - f_RelAcc * std::max(1.0, std::abs(ub)) )
+  if( std::isfinite( ub ) &&
+      top.lb >= ub - f_RelAcc * std::max( 1.0 , std::abs( ub ) ) )
     break; // node closed
   if( top.b - top.a <= 1e-1*f_RelAcc * top.b )
    break;                                           // interval narrow enough
