@@ -24,6 +24,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   delay-feasible path found while doubling it is kept as the heuristic
   value [see `DCRLagrangianSolver::setWarmStart()`]
 
+- the C++20 module `smspp.singleflowdcrblock`
+  (`src/SingleFlowDCRBlock.cppm`), which exports every name that the headers
+  declare at namespace scope and re-exports `smspp`, so that a source file
+  can write `import smspp.singleflowdcrblock;` in place of the `#include` of
+  the headers; it is built with the CMake option `SMSpp_BUILD_MODULE`, as
+  the target `SMS++::SingleFlowDCRBlock_module`
+
 ### Changed
 
 - `FACTOR`, the oversubscription factor with which
