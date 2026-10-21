@@ -413,6 +413,17 @@ public:
  int getWarmTried( void ) const { return( lagSol.getWarmTried() ); }
  int getWarmUsed( void ) const { return( lagSol.getWarmUsed() ); }
 
+ /// r_min to start the next Solve() from
+ /** The first Lagrangian subproblem of the next Solve() is solved at h (if it
+  * lies strictly inside the feasible range of r_min found by the preliminary
+  * phase) instead of at the point that phase proposes. It changes only where
+  * the search starts: every cut is computed anew, so it is valid for the
+  * costs of the instance now loaded. Used once. */
+ void setRminHint( double h ) { rminHint = h; hasHint = ( h > 0 ); }
+
+ /// number of Solve() that have started from a hint
+ long getHintUsed( void ) const { return( hintUsed ); }
+
  /// true if seedCuts() has accepted cuts that no Solve() has used yet
  bool seedPending( void ) const { return( hasSeed ); }
 
@@ -585,6 +596,13 @@ private:
 
  CutMemory seedMem;      ///< the cuts seedCuts() has accepted
  bool hasSeed = false;   ///< whether there are cuts to start the next Solve() from
+
+ double rminHint = 0;     ///< see setRminHint()
+ bool hasHint = false;
+ long hintUsed = 0;
+
+ /// puts the hint, if any, as the first candidate of the search
+ void applyHint( void );
 
  /// splits the first subinterval at the breakpoints of seedMem and gives
  /// each piece the cuts of seedMem that are valid on all of it

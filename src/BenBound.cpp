@@ -623,6 +623,7 @@ void BenBound::Solve()
  Inizial();
 
  applySeed();   // start from the cuts of an earlier solve, if asked to
+ applyHint();   // start from the r_min of an earlier solve, if asked to
 
  //std::cout << "Inizial()" << std::endl;
 
@@ -1428,6 +1429,27 @@ bool BenBound::seedCuts( const CutMemory & mem )
  seedMem = mem;
  hasSeed = true;
  return( true );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void BenBound::applyHint( void )
+{
+ if( ! hasHint )
+  return;
+ hasHint = false;   // it is used once
+
+ // only in the general case, where Inizial() has left the partition
+ // { Q[ 0 ] , Q[ 1 ] } and the starting point still has to be evaluated
+ if( ( BenStat != 0 ) || ( solvedflag != 0 ) || ( Q.size() != 2 ) ||
+     ( Q[ 1 ].solflag == 1 ) )
+  return;
+
+ if( ! ( ( rminHint > Q[ 0 ].rmin ) && ( rminHint < Q[ 1 ].rmin ) ) )
+  return;
+
+ Q[ 1 ].inter = rminHint;
+ ++hintUsed;
  }
 
 /*--------------------------------------------------------------------------*/
