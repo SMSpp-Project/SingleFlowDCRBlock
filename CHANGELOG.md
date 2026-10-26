@@ -21,7 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   arcs out of every routing without changing the `Block`, and the instance
   last loaded into `BenBound` kept in `f_flow`, `v_links` and `v_nodes`
 
-### Added
+- the makefiles build the C++20 module `smspp.singleflowdcrblock` when
+  `SMSppMOD` is not empty (e.g., `make SMSppMOD=1`), with clang++ 16 or
+  later [see `lib/makefile-mod` of SMS++]
 
 - `SingleFlowDCRBendersSolver` reuses its cuts across the calls of
   `compute()` with `intReuseCuts` 1 (0 by default): a call starts from the
@@ -38,7 +40,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   delay-feasible path found while doubling it is kept as the heuristic
   value [see `DCRLagrangianSolver::setWarmStart()`]
 
+- the C++20 module `smspp.singleflowdcrblock`
+  (`src/SingleFlowDCRBlock.cppm`), which exports every name that the headers
+  declare at namespace scope and re-exports `smspp`, so that a source file
+  can write `import smspp.singleflowdcrblock;` in place of the `#include` of
+  the headers; it is built with the CMake option `SMSpp_BUILD_MODULE`, as
+  the target `SMS++::SingleFlowDCRBlock_module`
+
 ### Changed
+
+- the pipeline builds the module also with its makefiles, after CMake, and
+  runs on a change of the makefiles too [see `ci/makefile` of the umbrella]
+
+- `SMSpp_BUILD_MODULE` no longer stops the configuration when the C++20
+  module cannot be built, i.e., with a CMake older than 3.28, a generator
+  other than Ninja or Visual Studio, a compiler other than Clang 16 (with
+  `clang-scan-deps`) or MSVC 19.34, or a module it imports that is not
+  there: the option is turned off with a warning that says why, and the
+  build goes on with the headers [see `cmake/CheckModule.cmake` of SMS++]
 
 - `FACTOR`, the oversubscription factor with which
   `MultiFlowDCRBlock::load()` computes the mutual capacity of an arc out of
@@ -52,6 +71,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that keeps its instances in the Package Registry, and the marker of the
   extraction carries the format in its name, so that a tree extracted
   before extracts once more
+
+### Fixed
+
+- the makefiles of the tests and of the tools build also with g++: they
+  take the option that stops at the first error and the one of the
+  debugging information, which clang++ and g++ spell differently
+  (`-ferror-limit=1` and `-glldb` against `-fmax-errors=1` and `-ggdb`),
+  from `SMSppSWERR` and `SMSppSWDBG` of `lib/makefile-OS` of SMS++
+
 
 ## [0.2.0] - 2026-10-09
 

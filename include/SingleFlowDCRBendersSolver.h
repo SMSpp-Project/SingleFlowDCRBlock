@@ -52,6 +52,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <limits>
 
 /*--------------------------------------------------------------------------*/
@@ -264,6 +265,18 @@ public:
  std::cout << "bound_PC = " << bound_PC << std::endl;
  std::cout << "sol = " << warmstart->get_lb() << std::endl;
    */
+  // the instance is the one BenBound has just solved: its result stands
+  const bool skip_solve = f_skip_same && f_skip_now && f_last_solved &&
+                          ( ! BenBound::seedPending() );
+  f_skip_now = false;
+  if( skip_solve ) {
+   ++f_skipped;
+   if( std::getenv( "SFDCR_STAT" ) )   // TEMPORARY
+    std::cerr << "STAT skip" << std::endl;
+   unlock();
+   return( kOK );
+   }
+
   // ensure the timer exists (or reset it)
   BenBound::DCRsetTime( true );
 
@@ -276,9 +289,16 @@ public:
     ++f_reuse_used;
    }
 
+  if( f_rmin_start && ( f_last_rmin > 0 ) )
+   BenBound::setRminHint( f_last_rmin );
+
   // then (try to) solve the SingleFlowDCR
   BenBound::Solve();
   BenBound::DCRstopTime();
+  f_last_solved = f_skip_same;     // f_last_inst is the instance solved
+  f_last_rmin = BenBound::getr_min();
+  if( std::getenv( "SFDCR_STAT" ) )   // TEMPORARY
+   std::cerr << "STAT solve " << (const void *) this << " iters=" << BenBound::getNumIterationBender() << " hint=" << BenBound::getHintUsed() << " rmin=" << BenBound::getr_min() << std::endl;
 
   if( f_reuse_cuts ) {
    auto m = BenBound::getCutMemory();
@@ -439,7 +459,9 @@ public:
  /// the int parameter of the solver
  enum int_par_type_SFDCRB {
   intReuseCuts = intLastAlgPar ,   ///< 0/1: see set_reuse_cuts() [0]
-  intWarmLambda                    ///< 0/1: see BenBound::setWarmLambda() [0]
+  intWarmLambda ,                  ///< 0/1: see BenBound::setWarmLambda() [0]
+  intSkipSame ,                    ///< 0/1: answer from the last result if the instance is identical [0]
+  intRminStart                     ///< 0/1: start the search from the last r_min [0]
   };
 
  using Solver::set_par;   // restore the hidden overloaded methods
@@ -453,16 +475,21 @@ public:
    f_warm = ( value != 0 );
    BenBound::setWarmLambda( f_warm );
    }
+  else if( par == intSkipSame )
+   f_skip_same = ( value != 0 );
+  else if( par == intRminStart )
+   f_rmin_start = ( value != 0 );
   else
    Solver::set_par( par , value );
   }
 
  [[nodiscard]] idx_type get_num_int_par( void ) const override {
-  return( idx_type( intWarmLambda ) + 1 );
+  return( idx_type( intRminStart ) + 1 );
   }
 
  [[nodiscard]] int get_dflt_int_par( idx_type par ) const override {
-  return( ( par == intReuseCuts ) || ( par == intWarmLambda )
+  return( ( par == intReuseCuts ) || ( par == intWarmLambda ) ||
+          ( par == intSkipSame ) || ( par == intRminStart )
           ? 0 : Solver::get_dflt_int_par( par ) );
   }
 
@@ -471,6 +498,10 @@ public:
    return( f_reuse_cuts ? 1 : 0 );
   if( par == intWarmLambda )
    return( f_warm ? 1 : 0 );
+  if( par == intSkipSame )
+   return( f_skip_same ? 1 : 0 );
+  if( par == intRminStart )
+   return( f_rmin_start ? 1 : 0 );
   return( Solver::get_int_par( par ) );
   }
 
@@ -480,6 +511,10 @@ public:
    return( intReuseCuts );
   if( name == "intWarmLambda" )
    return( intWarmLambda );
+  if( name == "intSkipSame" )
+   return( intSkipSame );
+  if( name == "intRminStart" )
+   return( intRminStart );
   return( Solver::int_par_str2idx( name ) );
   }
 
@@ -487,10 +522,16 @@ public:
   const override {
   static const std::string par = "intReuseCuts";
   static const std::string par2 = "intWarmLambda";
+  static const std::string par3 = "intSkipSame";
+  static const std::string par4 = "intRminStart";
   if( idx == intReuseCuts )
    return( par );
   if( idx == intWarmLambda )
    return( par2 );
+  if( idx == intSkipSame )
+   return( par3 );
+  if( idx == intRminStart )
+   return( par4 );
   return( Solver::int_par_idx2str( idx ) );
   }
 
@@ -780,6 +821,40 @@ protected:
    nodes[ i ].delay = ND.empty() ? 0 : ND[ i ];
    }
 
+  if( f_skip_same ) {
+   Inst now;
+   now.nnodes = nnodes; now.narcs = narcs; now.source = source; now.sink = sink;
+   now.burst = flow.burst; now.rate = flow.rate; now.deadline = flow.deadline;
+   now.MTU = DCRB->get_MTU();
+   for( Index i = 0 ; i < narcs ; ++i ) {
+    now.sn.push_back( links[ i ].startnode );
+    now.en.push_back( links[ i ].endnode );
+    now.speed.push_back( links[ i ].speed );
+    now.capacity.push_back( links[ i ].capacity );
+    now.delay.push_back( links[ i ].delay );
+    now.cost.push_back( links[ i ].cost );
+    }
+   for( Index i = 0 ; i < nnodes ; ++i )
+    now.ndelay.push_back( nodes[ i ].delay );
+   if( f_last_solved && std::getenv( "SFDCR_STAT" ) ) {   // TEMPORARY
+    double dc = 0 , dcap = 0 , dsp = 0 , dd = 0;
+    for( std::size_t i = 0 ; i < now.cost.size() ; ++i ) {
+     dc = std::max( dc , std::abs( now.cost[ i ] - f_last_inst.cost[ i ] ) );
+     dcap = std::max( dcap , std::abs( now.capacity[ i ] - f_last_inst.capacity[ i ] ) );
+     dsp = std::max( dsp , std::abs( now.speed[ i ] - f_last_inst.speed[ i ] ) );
+     dd = std::max( dd , std::abs( now.delay[ i ] - f_last_inst.delay[ i ] ) );
+     }
+    std::cerr << "STAT load same=" << ( now == f_last_inst ) << " dcost=" << dc << " dcap=" << dcap << " dspeed=" << dsp << " ddelay=" << dd
+              << " burst " << ( now.burst == f_last_inst.burst ) << " rate " << ( now.rate == f_last_inst.rate ) << " dl " << ( now.deadline == f_last_inst.deadline ) << std::endl;
+    }
+   if( f_last_solved && ( now == f_last_inst ) ) {
+    f_skip_now = true;     // BenBound keeps the result of the last solve
+    return;
+    }
+   f_last_inst = std::move( now );
+   f_last_solved = false;
+   }
+
   BenBound::LoadProblem( nnodes , narcs , flow , links , nodes ,
                          DCRB->get_MTU() );
  }
@@ -952,6 +1027,29 @@ private:
  BenBound::CutMemory mem_base;        ///< cuts valid for most costs
  Index f_reuse_tried = 0;
  Index f_reuse_used = 0;
+
+ /// the instance BenBound has been loaded with, to see whether the next one
+ /// is identical [intSkipSame]
+ struct Inst {
+  int nnodes = 0 , narcs = 0 , source = -1 , sink = -1;
+  double burst = 0 , rate = 0 , deadline = 0 , MTU = 0;
+  std::vector< int > sn , en;
+  std::vector< double > speed , capacity , delay , cost , ndelay;
+  bool operator==( const Inst & o ) const {
+   return( nnodes == o.nnodes && narcs == o.narcs && source == o.source &&
+           sink == o.sink && burst == o.burst && rate == o.rate &&
+           deadline == o.deadline && MTU == o.MTU && sn == o.sn &&
+           en == o.en && speed == o.speed && capacity == o.capacity &&
+           delay == o.delay && cost == o.cost && ndelay == o.ndelay );
+   }
+  };
+ Inst f_last_inst;
+ bool f_last_solved = false;   ///< BenBound has solved f_last_inst
+ bool f_skip_now = false;      ///< the instance just loaded is the one solved
+ bool f_skip_same = false;     ///< see intSkipSame
+ bool f_rmin_start = false;    ///< see intRminStart
+ double f_last_rmin = 0;       ///< r_min of the last solve
+ Index f_skipped = 0;
 
  /// true if a has the same instance as b with no larger costs
  static bool cheaper( const BenBound::CutMemory & a ,

@@ -48,6 +48,12 @@ SFDCRBkH   = $(SFDCRBkSDR)/include/SingleFlowDCRBlock.h \
 	$(SFDCRBkSDR)/include/SPT.h \
 	$(SFDCRBkSDR)/include/SFDCRBRelaxationSolver.h
 
+# the C++20 module smspp.singleflowdcrblock - - - - - - - - - - - - - - - - -
+# [see makefile-mod of SMS++]
+
+$(eval $(call SMSppMODrule,SFDCRBk,$(SFDCRBkSDR),SingleFlowDCRBlock,\
+	smspp.singleflowdcrblock,SMS++))
+
 # clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 clean::
