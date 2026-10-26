@@ -521,30 +521,40 @@ public:
 
 protected:
 
- /// a snapshot of a subinterval whose cut-envelope minimum is available
- struct BranchInterval {
-  double a , b;  ///< endpoints of the subinterval
-  double lb;     ///< cached lower bound on the whole subinterval
-  double arg;    ///< cached minimizer of the cut envelope
+ /// paths observed by an existing Lagrangian solve of the current instance
+ struct BranchPaths {
+  double rmin = 0 , value = 0 , lower_bound = 0;
+  double primal_value = std::numeric_limits< double >::max();
+  bool available = false , local_converged = false , dual_converged = false;
+  std::vector< int > plus , minus;
+  std::vector< double > plus_rates , minus_rates;
   };
 
- /// the subintervals ordered by increasing cached lower bound
- /** For use after Solve(). Returns copies, without exposing Q or solving
-  * any further subproblem. Intervals without a cached envelope minimum
-  * for their current endpoints are omitted. Retired intervals are kept:
-  * an unsuccessful feasibility scan can retire an interval without
-  * proving it infeasible or raising its lower bound. Equal bounds retain
-  * the order of the intervals along the r_min axis. The returned arg is
-  * a branching candidate, not necessarily a minimizer of d( . ).
-  * Returns an empty vector unless the solver status is OK. */
+ /// retain a result at the final master candidate for the relaxation solver
+ /** Off by default. Must be enabled before Solve(); the cache is cleared
+  * by LoadProblem() and at the start of Solve(), and is never seeded from
+  * another node. This does not enable or disable Lagrangian warm starts. */
+ void collect_branch_paths( bool on ) {
+  f_collect_branch_paths = on;
+  f_branch_result = {};
+  lagSol.setCollectBranchPaths( on );
+  }
 
- std::vector< BranchInterval > get_branch_intervals( void ) const;
+ /// Result at the final master candidate; convergence is certified by bounds.
+ const BranchPaths & branch_result() const { return( f_branch_result ); }
+
+ /// Evaluate the minimizer selected by a refined interval master.
+ /// Updates the same result and verified primal, keeping the original routing.
+ void evaluate_branch_candidate( double candidate , double master_bound = 0 );
 
 /*--------------------------------------------------------------------------*/
-/*--------------------- PRIVATE PART OF THE CLASS --------------------------*/
-/*--------------------------------------------------------------------------*/
-
 private:
+ bool f_collect_branch_paths = false;
+ BranchPaths f_branch_result;
+
+ /// snapshot the final defining cuts without rerunning the subproblem
+ void capture_branch_result( double z );
+
  // instance data - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
  DCR::DCRFlow Flow;    ///< the flow to be routed

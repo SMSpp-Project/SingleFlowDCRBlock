@@ -132,6 +132,8 @@ void DCRLagrangianSolver::LoadProblem( int nnodes , int nlinks ,
  // once any data from previous calls has been cleared, save the new
  // data and reset all the solution/status flags - - - - - - - - - - -
  numNodes = nnodes;
+ branchP.clear();
+ branchM.clear();
  numLinks = nlinks;
  MTU = mtu;
  rmin = r_min;
@@ -160,6 +162,8 @@ void DCRLagrangianSolver::LoadProblem( int nnodes , int nlinks ,
 
 void DCRLagrangianSolver::LoadProblem( DCR::DCRFlow flow )
 {
+ branchP.clear();
+ branchM.clear();
 
  ////FIXME: should this reopen all the arcs that have been closed?
  //currently it does; comment out the assignment to ModCaps in the
@@ -215,6 +219,8 @@ void DCRLagrangianSolver::updrmin( double r_min )
       0 ) //otherwise the problem had already been solved for this rmin
  {
   lambda = 0;
+  branchP.clear();
+  branchM.clear();
   inizialflag = 0;
 
   solvedflag = 0;
@@ -250,6 +256,8 @@ void DCRLagrangianSolver::updrmin( double r_min )
 
 void DCRLagrangianSolver::closeArcs( std::vector< int > arcs , int na )
 {
+ branchP.clear();
+ branchM.clear();
  int i;
 
  inizialflag = 0;
@@ -269,6 +277,8 @@ void DCRLagrangianSolver::closeArcs( std::vector< int > arcs , int na )
 
 void DCRLagrangianSolver::openArcs( int * arcs , int na )
 {
+ branchP.clear();
+ branchM.clear();
  int i;
 
  inizialflag = 0;
@@ -1181,6 +1191,8 @@ void DCRLagrangianSolver::Inizial( void )
  double beta = beta_0; //to the constant term.
 
  hasPPair = hasMPair = false;
+ branchP.clear();
+ branchM.clear();
 
  lambda = 0; // the first trial of the two-cut search is always at
              // lambda = 0, made explicit here (rather than relying on the
@@ -1569,7 +1581,7 @@ void DCRLagrangianSolver::clean_up()
 
 void DCRLagrangianSolver::capturePair( bool positive )
 {
- if( ! warmOn )
+ if( ! warmOn && ! collectBranchPaths )
   return;
 
  // the last shortest path solve is the one the cut being stored comes from
@@ -1582,6 +1594,14 @@ void DCRLagrangianSolver::capturePair( bool positive )
   w.rates.push_back( Linksp[ k ].rstar );
   }
 
+ if( collectBranchPaths ) {
+  ( positive ? branchP : branchM ) = w.arcs;
+  ( positive ? branchRatesP : branchRatesM ) = w.rates;
+  }
+
+ if( ! warmOn )
+  return;
+
  if( positive ) {
   pPair = std::move( w );
   hasPPair = true;
@@ -1591,6 +1611,36 @@ void DCRLagrangianSolver::capturePair( bool positive )
   hasMPair = true;
   }
  }
+
+/*--------------------------------------------------------------------------*/
+
+bool DCRLagrangianSolver::getBranchPaths( std::vector< int > & plus ,
+                                         std::vector< int > & minus ) const
+{
+ if( ! collectBranchPaths || ( lagstat != OK ) )
+  return( false );
+ if( lambda == 0 ) {
+  // beta == 0 is stored on the nonnegative-slope side.
+  plus = minus = branchM.empty() ? branchP : branchM;
+  return( ! plus.empty() );
+  }
+ if( branchP.empty() || branchM.empty() )
+  return( false );
+ plus = branchM;
+ minus = branchP;
+ return( true );
+}
+
+void DCRLagrangianSolver::getBranchRates( std::vector< double > & plus ,
+                                         std::vector< double > & minus ) const
+{
+ if( lambda == 0 )
+  plus = minus = branchM.empty() ? branchRatesP : branchRatesM;
+ else {
+  plus = branchRatesM;
+  minus = branchRatesP;
+  }
+}
 
 /*--------------------------------------------------------------------------*/
 

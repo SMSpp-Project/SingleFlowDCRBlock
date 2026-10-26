@@ -65,14 +65,26 @@ namespace SMSpp_di_unipi_it
  * reached from the source on the arcs left open is infeasible, and
  * compute() says so without running the Benders scheme at all.
  *
- * When a gap remains, compute() reuses the intervals computed by BenBound
- * to locate two distinct paths for branch(). Only if these probes fail
- * does it refine an independent lower bound [see get_lb()]. This happens
- * before returning to the driver, since refinement can close the node.
+ * With a finite incumbent, children first run a bounded interval check.
+ * A bound reaching the incumbent skips BenBound entirely. Otherwise the
+ * computed intervals are retained for the fallback on this same node.
+ *
+ * When a gap remains, compute() uses the defining paths at the final
+ * master candidate from BenBound, including the case where they coincide.
+ * Equal paths close a node only if its global bound meets the verified
+ * primal cost. Otherwise the interval bound is refined and the original
+ * flow is evaluated at the lower endpoint of the weakest remaining
+ * interval. No pair is taken from an unrelated rate or another node.
+ * If the bound remains open without distinct paths, compute() returns
+ * kStopIter rather than declaring optimality or calling branch().
  *
  * When a log stream is set [see Solver::set_log()], compute(), branch()
- * write diagnostic information on it, including the number of probes and
- * whether refinement was needed; nothing is written otherwise. */
+ * write diagnostic information on it. [node_profile] separates wall time
+ * spent in setup, BenBound, extra solves and refinement. It also reports
+ * the selected rate, path equality, convergence, bounds and exit reason.
+ * [prepare_branch] and [refine_profile] detail individual operations.
+ * Records are identified by solver address and a local compute sequence
+ * (run); timers are disabled when no log stream is set. */
 
 class SFDCRBRelaxationSolver : public SingleFlowDCRBendersSolver ,
                                public RelaxationSolver
@@ -95,7 +107,9 @@ public:
 /*--------------------------------------------------------------------------*/
  /// constructor: no arc is closed
 
- SFDCRBRelaxationSolver( void ) : SingleFlowDCRBendersSolver() {}
+ SFDCRBRelaxationSolver( void ) : SingleFlowDCRBendersSolver() {
+  collect_branch_paths( true );
+  }
 
 /*--------------------------------------------------------------------------*/
  /// destructor: does nothing
@@ -120,8 +134,10 @@ public:
 
  /// set the double parameters of the Solver
  /** dblRelAcc [1e-6] controls closure of the relative gap in compute() and
-  * stopping of the fallback refinement in compute(). dblAbsAcc is stored;
-  * the other parameters are passed to SingleFlowDCRBendersSolver. */
+  * stopping of the fallback refinement in compute(). dblUpCutOff is the
+  * global incumbent supplied by the driver: a lower bound reaching it
+  * stops computation with kCutOff, without preparing a branching pair.
+  * dblAbsAcc is stored; the other parameters are passed to the base. */
 
  void set_par( idx_type par , double value ) override;
 
@@ -140,8 +156,11 @@ public:
   * "Benders with nested Lagrange" scheme of SingleFlowDCRBendersSolver [see
   * SingleFlowDCRBendersSolver::compute()] on it. Returns kInfeasible if the
   * sink cannot be reached from the source on the open arcs, or if the
-  * scheme finds the node infeasible, kError if the Block has no source or
-  * no sink or if the scheme ends in error, and kOK otherwise. */
+  * scheme finds the node infeasible. Children with a finite incumbent
+  * first try an independent bound and may skip BenBound. Returns kError
+  * if the Block has no source or
+  * no sink or if the scheme ends in error, kCutOff if the lower bound
+  * reaches a finite dblUpCutOff, and kOK otherwise. */
 
  int compute( bool changedvars = true ) override;
 
@@ -153,12 +172,12 @@ public:
 
  /// return a valid lower bound on the cost of the flow in the node
  /** The lower bound of SingleFlowDCRBendersSolver, or the independent
-  * certificate if it is larger. The latter is computed only as a fallback
-  * in compute(), by bisecting the domain of r_min and taking the minimum of
+  * certificate if it is larger. The certificate is also available when
+  * early screening skips BenBound. It is obtained by bisecting the domain
+  * of r_min and taking the minimum of
   * the lower bounds on the resulting intervals. compute() reports LB == UB
   * when a finite upper bound is reached within dblRelAcc.
-  * +Inf if the node is infeasible, -Inf if the last compute() did not
-  * solve it. */
+  * +Inf if the node is infeasible, -Inf if no bound is available. */
 
  OFValue get_lb( void ) override;
 
@@ -206,20 +225,11 @@ public:
  *  @{ */
 
  /// branch on the first arc where two paths of the relaxation split
- /** Uses the pair cached by compute(), which probes the envelope minima
-  * of up to eight BenBound intervals with the smallest lower bounds,
-  * then BenBound's reported r_min, then the endpoints and midpoints of
-  * those intervals. Duplicate candidates are tried only once. If no pair
-  * is found, refine_lb() can close the gap or provide further candidates.
-  * A node closed by refinement is reported to the driver by compute(),
-  * so branch() need not be called for it. The two children close,
-  * respectively, the arcs of the two paths
-  * that leave the last node they have in common. A simple path uses at most
-  * one of the two arcs, hence every routing of the node is in one of the
-  * children. The child that closes the arc of the path not meeting the
-  * deadline comes first, since it keeps the other path. An exception is
-  * thrown if the node has no relaxation, or if the two paths cannot be
-  * found. */
+ /** Uses the defining paths at BenBound's final master candidate. Equal
+  * paths are retained as a result, and compute() closes the node only
+  * when its global bound meets the verified primal cost. If no distinct
+  * pair is available and the gap remains open, compute() returns kStopIter.
+  * The children close the two outgoing arcs at the first divergence. */
 
  std::vector< Change * > branch( void ) override;
 
@@ -264,10 +274,11 @@ protected:
 
  double f_AbsAcc = 1e-6;        ///< the parameter dblAbsAcc
 
+ OFValue f_UpCutOff = SMSpp_di_unipi_it::Inf< OFValue >(); ///< dblUpCutOff
+
  /// the middle point of the r_min interval that gives the lower bound
  /** Set by the fallback refine_lb(), 0 if it has not been run;
-  * prepare_branch() probes it after the BenBound candidates have failed,
-  * unless refinement has already closed the node. */
+  * retained for refinement diagnostics. */
 
  double f_zstar = 0;
 
@@ -284,11 +295,25 @@ protected:
 
 private:
 
+ struct BoundInterval { double a , b , lb; };
+ /// Current node only: retain the interval heap between screening and fallback.
+ std::vector< BoundInterval > v_bound_intervals;
+ bool f_bound_only = true; ///< BenBound has not been solved for this node
+
+ /// Per-compute diagnostics; wall-clock timers are enabled only with f_log.
+ struct Profile {
+  double probe_seconds = 0 , refine_seconds = 0;
+  std::size_t probes = 0 , refine_calls = 0 , interval_solves = 0;
+  std::size_t refine_splits = 0;
+  std::size_t cache_hits = 0;
+ } f_profile;
+ std::size_t f_compute_id = 0; ///< local sequence; identify with solver pointer
+
 /*--------------------------------------------------------------------------*/
 /*--------------------------- PRIVATE METHODS ------------------------------*/
 /*--------------------------------------------------------------------------*/
 
- /// cache a branching pair, refining the bound only if the probes fail
+ /// use the final master pair; strengthen the bound if no pair is distinct
  /** Called by compute() before its final gap check, so a node closed by
   * refinement is pruned by the driver before branch() is requested. */
 
@@ -306,12 +331,15 @@ private:
 /*--------------------------------------------------------------------------*/
  /// refine the lower bound of the node by bisecting the domain of r_min
  /** Bisects [ max{ rho , burst / deadline } , largest capacity ] keeping the
-  * interval with the smallest lower bound, until it is not below the upper
-  * bound, it is narrow, or f_MaxIv bisections have been done; the least
+  * interval with the smallest lower bound, until it reaches dblUpCutOff
+  * or the local upper bound within tolerance, it is narrow, or f_MaxIv
+  * bisections have been done. With cutoff_only, uses the incumbent alone
+  * and at most 16 bisections before BenBound. The heap is retained for
+  * the later fallback, avoiding repeated interval solves. The least
   * lower bound found goes in f_cert, and the middle point of the interval
   * that attains it in f_zstar. */
 
- void refine_lb( void );
+ void refine_lb( bool cutoff_only = false );
 
  /*--------------------------------------------------------------------------*/
 

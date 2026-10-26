@@ -99,6 +99,7 @@ void BenBound::LoadProblem( int nnodes , int nlinks , DCR::DCRFlow flow ,
                             std::vector< DCR::DCRNode > nodes , double mtu )
 {
  clean_up();
+ f_branch_result = {};
  hasSeed = false;   // cuts to start from are about another instance
 
  numNodes = nnodes;
@@ -133,6 +134,7 @@ void BenBound::LoadProblem( int nnodes , int nlinks , DCR::DCRFlow flow ,
 
 void BenBound::LoadProblem( DCR::DCRFlow flow )
 {
+ f_branch_result = {};
  int i;
  hasSeed = false;
 
@@ -221,30 +223,54 @@ double BenBound::getLB()
 
 /*--------------------------------------------------------------------------*/
 
-std::vector< BenBound::BranchInterval > BenBound::get_branch_intervals() const
+void BenBound::capture_branch_result( double z )
 {
- std::vector< BranchInterval > intervals;
- if( BenStat != OK )
-  return( intervals );
+ f_branch_result = {};
+ if( ! f_collect_branch_paths || ! std::isfinite( z ) || ( z <= 0 ) )
+  return;
 
- for( std::size_t i = 1 ; i < Q.size() ; ++i ) {
-  const auto & iv = Q[ i ];
-  const double a = Q[ i - 1 ].rmin;
-  const double b = iv.rmin;
-  if( ( iv.lbCuts == 0 ) || ( iv.lbA != a ) || ( iv.lbB != b ) ||
-      ! std::isfinite( a ) || ! std::isfinite( b ) || ( a > b ) ||
-      std::isnan( iv.lbBound ) || ! std::isfinite( iv.lbArg ) ||
-      ( iv.lbArg < a ) || ( iv.lbArg > b ) )
-   continue;
+ BranchPaths pair;
+ pair.rmin = z;
+ pair.value = lagSol.getObjVal();
+ pair.lower_bound = getLB();
+ pair.primal_value = HeurVal;
+ f_branch_result.rmin = pair.rmin;
+ f_branch_result.value = pair.value;
+ f_branch_result.lower_bound = pair.lower_bound;
+ f_branch_result.primal_value = pair.primal_value;
+ if( ! lagSol.getBranchPaths( pair.plus , pair.minus ) ||
+     ! std::isfinite( pair.value ) )
+  return;
 
-  intervals.push_back( { a , b , iv.lbBound , iv.lbArg } );
-  }
+ // Only simple source-sink paths on the currently loaded graph may
+ // generate the two arc-closing children. Closed arcs cannot pass this
+ // check: their loaded capacity is below every admissible r_min.
+ auto valid = [ & ]( const std::vector< int > & path ) {
+  int node = Flow.sourcenode;
+  std::vector< bool > seen( numNodes , false );
+  seen[ node ] = true;
+  for( int a : path ) {
+   if( ( a < 0 ) || ( a >= numLinks ) ||
+       ( Links[ a ].startnode != node ) || ( Links[ a ].capacity < z ) )
+    return( false );
+   node = Links[ a ].endnode;
+   if( ( node < 0 ) || ( node >= numNodes ) || seen[ node ] )
+    return( false );
+   seen[ node ] = true;
+   }
+  return( node == Flow.sinknode );
+  };
+ if( ! valid( pair.plus ) || ! valid( pair.minus ) )
+  return;
 
- std::stable_sort( intervals.begin() , intervals.end() ,
-                   []( const BranchInterval & x , const BranchInterval & y ) {
-                    return( x.lb < y.lb );
-                    } );
- return( intervals );
+ lagSol.getBranchRates( pair.plus_rates , pair.minus_rates );
+ pair.available = true;
+ const double tolerance = eps * std::max( 1.0 , std::abs( pair.value ) );
+ pair.local_converged = std::isfinite( lagSol.getInterVal() ) &&
+  ( std::abs( lagSol.getInterVal() - pair.value ) <= tolerance );
+ pair.dual_converged = pair.local_converged &&
+  ( std::abs( pair.value - getLB() ) <= tolerance );
+ f_branch_result = std::move( pair );
 }
 
 /*--------------------------------------------------------------------------*/
@@ -618,6 +644,7 @@ void BenBound::DCRsetTimeLimit( long secs )
 
 void BenBound::Solve()
 {
+ f_branch_result = {};
  int i , j;
  int Qsize;
  double approx;
@@ -1377,7 +1404,49 @@ void BenBound::Solve()
  lagSol.Solve();
 
  SOLUTION = lagSol.getRSOLS();
+
+ // Keep the primal routing above at its own best point. Branch only on
+ // the candidate that attains the smallest final master bound, never
+ // on a witness from an unrelated interval. A stopped master is exposed
+ // as such: neither solvedflag nor path equality certifies convergence.
+ if( f_collect_branch_paths && ( BenStat == OK ) ) {
+  double candidate = rmin;
+  double master_lb = Inf< double >();
+  for( std::size_t i = 1 ; i < Q.size() ; ++i ) {
+   // The last split may have changed endpoints after LineSearch().
+   // Read every current interval, including retired ones, so the chosen
+   // point belongs to the final master over the whole domain.
+   Q[ i ].lbBound = cutEnvMin( int( i ) );
+   if( std::isfinite( Q[ i ].lbBound ) && Q[ i ].lbBound < master_lb ) {
+    master_lb = Q[ i ].lbBound;
+    candidate = Q[ i ].lbArg;
+    }
+   }
+  if( std::isfinite( master_lb ) )
+   BestLB = std::max( BestLB , master_lb );
+  evaluate_branch_candidate( candidate );
+  }
  }
+
+void BenBound::evaluate_branch_candidate( double candidate , double master_bound )
+{
+ if( ! f_collect_branch_paths || ( BenStat != OK ) ||
+     ! std::isfinite( candidate ) || candidate <= 0 )
+  return;
+ lagSol.updrmin( candidate );
+ lagSol.Solve();
+ if( lagSol.getStatus() == DCRLagrangianSolver::OK &&
+     lagSol.getHeurVal() < HeurVal ) {
+  HeurVal = lagSol.getHeurVal();
+  HeurSOLUTION = lagSol.getHeurRSOLS();
+  }
+ capture_branch_result( candidate );
+ f_branch_result.lower_bound = std::max( getLB() , master_bound );
+ f_branch_result.dual_converged = f_branch_result.available &&
+  f_branch_result.local_converged &&
+  std::abs( f_branch_result.value - f_branch_result.lower_bound ) <=
+   eps * std::max( 1.0 , std::abs( f_branch_result.value ) );
+}
 
 /*--------------------------------------------------------------------------*/
 /*--------------------------- REUSE OF THE CUTS ----------------------------*/
