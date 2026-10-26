@@ -50,7 +50,7 @@ SFDCRBkH   = $(SFDCRBkSDR)/include/SingleFlowDCRBlock.h \
 # [see makefile-mod of SMS++]
 
 $(eval $(call SMSppMODrule,SFDCRBk,$(SFDCRBkSDR),SingleFlowDCRBlock,\
-	smspp.singleflowdcrblock,$(SMS++MOD)))
+	smspp.singleflowdcrblock,SMS++))
 
 # clean - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
