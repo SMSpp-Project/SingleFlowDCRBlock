@@ -554,6 +554,10 @@ protected:
  /// Result at the final master candidate; convergence is certified by bounds.
  const BranchPaths & branch_result() const { return( f_branch_result ); }
 
+ /// Build the defining pair only when the relaxation still needs to branch.
+ /// Reuses the final partition and leaves the primary primal routing intact.
+ void prepare_branch_result();
+
  /// Evaluate the minimizer selected by a refined interval master.
  /// Updates the same result and verified primal, keeping the original routing.
  void evaluate_branch_candidate( double candidate , double master_bound = 0 );

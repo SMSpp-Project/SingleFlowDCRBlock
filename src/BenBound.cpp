@@ -1406,28 +1406,27 @@ void BenBound::Solve()
 
  SOLUTION = lagSol.getRSOLS();
 
- // Keep the primal routing above at its own best point. Branch only on
- // the candidate that attains the smallest final master bound, never
- // on a witness from an unrelated interval. A stopped master is exposed
- // as such: neither solvedflag nor path equality certifies convergence.
- if( f_collect_branch_paths && ( BenStat == OK ) ) {
-  double candidate = rmin;
-  double master_lb = Inf< double >();
-  for( std::size_t i = 1 ; i < Q.size() ; ++i ) {
-   // The last split may have changed endpoints after LineSearch().
-   // Read every current interval, including retired ones, so the chosen
-   // point belongs to the final master over the whole domain.
-   Q[ i ].lbBound = cutEnvMin( int( i ) );
-   if( std::isfinite( Q[ i ].lbBound ) && Q[ i ].lbBound < master_lb ) {
-    master_lb = Q[ i ].lbBound;
-    candidate = Q[ i ].lbArg;
-    }
-   }
-  if( std::isfinite( master_lb ) )
-   BestLB = std::max( BestLB , master_lb );
-  evaluate_branch_candidate( candidate );
-  }
  }
+
+void BenBound::prepare_branch_result()
+{
+ if( ! f_collect_branch_paths || BenStat != OK || f_branch_result.available )
+  return;
+ // The primary primal routing stays at its own best point. Revisit the
+ // final master only if the caller still has an open gap after Solve().
+ double candidate = rmin;
+ double master_lb = Inf< double >();
+ for( std::size_t i = 1 ; i < Q.size() ; ++i ) {
+  Q[ i ].lbBound = cutEnvMin( int( i ) );
+  if( std::isfinite( Q[ i ].lbBound ) && Q[ i ].lbBound < master_lb ) {
+   master_lb = Q[ i ].lbBound;
+   candidate = Q[ i ].lbArg;
+   }
+  }
+ if( std::isfinite( master_lb ) )
+  BestLB = std::max( BestLB , master_lb );
+ evaluate_branch_candidate( candidate );
+}
 
 void BenBound::evaluate_branch_candidate( double candidate , double master_bound )
 {

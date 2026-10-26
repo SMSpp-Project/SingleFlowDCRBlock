@@ -163,6 +163,7 @@ public:
   if( block == f_Block ) // actually doing nothing
    return;               // cowardly and silently return
 
+  f_instance_fresh = false;
   Solver::set_Block( block ); // attach to the new Block
 
   if( block ) { // this is not just resetting everything
@@ -293,6 +294,7 @@ public:
    BenBound::setRminHint( f_last_rmin );
 
   // then (try to) solve the SingleFlowDCR
+  f_instance_fresh = false;
   BenBound::Solve();
   BenBound::DCRstopTime();
   f_last_solved = f_skip_same;     // f_last_inst is the instance solved
@@ -759,8 +761,9 @@ protected:
   * when the Block is attached and every time it changes [see set_Block()
   * and process_outstanding_Modification()]. */
 
- void load_BenBound( void )
+ virtual void load_BenBound( void )
  {
+  f_instance_fresh = false;
   auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
   auto nnodes = DCRB->get_NNodes();
   auto narcs = DCRB->get_NArcs();
@@ -857,6 +860,7 @@ protected:
 
   BenBound::LoadProblem( nnodes , narcs , flow , links , nodes ,
                          DCRB->get_MTU() );
+  f_instance_fresh = true;
  }
 
 /*--------------------------------------------------------------------------*/
@@ -952,7 +956,7 @@ protected:
   return( sum );
   }
 
- SolSource pick_solution_source( double feps = 1e-5 )
+ virtual SolSource pick_solution_source( double feps = 1e-5 )
  {
   if( this->BenBound::getStat() != BenBound::OK )
    return( SolSource::None );
@@ -1011,6 +1015,9 @@ protected:
 
  // the instance as last handed to BenBound::LoadProblem() [see
  // load_BenBound()], for derived classes that need it again
+
+ /// Loaded data have not yet been consumed by Solve().
+ bool f_instance_fresh = false;
 
  DCR::DCRFlow f_flow = {};               ///< the flow
  std::vector< DCR::DCRLink > v_links;    ///< the arcs

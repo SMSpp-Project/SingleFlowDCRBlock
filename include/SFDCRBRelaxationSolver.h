@@ -34,6 +34,8 @@
 
 #include "ChangeSolver.h"
 
+#include <atomic>
+
 /*--------------------------------------------------------------------------*/
 /*-------------------------- NAMESPACE & USING -----------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -68,6 +70,10 @@ namespace SMSpp_di_unipi_it
  * With a finite incumbent, children first run a bounded interval check.
  * A bound reaching the incumbent skips BenBound entirely. Otherwise the
  * computed intervals are retained for the fallback on this same node.
+ *
+ * Warm multiplier hints are suspended during compute(), with the configured
+ * option restored on exit. An open gap gets a bounded proof attempt before
+ * branching, even when distinct paths are available.
  *
  * When a gap remains, compute() uses the defining paths at the final
  * master candidate from BenBound, including the case where they coincide.
@@ -144,6 +150,13 @@ public:
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
  [[nodiscard]] double get_dbl_par( idx_type par ) const override;
+
+ /// Invalidate verified solution data when model data change.
+ void add_Modification( sp_Mod & mod ) override;
+
+ /// Cost of the current verified candidate, reusing the per-node selection.
+ OFValue get_var_value() override;
+
 
 /** @} ---------------------------------------------------------------------*/
 /*--------------------- METHODS FOR SOLVING THE MODEL ----------------------*/
@@ -259,6 +272,13 @@ protected:
 
  bool arc_closed( Index i ) override;
 
+ /// A reload invalidates the verified candidate even outside compute().
+ void load_BenBound() override;
+
+ /// Cache the base class's feasibility checks and selected candidate cost.
+ SolSource pick_solution_source( double feps = 1e-5 ) override;
+
+
 /*--------------------------------------------------------------------------*/
 /*---------------------------- PROTECTED FIELDS ----------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -300,12 +320,24 @@ private:
  std::vector< BoundInterval > v_bound_intervals;
  bool f_bound_only = true; ///< BenBound has not been solved for this node
 
+ /// A notification can arrive from another thread; only compute/query
+ /// methods access the actual cache. Model notifications advance its key.
+ std::atomic< std::size_t > f_solution_revision{ 0 };
+ std::size_t f_cached_revision = std::numeric_limits< std::size_t >::max();
+ SolSource f_solution_source = SolSource::None;
+ double f_solution_feps = 0;
+ OFValue f_solution_cost = 0;
+ void invalidate_solution_cache() {
+  f_solution_revision.fetch_add( 1 , std::memory_order_relaxed );
+  }
+
  /// Per-compute diagnostics; wall-clock timers are enabled only with f_log.
  struct Profile {
   double probe_seconds = 0 , refine_seconds = 0;
   std::size_t probes = 0 , refine_calls = 0 , interval_solves = 0;
   std::size_t refine_splits = 0;
   std::size_t cache_hits = 0;
+  std::size_t solution_checks = 0 , solution_cache_hits = 0;
  } f_profile;
  std::size_t f_compute_id = 0; ///< local sequence; identify with solver pointer
 
@@ -317,7 +349,7 @@ private:
  /** Called by compute() before its final gap check, so a node closed by
   * refinement is pruned by the driver before branch() is requested. */
 
- void prepare_branch( void );
+ void prepare_branch( double refine_seconds );
 
 /*--------------------------------------------------------------------------*/
 
@@ -334,12 +366,16 @@ private:
   * interval with the smallest lower bound, until it reaches dblUpCutOff
   * or the local upper bound within tolerance, it is narrow, or f_MaxIv
   * bisections have been done. With cutoff_only, uses the incumbent alone
-  * and at most 16 bisections before BenBound. The heap is retained for
+  * 16 bisections before BenBound, extended by at most eight when the bound
+  * is improving and close to the incumbent. max_splits limits an explicit
+  * pre-branch attempt; -1 uses the default budget. A positive max_seconds
+  * also limits elapsed time between interval solves. The heap is retained for
   * the later fallback, avoiding repeated interval solves. The least
   * lower bound found goes in f_cert, and the middle point of the interval
   * that attains it in f_zstar. */
 
- void refine_lb( bool cutoff_only = false );
+ void refine_lb( bool cutoff_only = false , int max_splits = -1 ,
+                 double max_seconds = -1 );
 
  /*--------------------------------------------------------------------------*/
 

@@ -68,6 +68,8 @@ void SFDCRBRelaxationSolver::set_Block( Block * block )
   throw( std::invalid_argument( "SFDCRBRelaxationSolver::set_Block: block "
                                 "must be a SingleFlowDCRBlock" ) );
 
+ invalidate_solution_cache();
+ f_instance_fresh = false;
  v_closed.clear();  // before the base loads the instance [see arc_closed()]
  f_infeasible = false;
  f_cert = - SMSpp_di_unipi_it::Inf< OFValue >();
@@ -117,8 +119,62 @@ double SFDCRBRelaxationSolver::get_dbl_par( idx_type par ) const
 
 /*--------------------------------------------------------------------------*/
 
+void SFDCRBRelaxationSolver::load_BenBound()
+{
+ invalidate_solution_cache();
+ f_bound_only = true;
+ SingleFlowDCRBendersSolver::load_BenBound();
+}
+
+void SFDCRBRelaxationSolver::add_Modification( sp_Mod & mod )
+{
+ SingleFlowDCRBendersSolver::add_Modification( mod );
+ invalidate_solution_cache();
+}
+
+SingleFlowDCRBendersSolver::SolSource
+SFDCRBRelaxationSolver::pick_solution_source( double feps )
+{
+ const auto revision = f_solution_revision.load( std::memory_order_relaxed );
+ if( revision == f_cached_revision && feps == f_solution_feps ) {
+  if( f_log )
+   ++f_profile.solution_cache_hits;
+  return( f_solution_source );
+  }
+ if( f_log )
+  ++f_profile.solution_checks;
+ const auto source = f_bound_only ? SolSource::None :
+  SingleFlowDCRBendersSolver::pick_solution_source( feps );
+ f_solution_source = source;
+ f_solution_cost = source == SolSource::None ? 0 :
+  cost_of( source == SolSource::Heuristic );
+ f_solution_feps = feps;
+ f_cached_revision = revision;
+ return( source );
+}
+
+Solver::OFValue SFDCRBRelaxationSolver::get_var_value()
+{
+ const auto source = pick_solution_source();
+ // Preserve the base accessor's raw-primary-cost behavior with no candidate.
+ return( source == SolSource::None ? cost_of( false ) : f_solution_cost );
+}
+
+/*--------------------------------------------------------------------------*/
+
 int SFDCRBRelaxationSolver::compute( bool changedvars )
 {
+ // Hints can make the outer search much more expensive even at the root.
+ // Suspend them for this compute, restoring the configured option on every
+ // return path (and on exceptions), without changing the base solver.
+ struct RestoreWarmLambda {
+  BenBound & solver;
+  bool enabled;
+  ~RestoreWarmLambda() { solver.setWarmLambda( enabled ); }
+ } restore_warm{ *this , get_int_par( intWarmLambda ) != 0 };
+ BenBound::setWarmLambda( false );
+
+ invalidate_solution_cache();
  const auto start = f_log ? ProfileClock::now() : ProfileClock::time_point{};
  ++f_compute_id;
  f_profile = {};
@@ -134,6 +190,7 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
    f_log->precision( 12 );
    *f_log << "[node_profile] solver=" << this << " run=" << f_compute_id
     << " status=" << status << " reason=" << reason
+    << " warm_lambda=0"
     << " total_s=" << total << " setup_s=" << setup_seconds
     << " benbound_s=" << benbound_seconds
     << " probes_s=" << f_profile.probe_seconds
@@ -143,6 +200,8 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
                                    benbound_seconds - prepare_seconds )
     << " probes=" << f_profile.probes
     << " cache_hits=" << f_profile.cache_hits
+    << " solution_checks=" << f_profile.solution_checks
+    << " solution_cache_hits=" << f_profile.solution_cache_hits
     << " refine_calls=" << f_profile.refine_calls
     << " interval_solves=" << f_profile.interval_solves
     << " refine_splits=" << f_profile.refine_splits
@@ -189,12 +248,12 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
   }
  const bool routable = source && sink;
 
- // BenBound cannot solve the same data twice, so the instance, with the
- // arcs closed by the Solver, is loaded at every compute(), after the
- // Modification of the Block
+ // Reuse a load made by set_Block() or modification processing. A solved
+ // instance must be loaded again; apply() also invalidates it on arc changes.
  if( routable ) {
   process_outstanding_Modification();
-  load_BenBound();
+  if( ! f_instance_fresh )
+   load_BenBound();
   f_infeasible = ! sink_reachable();
   }
 
@@ -232,11 +291,12 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
    return( finish( kCutOff , "cutoff_before_benbound" ) );
   }
 
- const auto ben_start = f_log ? ProfileClock::now() : ProfileClock::time_point{};
+ const auto ben_start = ProfileClock::now();
  const int rc = SingleFlowDCRBendersSolver::compute( changedvars );
  f_bound_only = false;
+ const double ben_elapsed = profile_seconds( ben_start );
  if( f_log )
-  benbound_seconds = profile_seconds( ben_start );
+  benbound_seconds = ben_elapsed;
  if( rc != kOK )
   return( finish( rc , "base_status" ) );
 
@@ -269,7 +329,7 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
  // decides whether to call branch(). A finite UB is needed for closure.
  if( ! std::isfinite( ub ) || ( ub - get_lb() > tol ) ) {
   const auto prepare_start = f_log ? ProfileClock::now() : ProfileClock::time_point{};
-  prepare_branch();
+  prepare_branch( std::min( 1.0 , 0.5 * ben_elapsed ) );
   if( f_log )
    prepare_seconds += profile_seconds( prepare_start );
   }
@@ -311,8 +371,26 @@ Solver::OFValue SFDCRBRelaxationSolver::get_lb( void )
 
 /*--------------------------------------------------------------------------*/
 
-void SFDCRBRelaxationSolver::prepare_branch( void )
+void SFDCRBRelaxationSolver::prepare_branch( double refine_seconds )
 {
+ // A short proof attempt can avoid an entire subtree even when the
+ // Lagrangian already offers two distinct paths. Reuse the screening heap.
+ refine_lb( false , 24 , refine_seconds );
+ const OFValue refined_ub = get_ub();
+ const OFValue refined_tol = std::max( f_AbsAcc ,
+  f_RelAcc * std::max( OFValue( 1 ) , std::abs( refined_ub ) ) );
+ if( ( std::isfinite( f_UpCutOff ) && get_lb() >= f_UpCutOff ) ||
+     ( std::isfinite( refined_ub ) && refined_ub - get_lb() <= refined_tol ) )
+  return;
+
+ prepare_branch_result();
+ invalidate_solution_cache();
+ const OFValue prepared_ub = get_ub();
+ const OFValue prepared_tol = std::max( f_AbsAcc ,
+  f_RelAcc * std::max( OFValue( 1 ) , std::abs( prepared_ub ) ) );
+ if( ( std::isfinite( f_UpCutOff ) && get_lb() >= f_UpCutOff ) ||
+     ( std::isfinite( prepared_ub ) && prepared_ub - get_lb() <= prepared_tol ) )
+  return;
  const auto & result = branch_result();
  if( result.available ) {
   ++f_profile.cache_hits;
@@ -346,6 +424,7 @@ void SFDCRBRelaxationSolver::prepare_branch( void )
  // This replaces the old scans over unrelated cached witnesses.
  const auto probe_start = f_log ? ProfileClock::now() : ProfileClock::time_point{};
  evaluate_branch_candidate( f_za , get_lb() );
+ invalidate_solution_cache();
  const auto & refined = branch_result();
  const bool distinct = refined.available && refined.plus != refined.minus;
  if( distinct ) {
@@ -437,6 +516,10 @@ Change * SFDCRBRelaxationSolver::apply( Change * chg , bool doUndo )
                                        a );
 
  v_closed[ a ] = ( dchg->type() == SingleFlowDCRBlockChange::eCloseArc );
+ f_instance_fresh = false;
+ f_bound_only = true;
+ f_cert = - SMSpp_di_unipi_it::Inf< OFValue >();
+ invalidate_solution_cache();
 
  return( undo );
 
@@ -504,9 +587,11 @@ double SFDCRBRelaxationSolver::interval_lb( double a , double b )
  return( pr.getObjVal() );
  }//end (SFDCRBRelaxationSolver::interval_lb )
 
-void SFDCRBRelaxationSolver::refine_lb( bool cutoff_only )
+void SFDCRBRelaxationSolver::refine_lb( bool cutoff_only , int max_splits ,
+                                        double max_seconds )
 {
- const auto refine_start = f_log ? ProfileClock::now() : ProfileClock::time_point{};
+ const auto refine_start = ( f_log || max_seconds > 0 ) ?
+  ProfileClock::now() : ProfileClock::time_point{};
  const OFValue lb_before = get_lb();
  const char * reason = "iteration_limit";
  int splits = 0;
@@ -542,11 +627,20 @@ void SFDCRBRelaxationSolver::refine_lb( bool cutoff_only )
     f_RelAcc * std::max( OFValue( 1 ) , std::abs( ub ) ) ) );
   }
  const int remaining = std::max( 0 , f_MaxIv - int( Q.size() - 1 ) );
- const int budget = cutoff_only ? std::min( 16 , remaining ) : remaining;
+ const int requested = max_splits >= 0 ? max_splits :
+                       ( cutoff_only ? 16 : remaining );
+ int budget = std::min( requested , remaining );
+ const int extended_budget = cutoff_only ?
+  std::min( remaining , budget + 8 ) : budget;
+ const double initial_lb = Q.front().lb;
  for( int it = 0 ; it < budget ; ++it ) {
   const BoundInterval top = Q.front();
   if( std::isfinite( target ) && ( top.lb >= target ) ) {
    reason = "target_reached";
+   break;
+   }
+  if( max_seconds > 0 && profile_seconds( refine_start ) >= max_seconds ) {
+   reason = "time_budget";
    break;
    }
   if( top.b - top.a <= 1e-1 * f_RelAcc * top.b ) {
@@ -563,6 +657,15 @@ void SFDCRBRelaxationSolver::refine_lb( bool cutoff_only )
   push( top.a , m );
   push( m , top.b );
   ++splits;
+  // Give a nearly successful incumbent check eight more splits, only
+  // while its certificate is improving. Proximity alone never prunes.
+  if( cutoff_only && ( it + 1 == budget ) && budget < extended_budget ) {
+   const double lb = Q.front().lb;
+   if( std::isfinite( target ) && std::isfinite( lb ) && lb > initial_lb &&
+       target - lb > 0 &&
+       target - lb <= 1e-4 * std::max( 1.0 , std::abs( target ) ) )
+    budget = extended_budget;
+   }
   }
 
  f_cert = std::max( f_cert , Q.front().lb );          // valid: min over leaves
@@ -575,7 +678,9 @@ void SFDCRBRelaxationSolver::refine_lb( bool cutoff_only )
   *f_log << "[refine_profile] solver=" << this << " run=" << f_compute_id
          << " elapsed_s=" << elapsed << " splits=" << splits
          << " interval_solves=" << interval_solves << " leaves=" << Q.size()
-         << " phase=" << ( cutoff_only ? "before_benbound" : "fallback" )
+         << " phase=" << ( cutoff_only ? "before_benbound" :
+                              ( max_splits >= 0 ? "before_branch" : "fallback" ) )
+         << " max_s=" << max_seconds
          << " reason=" << reason << " target=" << target
          << " LB_before=" << lb_before << " LB=" << get_lb()
          << " a=" << Q.front().a << " b=" << Q.front().b << '\n';

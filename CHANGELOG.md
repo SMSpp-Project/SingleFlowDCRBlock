@@ -47,6 +47,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the headers; it is built with the CMake option `SMSpp_BUILD_MODULE`, as
   the target `SMS++::SingleFlowDCRBlock_module`
 
+- `SFDCRBRelaxationSolver` caches the verified solution and its cost until
+  the model, node or candidate changes, prepares branching paths only while
+  the gap remains open, and reuses an instance already loaded by
+  `set_Block()` or modification processing before its first solve
+
 ### Changed
 
 - the pipeline builds the module also with its makefiles, after CMake, and

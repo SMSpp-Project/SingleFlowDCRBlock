@@ -1471,6 +1471,12 @@ static void test_block_change( void )
 /*--------------------------------------------------------------------------*/
 /// SFDCRBRelaxationSolver: the arcs it closes, its infeasible nodes, undo
 
+class InspectRelaxation : public SFDCRBRelaxationSolver {
+public:
+ bool has_branch_witness() const { return( branch_result().available ); }
+ bool has_fresh_instance() const { return( f_instance_fresh ); }
+};
+
 static void test_relaxation_solver( void )
 {
  // two parallel arcs from the source to the sink
@@ -1482,17 +1488,38 @@ static void test_relaxation_solver( void )
  g.s = 0; g.t = 1;
  g.burst = 1;
  g.deadline = 10;
+ g.rate = 1;  // the unconstrained cheapest path is already delay-feasible
  SingleFlowDCRBlock blk;
  load( blk , g );
 
- SFDCRBRelaxationSolver rs;
+ InspectRelaxation rs;
  blk.register_Solver( &rs );
 
  check( rs.compute() == Solver::kOK , "RelaxationSolver: the root is not "
         "solved" );
  const double root = rs.get_lb();
+ check( ! rs.has_branch_witness() , "RelaxationSolver: a closed root "
+        "prepared branching paths" );
+ check( ! rs.has_fresh_instance() , "RelaxationSolver: consumed instance "
+        "was still marked fresh" );
  check( rs.has_true_var_solution() && ( root <= rs.get_true_ub() ) ,
         "RelaxationSolver: no feasible routing at the root" );
+
+ // Populate the cached candidate, then change every arc cost without
+ // solving again: the same feasible rates must be priced with new data.
+ const double old_ub = rs.get_true_ub();
+ check( near( rs.get_true_ub() , old_ub ) , "RelaxationSolver: repeated UB" );
+ blk.chg_cost( 3 , 0 );
+ blk.chg_cost( 3 , 1 );
+ check( near( rs.get_true_ub() , 3 * old_ub ) , "RelaxationSolver: stale "
+        "cached cost after a model notification" );
+ rs.process_outstanding_Modification();
+ check( ! rs.has_true_var_solution() && ! std::isfinite( rs.get_true_ub() ) ,
+        "RelaxationSolver: stale cached candidate after reloading the model" );
+ blk.chg_cost( 1 , 0 );
+ blk.chg_cost( 1 , 1 );
+ check( ( rs.compute() == Solver::kOK ) && near( rs.get_true_ub() , old_ub ) ,
+        "RelaxationSolver: recompute after cost changes" );
 
  // the two arcs closed for the Solver: the node is infeasible, the Block
  // is not touched
@@ -1500,6 +1527,8 @@ static void test_relaxation_solver( void )
  SingleFlowDCRBlockChange c1( SingleFlowDCRBlockChange::eCloseArc , 1 );
  auto u0 = rs.apply( &c0 , true );
  auto u1 = rs.apply( &c1 , true );
+ check( ! rs.has_true_var_solution() && ! std::isfinite( rs.get_true_ub() ) ,
+        "RelaxationSolver: stale cached candidate after closing arcs" );
  check( ( ! blk.is_closed( 0 ) ) && ( ! blk.is_closed( 1 ) ) ,
         "RelaxationSolver: apply() closed the arc in the Block" );
  check( rs.compute() == Solver::kInfeasible ,
