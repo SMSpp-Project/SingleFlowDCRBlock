@@ -657,9 +657,11 @@ protected:
 
  bool Psol;  ///< true if continuous solution was found, false otherwise
  bool UBsol; ///< true if (mixed)-integer solution was found, false otherwise
+
+ /** @} ---------------------------------------------------------------------*/
  };
 
-/** @} ---------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 #endif
 

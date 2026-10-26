@@ -400,9 +400,9 @@ public:
   * deficits, i.e., a node with positive supply is a source node). Finally,
   * the arc definition lines must be found, in the form
   *
-  *    a <start node> <end node> <lower bound> <upper bound> <flow cost>
+  *    `a <start node> <end node> <lower bound> <upper bound> <flow cost>`
   *
-  * There must be exactly <number of arcs> arc definition lines in the file.
+  * There must be exactly \<number of arcs\> arc definition lines in the file.
   *
   * Note that the file format accepted by load() is more general than the
   * DIMACS standard format, in that node and arc definitions can be mixed in
@@ -1705,8 +1705,8 @@ public:
 /*--------------------------------------------------------------------------*/
  /// closes a contiguous interval of arcs
  /** Method to close a subset of arcs with all "contiguous names" given in
-  * \rng; note that if the right extreme of the range is >= get_NArcs() it is
-  * ignored. The flow on the arcs is fixed to 0 but the arcs are not removed
+  * \p rng; note that if the right extreme of the range is >= get_NArcs() it
+  * is ignored. The flow on the arcs is fixed to 0 but the arcs are not removed
   * from the problem, and their capacity and cost are not changed, so that
   * they can be easily re-opened later. When the problem is created, all arcs
   * are open. Closing an already closed arc does nothing.
@@ -1765,7 +1765,7 @@ public:
 /*--------------------------------------------------------------------------*/
 /// re-opens a contiguous interval of arcs
  /** Method to "open" a subset of closed arcs with all "contiguous names"
-  * given in \rng; note that if the right extreme of the range is >=
+  * given in \p rng; note that if the right extreme of the range is >=
   * get_NArcs() it is ignored. Opening an already open arc (which is what all
   * arcs are when the problem is created) does nothing.
   *

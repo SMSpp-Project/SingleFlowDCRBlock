@@ -64,8 +64,8 @@ namespace SMSpp_di_unipi_it {
 /*--------------------------------------------------------------------------*/
 /*------------------------------- CLASSES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @defgroup SingleFlowDCRBendersSolver_CLASSES
- *  Classes in SingleFlowDCRBendersSolver.h
+/** @defgroup SingleFlowDCRBendersSolver_CLASSES Classes in \
+ *  SingleFlowDCRBendersSolver.h
  *  @{ */
 
 /*--------------------------------------------------------------------------*/

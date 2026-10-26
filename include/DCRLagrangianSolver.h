@@ -91,7 +91,7 @@
  * \f]
  * which, since the inner minimization is separable over the arcs of P,
  * decomposes into: (i) for every arc (i, j) of the reduced graph, a
- * closed-form choice of the locally optimal rate r*_{ij}(\lambda) in
+ * closed-form choice of the locally optimal rate \f$ r^*_{ij}(\lambda) \f$ in
  * [r_min, capacity_{ij}] (see getCost() / setSPTcosts()), giving an
  * arc "Lagrangian cost"; (ii) a Shortest Path Tree computation (via SPT,
  * which can handle the possibly negative arc costs arising for \f$
