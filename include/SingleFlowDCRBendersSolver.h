@@ -53,6 +53,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <iostream>
+#include <chrono>
 #include <limits>
 
 /*--------------------------------------------------------------------------*/
@@ -64,8 +66,8 @@ namespace SMSpp_di_unipi_it {
 /*--------------------------------------------------------------------------*/
 /*------------------------------- CLASSES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
-/** @defgroup SingleFlowDCRBendersSolver_CLASSES Classes in \
- *  SingleFlowDCRBendersSolver.h
+/** @defgroup SingleFlowDCRBendersSolver_CLASSES
+ *  Classes in SingleFlowDCRBendersSolver.h
  *  @{ */
 
 /*--------------------------------------------------------------------------*/
@@ -271,8 +273,6 @@ public:
   f_skip_now = false;
   if( skip_solve ) {
    ++f_skipped;
-   if( std::getenv( "SFDCR_STAT" ) )   // TEMPORARY
-    std::cerr << "STAT skip" << std::endl;
    unlock();
    return( kOK );
    }
@@ -283,22 +283,32 @@ public:
   // if asked to, start from the cuts of the earlier compute() calls whose
   // costs are not larger than the present ones (and whose capacities are not
   // smaller), unless cuts have been explicitly offered with seed_cuts()
+  bool stat_seeded = false;
   if( f_reuse_cuts && ( ! BenBound::seedPending() ) ) {
    ++f_reuse_tried;
-   if( BenBound::seedCuts( mem_last ) || BenBound::seedCuts( mem_base ) )
+   if( BenBound::seedCuts( mem_last ) || BenBound::seedCuts( mem_base ) ) {
     ++f_reuse_used;
+    stat_seeded = true;
+    }
    }
 
   if( f_rmin_start && ( f_last_rmin > 0 ) )
    BenBound::setRminHint( f_last_rmin );
 
   // then (try to) solve the SingleFlowDCR
+  static const bool stats_on = ( std::getenv( "SFDCR_STATS" ) != nullptr );
+  const auto stat_t0 = std::chrono::steady_clock::now();
   BenBound::Solve();
   BenBound::DCRstopTime();
+  if( stats_on )
+   std::cout << "BENSTAT time "
+             << std::chrono::duration< double >( std::chrono::steady_clock::now() - stat_t0 ).count()
+             << " benders " << BenBound::getNumIterationBender() << " lagr "
+             << BenBound::getNumIterationLagr() << " seeded " << stat_seeded
+             << " hint " << BenBound::getHintUsed() << " lb " << get_lb()
+             << " ub " << get_ub() << " pen_shift " << f_pen_shift << " negcyc " << f_pen_negcycle << std::endl;
   f_last_solved = f_skip_same;     // f_last_inst is the instance solved
   f_last_rmin = BenBound::getr_min();
-  if( std::getenv( "SFDCR_STAT" ) )   // TEMPORARY
-   std::cerr << "STAT solve " << (const void *) this << " iters=" << BenBound::getNumIterationBender() << " hint=" << BenBound::getHintUsed() << " rmin=" << BenBound::getr_min() << std::endl;
 
   if( f_reuse_cuts ) {
    auto m = BenBound::getCutMemory();
@@ -340,7 +350,11 @@ public:
 /*--------------------------------------------------------------------------*/
  /// returns the best lower bound found so far by the Benders/Lagrange bound
 
- OFValue get_lb( void ) override { return( this->BenBound::getLB() ); }
+ OFValue get_lb( void ) override
+ {
+  const auto lb = this->BenBound::getLB();
+  return( std::abs( lb ) < 1e200 ? lb + f_pen_shift : lb );
+  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns the best upper bound on the optimum
@@ -795,6 +809,10 @@ protected:
    links[ i ].cost = DCRB->is_deleted( i ) ? 0 : DCRB->get_C( i );
    }
 
+  // the routing Variable may have a coefficient in the Objective, which
+  // is a fixed cost for using the arc [see set_fixed_costs()]
+  set_fixed_costs( links , source , sink );
+
   std::vector< DCR::DCRNode > nodes( nnodes );
   for( Index i = 0 ; i < nnodes ; ++i ) {
    nodes[ i ] = {};
@@ -803,6 +821,7 @@ protected:
 
   if( f_skip_same ) {
    Inst now;
+   now.pen = f_pen;
    now.nnodes = nnodes; now.narcs = narcs; now.source = source; now.sink = sink;
    now.burst = flow.burst; now.rate = flow.rate; now.deadline = flow.deadline;
    now.MTU = DCRB->get_MTU();
@@ -816,17 +835,6 @@ protected:
     }
    for( Index i = 0 ; i < nnodes ; ++i )
     now.ndelay.push_back( nodes[ i ].delay );
-   if( f_last_solved && std::getenv( "SFDCR_STAT" ) ) {   // TEMPORARY
-    double dc = 0 , dcap = 0 , dsp = 0 , dd = 0;
-    for( std::size_t i = 0 ; i < now.cost.size() ; ++i ) {
-     dc = std::max( dc , std::abs( now.cost[ i ] - f_last_inst.cost[ i ] ) );
-     dcap = std::max( dcap , std::abs( now.capacity[ i ] - f_last_inst.capacity[ i ] ) );
-     dsp = std::max( dsp , std::abs( now.speed[ i ] - f_last_inst.speed[ i ] ) );
-     dd = std::max( dd , std::abs( now.delay[ i ] - f_last_inst.delay[ i ] ) );
-     }
-    std::cerr << "STAT load same=" << ( now == f_last_inst ) << " dcost=" << dc << " dcap=" << dcap << " dspeed=" << dsp << " ddelay=" << dd
-              << " burst " << ( now.burst == f_last_inst.burst ) << " rate " << ( now.rate == f_last_inst.rate ) << " dl " << ( now.deadline == f_last_inst.deadline ) << std::endl;
-    }
    if( f_last_solved && ( now == f_last_inst ) ) {
     f_skip_now = true;     // BenBound keeps the result of the last solve
     return;
@@ -916,8 +924,11 @@ protected:
 
   double sum = 0;
   for( Index i = 0 ; i < R.size() ; ++i )
-   if( ! DCRB->is_deleted( i ) )
+   if( ! DCRB->is_deleted( i ) ) {
     sum += DCRB->get_C( i ) * R[ i ];
+    if( ( i < f_pen.size() ) && ( X[ i ] > 0 ) )
+     sum += f_pen[ i ];
+    }
 
   return( sum );
   }
@@ -985,6 +996,9 @@ protected:
 
 private:
  bool f_reuse_cuts = false;           ///< see set_reuse_cuts()
+ std::vector< double > f_pen;         ///< fixed cost of using each arc
+ double f_pen_shift = 0;              ///< see set_fixed_costs()
+ Index f_pen_negcycle = 0;            ///< see set_fixed_costs()
  bool f_warm = false;                 ///< see intWarmLambda
  BenBound::CutMemory mem_last;        ///< cuts of the last compute()
  BenBound::CutMemory mem_base;        ///< cuts valid for most costs
@@ -997,13 +1011,14 @@ private:
   int nnodes = 0 , narcs = 0 , source = -1 , sink = -1;
   double burst = 0 , rate = 0 , deadline = 0 , MTU = 0;
   std::vector< int > sn , en;
-  std::vector< double > speed , capacity , delay , cost , ndelay;
+  std::vector< double > speed , capacity , delay , cost , ndelay , pen;
   bool operator==( const Inst & o ) const {
    return( nnodes == o.nnodes && narcs == o.narcs && source == o.source &&
            sink == o.sink && burst == o.burst && rate == o.rate &&
            deadline == o.deadline && MTU == o.MTU && sn == o.sn &&
            en == o.en && speed == o.speed && capacity == o.capacity &&
-           delay == o.delay && cost == o.cost && ndelay == o.ndelay );
+           delay == o.delay && cost == o.cost && ndelay == o.ndelay &&
+           pen == o.pen );
    }
   };
  Inst f_last_inst;
@@ -1025,7 +1040,7 @@ private:
       ( a.speed != b.speed ) )
    return( false );
   for( int i = 0 ; i < a.numLinks ; ++i )
-   if( a.cost[ i ] > b.cost[ i ] )
+   if( ( a.cost[ i ] > b.cost[ i ] ) || ( a.fixed[ i ] > b.fixed[ i ] ) )
     return( false );
   return( true );
   }
@@ -1039,6 +1054,73 @@ private:
 /*--------------------------------------------------------------------------*/
 /*-------------------------- PRIVATE METHODS -------------------------------*/
 /*--------------------------------------------------------------------------*/
+
+ /// sets the fixed cost of using each arc out of the Objective of the Block
+ /** The Objective of a SingleFlowDCRBlock only depends on the reserved
+  * rates, \f$ \sum_a C_a r_a \f$. PrimalProximalHeur adds the routing
+  * Variable x to it, with coefficient \f$ p_a \f$, as the linear form of its
+  * proximal term, so that the objective actually is \f$ \sum_a ( C_a r_a +
+  * p_a x_a ) \f$: a fixed cost for using the arc, whatever its rate, which
+  * BenBound handles in the shortest path and in its cuts [see
+  * DCRLink::fixed]. As the \f$ p_a \f$ can be negative, which a shortest
+  * path computation with the other costs does not like, the node potentials
+  * \f$ u \f$ of a Bellman-Ford computation are used to replace them with
+  * \f$ p_a + u_i - u_j \geq 0 \f$: the cost of any path from the source s
+  * to the sink t changes by the same \f$ u_s - u_t \f$, which is f_pen_shift
+  * with the sign needed to bring the bounds of BenBound back to the
+  * original objective. If \f$ p \f$ has a negative cycle, which can only
+  * happen if the proximal center is a fractional point with a circulation in
+  * it, the negative \f$ p_a \f$ are replaced by 0 instead (counted in
+  * f_pen_negcycle), and what is solved is that problem, whose objective is
+  * what the bounds and the value of the solution refer to. */
+
+ void set_fixed_costs( std::vector< DCR::DCRLink > & links , int source ,
+                       int sink )
+ {
+  auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
+  const Index narcs = links.size();
+
+  f_pen.assign( narcs , 0.0 );
+  f_pen_shift = 0;
+
+  bool any = false;
+  for( Index i = 0 ; i < narcs ; ++i )
+   if( ! DCRB->is_deleted( i ) ) {
+    f_pen[ i ] = DCRB->get_x_obj_coeff( i );
+    if( f_pen[ i ] != 0 )
+     any = true;
+    }
+
+  if( ! any )
+   return;
+
+  const Index nnodes = DCRB->get_NNodes();
+  std::vector< double > u( nnodes , 0.0 );
+  bool changed = true;
+  for( Index pass = 0 ; changed && ( pass <= nnodes ) ; ++pass ) {
+   changed = false;
+   for( Index i = 0 ; i < narcs ; ++i ) {
+    const double v = u[ links[ i ].startnode ] + f_pen[ i ];
+    if( v < u[ links[ i ].endnode ] - 1e-12 ) {
+     u[ links[ i ].endnode ] = v;
+     changed = true;
+     }
+    }
+   }
+
+  if( changed ) {   // a negative cycle
+   ++f_pen_negcycle;
+   for( Index i = 0 ; i < narcs ; ++i )
+    f_pen[ i ] = std::max( f_pen[ i ] , 0.0 );
+   std::fill( u.begin() , u.end() , 0.0 );
+   }
+
+  for( Index i = 0 ; i < narcs ; ++i )
+   links[ i ].fixed = std::max( 0.0 , f_pen[ i ] + u[ links[ i ].startnode ] -
+                                      u[ links[ i ].endnode ] );
+
+  f_pen_shift = u[ sink ] - u[ source ];
+  }
 
  SMSpp_insert_in_factory_h;
 
