@@ -100,6 +100,7 @@ void BenBound::LoadProblem( int nnodes , int nlinks , DCR::DCRFlow flow ,
 {
  clean_up();
  f_branch_result = {};
+ resetGeneratedCuts();
  hasSeed = false;   // cuts to start from are about another instance
 
  numNodes = nnodes;
@@ -135,6 +136,7 @@ void BenBound::LoadProblem( int nnodes , int nlinks , DCR::DCRFlow flow ,
 void BenBound::LoadProblem( DCR::DCRFlow flow )
 {
  f_branch_result = {};
+ resetGeneratedCuts();
  int i;
  hasSeed = false;
 
@@ -645,6 +647,7 @@ void BenBound::DCRsetTimeLimit( long secs )
 void BenBound::Solve()
 {
  f_branch_result = {};
+ resetGeneratedCuts();
  int i , j;
  int Qsize;
  double approx;
@@ -696,6 +699,11 @@ void BenBound::Solve()
  if( solvedflag == 0 ) {
   if( BenStat == 0 ) {
    do {
+    if( f_generated_cuts >= f_max_cuts ) {
+     p = LineSearch();
+     approx = ApproxVal;
+     break;
+    }
     // for(int count_feas = Q[0].rmin; count_feas < Q[1].rmin; count_feas +=
     // 1000){
 
@@ -1121,6 +1129,16 @@ void BenBound::Solve()
        nonConvexflag = 1; //FIXME: equality up to rounding errors
       else
        nonConvexflag = 0;
+
+      // Count new supporting lines once, independently of how many
+      // subintervals receive a copy. Never insert half a nonconvex pair.
+      const int new_cuts = nonConvexflag ? 1 : 2;
+      if( new_cuts > f_max_cuts - f_generated_cuts ) {
+       p = LineSearch();
+       approx = ApproxVal;
+       break;
+      }
+      f_generated_cuts += new_cuts;
 
       /////////NON-CONVEX CASE
       // a genuinely new breakpoint is needed: split Q[p] into two
@@ -2617,6 +2635,7 @@ void BenBound::Inizial()
     //end of left cut computation, let's store it.
 
     Q[ 1 ].Cuts.push_back( c );
+    ++f_generated_cuts;
 
     Q[ 1 ].pCut.q =
      c.q; ///one of the cuts that defines the current point from which

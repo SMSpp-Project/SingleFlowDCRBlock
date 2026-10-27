@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `SingleFlowDCRBendersSolver::intMaxCuts`, also inherited by
+  `SFDCRBRelaxationSolver`, limits the new Benders cuts per `compute()`.
+  The positive limit includes the initial cut, counts a nonconvex pair as
+  two cuts and excludes reused cuts and copies across intervals. The default
+  is unlimited; `getNumGeneratedCuts()` reports the actual count.
+
 - `SFDCRBRelaxationSolver`, the `RelaxationSolver` of the nodes of an
   enumeration tree (as that of `BranchAndXSolver`) on a
   `SingleFlowDCRBlock`: it solves them by `SingleFlowDCRBendersSolver` and
@@ -82,6 +88,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before extracts once more
 
 ### Fixed
+
+- Physical modifications initialize their stored `changes()` value through
+  the `Modification` constructor, matching the core's nonvirtual accessor.
+- The relaxation's interval certificates are translated back from reweighted
+  fixed costs to the original Objective before comparing bounds or cutoffs;
+  the bound passed to BenBound's branching candidate uses its internal scale.
 
 - the makefiles of the tests and of the tools build also with g++: they
   take the option that stops at the first error and the one of the

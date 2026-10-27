@@ -66,6 +66,8 @@
 
 #include <random>
 
+#include <sstream>
+
 /*--------------------------------------------------------------------------*/
 /*-------------------------------- USING -----------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -1325,6 +1327,18 @@ class ERAITestSolver : public Solver
 
 static void test_block_modifications( void )
 {
+ for( int type = SingleFlowDCRBlockMod::eChgCost ;
+      type <= SingleFlowDCRBlockMod::eCloseArc ; ++type ) {
+  SingleFlowDCRBlockMod mod( nullptr , type );
+  const Modification & base = mod;
+  check( base.changes() == SingleFlowDCRBlockMod::changes_of( type ) ,
+         "Block Mod: stored concern differs from physical modification type" );
+  mod.set_changes( Modification::ePhysObj );
+  check( mod.changes() == base.changes() &&
+         base.changes() == Modification::ePhysObj ,
+         "Block Mod: changes() hides the base accessor" );
+ }
+
  Net g;
  g.n = 4;
  g.arc( 0 , 3 , 8 , 1 );
@@ -1475,7 +1489,122 @@ class InspectRelaxation : public SFDCRBRelaxationSolver {
 public:
  bool has_branch_witness() const { return( branch_result().available ); }
  bool has_fresh_instance() const { return( f_instance_fresh ); }
+ double certificate() const { return( f_cert ); }
+ double original( double value ) const { return( original_bound( value ) ); }
+ double internal( double value ) const { return( internal_bound( value ) ); }
 };
+
+static void test_cut_budget( void )
+{
+ InspectRelaxation rs;
+ const auto par = rs.int_par_str2idx( "intMaxCuts" );
+ check( par == SingleFlowDCRBendersSolver::intMaxCuts &&
+        rs.int_par_idx2str( par ) == "intMaxCuts" &&
+        rs.get_int_par( par ) == Inf< int >() &&
+        rs.get_dflt_int_par( par ) == Inf< int >() ,
+        "RelaxationSolver: cut parameter registration/default" );
+ for( int invalid : { -1 , 0 } ) {
+  bool refused = false;
+  try { rs.set_par( par , invalid ); }
+  catch( const std::invalid_argument & ) { refused = true; }
+  check( refused && rs.get_int_par( par ) == Inf< int >() ,
+         "RelaxationSolver: invalid cut budget accepted" );
+ }
+ std::istringstream config_text(
+  "1\n1\nSFDCRBRelaxationSolver\n1\nComputeConfig\n"
+  "1\n1\nintMaxCuts 3\n0\n0\n0\n0\n0\n*\n" );
+ BlockSolverConfig config( config_text );
+ rs.set_ComputeConfig( config.get_SolverConfig( 0 ) );
+ check( rs.get_int_par( par ) == 3 , "RelaxationSolver: cut ComputeConfig" );
+
+ Net g = base_path();
+ g.arc( 0 , 2 , 4 , 2 , 1 );
+ const double optimum = dcr_optimum( g );
+ DCRData data;
+ fill( data , g );
+ BenBound solver;
+ int largest_count = 0;
+ for( int limit : { 1 , 2 , 3 , 4 , 7 } ) {
+  solver.setMaxCuts( limit );
+  for( int run = 0 ; run < 2 ; ++run ) {
+   solver.LoadProblem( g.n , g.m() , data.flow , data.links , data.nodes , g.MTU );
+   check( solver.getNumGeneratedCuts() == 0 , "BenBound: stale cut counter" );
+   solver.Solve();
+   const int count = solver.getNumGeneratedCuts();
+   largest_count = std::max( largest_count , count );
+   check( count >= 1 && count <= limit , "BenBound: cut budget exceeded" );
+   check( solver.getLB() <= optimum + 1e-5 * std::max( 1.0 , optimum ) &&
+          solver.getUB() >= optimum - 1e-5 * std::max( 1.0 , optimum ) ,
+          "BenBound: invalid bound after cut limit" );
+  }
+ }
+ check( largest_count > 1 , "BenBound: cut test only generated initial cut" );
+ const auto memory = solver.getCutMemory();
+ solver.LoadProblem( g.n , g.m() , data.flow , data.links , data.nodes , g.MTU );
+ solver.setMaxCuts( 1 );
+ check( solver.seedCuts( memory ) , "BenBound: cut-budget seed rejected" );
+ solver.Solve();
+ check( solver.getNumGeneratedCuts() == 1 ,
+        "BenBound: reused cuts consumed new-cut budget" );
+
+ SingleFlowDCRBlock blk;
+ load( blk , g );
+ blk.register_Solver( &rs );
+ for( int limit : { 1 , 2 , 3 } ) {
+  check( rs.set_par( "intMaxCuts" , limit ) , "RelaxationSolver: cut name" );
+  for( int run = 0 ; run < 2 ; ++run ) {
+   const int status = rs.compute();
+   check( status == Solver::kOK || status == Solver::kStopIter ,
+          "RelaxationSolver: cut-limited compute failed" );
+   check( rs.getNumGeneratedCuts() >= 1 && rs.getNumGeneratedCuts() <= limit ,
+          "RelaxationSolver: per-compute cut budget/reset" );
+   check( rs.get_lb() <= optimum + 1e-5 * std::max( 1.0 , optimum ) ,
+          "RelaxationSolver: invalid cut-limited bound" );
+  }
+ }
+ rs.set_par( SingleFlowDCRBendersSolver::intSkipSame , 1 );
+ rs.compute();
+ rs.compute();
+ check( rs.getNumGeneratedCuts() == 0 , "RelaxationSolver: cached solve cut count" );
+ blk.unregister_Solver( &rs );
+}
+
+static void test_shifted_certificate( void )
+{
+ Net g;
+ g.n = 2;
+ g.arc( 0 , 1 , 8 , 1 );
+ g.arc( 0 , 1 , 4 , 1 );
+ g.ndel.assign( 2 , 0 );
+ g.s = 0; g.t = 1; g.burst = 1; g.deadline = 10; g.rate = 1;
+ SingleFlowDCRBlock blk;
+ load( blk , g );
+ blk.generate_abstract_variables();
+ blk.generate_objective();
+ auto objective = dynamic_cast< FRealObjective * >( blk.get_objective() );
+ auto function = dynamic_cast< LinearFunction * >( objective->get_function() );
+ function->add_variable( blk.i2p_x( 0 ) , -10 );
+
+ InspectRelaxation rs;
+ blk.register_Solver( &rs );
+ // The only open path costs 1 * 1 - 10 = -9. Screening against -5
+ // must not prune it using an unshifted (positive) certificate.
+ SingleFlowDCRBlockChange close( SingleFlowDCRBlockChange::eCloseArc , 1 );
+ rs.apply( &close );
+ rs.set_par( Solver::dblUpCutOff , -5.0 );
+ rs.set_par( SingleFlowDCRBendersSolver::intMaxCuts , 2 );
+ const int status = rs.compute();
+ check( status == Solver::kOK || status == Solver::kStopIter ,
+        "RelaxationSolver: shifted screening pruned a valid node" );
+ check( std::isfinite( rs.certificate() ) && rs.certificate() <= -9 + 1e-5 &&
+        rs.get_lb() <= -9 + 1e-5 && near( rs.get_true_ub() , -9 ) ,
+        "RelaxationSolver: certificate/solution use different objective scales" );
+ check( near( rs.original( 1 ) , -9 ) && near( rs.internal( -9 ) , 1 ) &&
+        rs.original( Inf< double >() ) == Inf< double >() &&
+        rs.internal( -Inf< double >() ) == -Inf< double >() ,
+        "RelaxationSolver: original/internal bound conversion" );
+ blk.unregister_Solver( &rs );
+}
 
 static void test_relaxation_solver( void )
 {
@@ -1573,6 +1702,8 @@ int main( void )
  test_block_fixing();
  test_block_change();
  test_relaxation_solver();
+ test_cut_budget();
+ test_shifted_certificate();
 
  if( failures )
   std::cout << failures << " checks failed" << std::endl;

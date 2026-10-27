@@ -206,6 +206,7 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
     << " interval_solves=" << f_profile.interval_solves
     << " refine_splits=" << f_profile.refine_splits
     << " benIt=" << ( results_available ? BenBound::getNumIterationBender() : 0 )
+    << " cuts=" << ( results_available ? BenBound::getNumGeneratedCuts() : 0 )
     << " lagIt=" << ( results_available ? BenBound::getNumIterationLagr() : 0 )
     << " LB_before=" << lb_before
     << " LB=" << ( ( results_available || ! v_bound_intervals.empty() ) ? get_lb() :
@@ -294,6 +295,9 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
  const auto ben_start = ProfileClock::now();
  const int rc = SingleFlowDCRBendersSolver::compute( changedvars );
  f_bound_only = false;
+ // The base diagnostics can query the solution before this flag changes.
+ // Discard a cached "no candidate" obtained while only bounds were exposed.
+ invalidate_solution_cache();
  const double ben_elapsed = profile_seconds( ben_start );
  if( f_log )
   benbound_seconds = ben_elapsed;
@@ -423,7 +427,7 @@ void SFDCRBRelaxationSolver::prepare_branch( double refine_seconds )
  // with rates >= f_za, so use that same rate for the original flow.
  // This replaces the old scans over unrelated cached witnesses.
  const auto probe_start = f_log ? ProfileClock::now() : ProfileClock::time_point{};
- evaluate_branch_candidate( f_za , get_lb() );
+ evaluate_branch_candidate( f_za , internal_bound( get_lb() ) );
  invalidate_solution_cache();
  const auto & refined = branch_result();
  const bool distinct = refined.available && refined.plus != refined.minus;
@@ -584,7 +588,7 @@ double SFDCRBRelaxationSolver::interval_lb( double a , double b )
   return( SMSpp_di_unipi_it::Inf< OFValue >() );     // no solution here
  if( pr.getStatus() != DCRLagrangianSolver::OK )
   return( - SMSpp_di_unipi_it::Inf< OFValue >() );   // claim nothing
- return( pr.getObjVal() );
+ return( original_bound( pr.getObjVal() ) );
  }//end (SFDCRBRelaxationSolver::interval_lb )
 
 void SFDCRBRelaxationSolver::refine_lb( bool cutoff_only , int max_splits ,

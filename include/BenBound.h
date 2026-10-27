@@ -305,11 +305,22 @@ public:
   * function d( r_min ) (via Inizial() first, and then a loop driven by
   * LineSearch()), refining the primal bound BestUB and the dual bound
   * BestLB until they coincide (up to a relative tolerance) or the
-  * maximum number of iterations is reached. After the call, getUB(),
+  * maximum number of iterations or new cuts is reached. After the call, getUB(),
   * getLB(), getObjVal(), getSolution() and the other get*() methods
   * report the outcome. */
 
  void Solve();
+
+ /// Maximum new cuts per Solve() [unlimited], including the initial cut.
+ /// Copies across subintervals and reused cuts do not consume the budget.
+ /// A nonconvex pair needs two remaining slots. The limit must be positive.
+ void setMaxCuts( int value ) {
+  if( value < 1 )
+   throw( std::invalid_argument( "BenBound::setMaxCuts: value must be positive" ) );
+  f_max_cuts = value;
+ }
+ int getMaxCuts() const { return( f_max_cuts ); }
+ int getNumGeneratedCuts() const { return( f_generated_cuts ); }
 
  /** @} ---------------------------------------------------------------------*/
 /*----------------------------------GET RESULTS-----------------------------*/
@@ -562,9 +573,14 @@ protected:
  /// Updates the same result and verified primal, keeping the original routing.
  void evaluate_branch_candidate( double candidate , double master_bound = 0 );
 
+ /// Start a new compute() budget even if a cached solve is reused.
+ void resetGeneratedCuts() { f_generated_cuts = 0; }
+
 /*--------------------------------------------------------------------------*/
 private:
  bool f_collect_branch_paths = false;
+ int f_max_cuts = std::numeric_limits< int >::max();
+ int f_generated_cuts = 0;
  BranchPaths f_branch_result;
 
  /// snapshot the final defining cuts without rerunning the subproblem

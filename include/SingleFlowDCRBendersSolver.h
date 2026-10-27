@@ -223,6 +223,7 @@ public:
  {
 
   lock(); // first of all, acquire self-lock
+  resetGeneratedCuts();
 
   if( ! f_Block )            // there is no [SingleFlowDCRBlock] to solve
    return( kBlockLocked ); // return error
@@ -354,8 +355,7 @@ public:
 
  OFValue get_lb( void ) override
  {
-  const auto lb = this->BenBound::getLB();
-  return( std::abs( lb ) < 1e200 ? lb + f_pen_shift : lb );
+  return( original_bound( this->BenBound::getLB() ) );
   }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
@@ -477,7 +477,8 @@ public:
   intReuseCuts = intLastAlgPar ,   ///< 0/1: see set_reuse_cuts() [0]
   intWarmLambda ,                  ///< 0/1: see BenBound::setWarmLambda() [0]
   intSkipSame ,                    ///< 0/1: answer from the last result if the instance is identical [0]
-  intRminStart                     ///< 0/1: start the search from the last r_min [0]
+  intRminStart ,                   ///< 0/1: start the search from the last r_min [0]
+  intMaxCuts                      ///< positive: max new cuts per compute() [unlimited]
   };
 
  using Solver::set_par;   // restore the hidden overloaded methods
@@ -495,15 +496,19 @@ public:
    f_skip_same = ( value != 0 );
   else if( par == intRminStart )
    f_rmin_start = ( value != 0 );
+  else if( par == intMaxCuts )
+   BenBound::setMaxCuts( value );
   else
    Solver::set_par( par , value );
   }
 
  [[nodiscard]] idx_type get_num_int_par( void ) const override {
-  return( idx_type( intRminStart ) + 1 );
+  return( idx_type( intMaxCuts ) + 1 );
   }
 
  [[nodiscard]] int get_dflt_int_par( idx_type par ) const override {
+  if( par == intMaxCuts )
+   return( SMSpp_di_unipi_it::Inf< int >() );
   return( ( par == intReuseCuts ) || ( par == intWarmLambda ) ||
           ( par == intSkipSame ) || ( par == intRminStart )
           ? 0 : Solver::get_dflt_int_par( par ) );
@@ -518,6 +523,8 @@ public:
    return( f_skip_same ? 1 : 0 );
   if( par == intRminStart )
    return( f_rmin_start ? 1 : 0 );
+  if( par == intMaxCuts )
+   return( BenBound::getMaxCuts() );
   return( Solver::get_int_par( par ) );
   }
 
@@ -531,6 +538,8 @@ public:
    return( intSkipSame );
   if( name == "intRminStart" )
    return( intRminStart );
+  if( name == "intMaxCuts" )
+   return( intMaxCuts );
   return( Solver::int_par_str2idx( name ) );
   }
 
@@ -540,6 +549,7 @@ public:
   static const std::string par2 = "intWarmLambda";
   static const std::string par3 = "intSkipSame";
   static const std::string par4 = "intRminStart";
+  static const std::string par5 = "intMaxCuts";
   if( idx == intReuseCuts )
    return( par );
   if( idx == intWarmLambda )
@@ -548,6 +558,8 @@ public:
    return( par3 );
   if( idx == intRminStart )
    return( par4 );
+  if( idx == intMaxCuts )
+   return( par5 );
   return( Solver::int_par_idx2str( idx ) );
   }
 
@@ -1021,6 +1033,17 @@ protected:
   }
 
 /*--------------------------------------------------------------------------*/
+ /// Translate a bound from BenBound's reweighted costs to the Objective.
+ /// Preserve infinity sentinels, as in get_lb().
+ OFValue original_bound( OFValue value ) const {
+  return( std::abs( value ) < 1e200 ? value + f_pen_shift : value );
+ }
+
+ /// Translate an original-objective bound to BenBound's reweighted costs.
+ OFValue internal_bound( OFValue value ) const {
+  return( std::abs( value ) < 1e200 ? value - f_pen_shift : value );
+ }
+
 /*---------------------------- PROTECTED FIELDS  ---------------------------*/
 /*--------------------------------------------------------------------------*/
 
