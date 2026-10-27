@@ -256,6 +256,8 @@ public:
   double capacity; ///< link mutual capacity
   double delay;    ///< link delay
   double cost;     ///< link cost
+  double fixed = 0; ///< fixed cost paid if the link is used, whatever its
+                    ///< rate (0 unless a penalty term is present)
   };
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/

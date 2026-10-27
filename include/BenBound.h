@@ -239,7 +239,7 @@ public:
   int source = -1 , sink = -1;
   double burst = 0 , rate = 0 , deadline = 0;
   std::vector< int > startnode , endnode;
-  std::vector< double > cost , delay , speed , capacity , nodeDelay;
+  std::vector< double > cost , fixed , delay , speed , capacity , nodeDelay;
   double lo = 0;                 ///< left endpoint of the first subinterval
   std::vector< double > hi;      ///< right endpoint of each subinterval
   std::vector< std::vector< DCRLagrangianSolver::LinearCut > > cuts;

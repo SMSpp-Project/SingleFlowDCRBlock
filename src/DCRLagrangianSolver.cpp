@@ -346,7 +346,8 @@ bool DCRLagrangianSolver::is0opt( void )
           MTU / RedGraLinks[ path[ i ] ].speed +
           RedGraLinks[ path[ i ] ].delay +
           Nodes[ RedGraLinks[ path[ i ] ].startnode ].delay;
-  alpha += RedGraLinks[ path[ i ] ].cost * Linksp[ path[ i ] ].rstar;
+  alpha += RedGraLinks[ path[ i ] ].cost * Linksp[ path[ i ] ].rstar +
+            RedGraLinks[ path[ i ] ].fixed;
   }
 
  if( beta <= 0 ) {
@@ -385,7 +386,8 @@ bool DCRLagrangianSolver::is0opt( void )
            MTU / RedGraLinks[ path[ i ] ].speed +
            RedGraLinks[ path[ i ] ].delay +
            Nodes[ RedGraLinks[ path[ i ] ].startnode ].delay;
-   alpha += RedGraLinks[ path[ i ] ].cost * Linksp[ path[ i ] ].rstar;
+   alpha += RedGraLinks[ path[ i ] ].cost * Linksp[ path[ i ] ].rstar +
+            RedGraLinks[ path[ i ] ].fixed;
    }
 
   epsobj = alpha + lambda * beta;
@@ -766,7 +768,8 @@ void DCRLagrangianSolver::Solve( void )
             MTU / RedGraLinks[ path[ i ] ].speed +
             RedGraLinks[ path[ i ] ].delay +
             Nodes[ RedGraLinks[ path[ i ] ].startnode ].delay;
-    alpha += RedGraLinks[ path[ i ] ].cost * Linksp[ path[ i ] ].rstar;
+    alpha += RedGraLinks[ path[ i ] ].cost * Linksp[ path[ i ] ].rstar +
+            RedGraLinks[ path[ i ] ].fixed;
     //tempRsol[i] = Linksp[path[i]].rstar;
     cut.RSol[ i ] = Linksp[ path[ i ] ].rstar;
     }
@@ -992,6 +995,7 @@ void DCRLagrangianSolver::copyDataArray( DCR::DCRFlow flow ,
   Links[ i ].capacity = links[ i ].capacity;
   Links[ i ].delay = links[ i ].delay;
   Links[ i ].cost = links[ i ].cost; //Flow.costs[i];
+  Links[ i ].fixed = links[ i ].fixed;
   ModCaps[ i ] = Links[ i ].capacity;
   }
 
@@ -1018,6 +1022,8 @@ void DCRLagrangianSolver::getLimitVal( void )
    LimitVal +=
     RedGraLinks[ i ].cost *
     RedGraLinks[ i ].capacity; //saturate all the positive-cost arcs
+  if( RedGraLinks[ i ].fixed > 0 )
+   LimitVal += RedGraLinks[ i ].fixed;
   } //and sum up their costs.
  }
 /*upper bound on the value of any feasible solution*/
@@ -1231,7 +1237,8 @@ void DCRLagrangianSolver::Inizial( void )
            MTU / RedGraLinks[ path[ i ] ].speed +
            RedGraLinks[ path[ i ] ].delay +
            Nodes[ RedGraLinks[ path[ i ] ].startnode ].delay;
-   alpha += RedGraLinks[ path[ i ] ].cost * Linksp[ path[ i ] ].rstar;
+   alpha += RedGraLinks[ path[ i ] ].cost * Linksp[ path[ i ] ].rstar +
+            RedGraLinks[ path[ i ] ].fixed;
    // cout<<"barl in lagr for arc "<<i<<" is "<<MTU /
    // RedGraLinks[path[i]].speed + RedGraLinks[path[i]].delay +
    // Nodes[RedGraLinks[path[i]].startnode].delay<<endl;
@@ -1367,7 +1374,8 @@ void DCRLagrangianSolver::Inizial( void )
              MTU / RedGraLinks[ path[ i ] ].speed +
              RedGraLinks[ path[ i ] ].delay +
              Nodes[ RedGraLinks[ path[ i ] ].startnode ].delay;
-     alpha += RedGraLinks[ path[ i ] ].cost * Linksp[ path[ i ] ].rstar;
+     alpha += RedGraLinks[ path[ i ] ].cost * Linksp[ path[ i ] ].rstar +
+            RedGraLinks[ path[ i ] ].fixed;
      }
 
     //cout<<"beta = "<<beta<<endl;
@@ -1476,6 +1484,7 @@ void DCRLagrangianSolver::setReducedGraph()
    RedGraLinks[ j ].speed = Links[ i ].speed;
    RedGraLinks[ j ].delay = Links[ i ].delay;
    RedGraLinks[ j ].cost = Links[ i ].cost;
+   RedGraLinks[ j ].fixed = Links[ i ].fixed;
    Linksp[ j ].startnode = Links[ i ].startnode;
    Linksp[ j ].endnode = Links[ i ].endnode;
    RedGraPos[ j ] = i;
@@ -1530,6 +1539,9 @@ void DCRLagrangianSolver::setSPTcosts()
      } //case rmin < sqr < c_ij
     }
    } //end of the case split on the sign of the cost.
+  // the fixed cost of using the arc, whatever its rate, simply adds to its
+  // Lagrangian cost (and does not change the optimal rate)
+  Linksp[ i ].cost += RedGraLinks[ i ].fixed;
   } //for all reduced graph arcs
  }
 
@@ -1656,7 +1668,7 @@ bool DCRLagrangianSolver::evalPair( const WarmPair & w , double & alpha ,
   const double r = std::max( w.rates[ k ] , rmin );
   if( ! ( r > 0 ) )
    return( false );
-  alpha += Links[ a ].cost * r;
+  alpha += Links[ a ].cost * r + Links[ a ].fixed;
   beta += MTU / r + MTU / Links[ a ].speed + Links[ a ].delay +
           Nodes[ Links[ a ].startnode ].delay;
   }
@@ -1819,7 +1831,7 @@ void DCRLagrangianSolver::tightenPath( const std::vector< int > & path ,
      r = sqr;
     }
    rs[ k ] = r;
-   a += lk.cost * r;
+   a += lk.cost * r + lk.fixed;
    delay_no_burst += MTU / r + MTU / lk.speed + lk.delay +
                      Nodes[ lk.startnode ].delay;
    if( r < min_r )

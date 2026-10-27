@@ -920,6 +920,9 @@ void BenBound::Solve()
 
         d = -SPLabels[ Links[ i ].endnode ] +
             SPLabels[ Links[ i ].startnode ]; //d_i-d_j
+        // the fixed cost of the arc shifts its reduced cost: everything
+        // below is the closed form for the arc cost without it
+        d += Links[ i ].fixed;
 
         if( d < -1e-10 ) //otherwise the contribution is certainly zero
         {
@@ -1470,6 +1473,7 @@ BenBound::CutMemory BenBound::getCutMemory() const
   mem.startnode.push_back( Links[ i ].startnode );
   mem.endnode.push_back( Links[ i ].endnode );
   mem.cost.push_back( Links[ i ].cost );
+  mem.fixed.push_back( Links[ i ].fixed );
   mem.delay.push_back( Links[ i ].delay );
   mem.speed.push_back( Links[ i ].speed );
   mem.capacity.push_back( Links[ i ].capacity );
@@ -1510,7 +1514,8 @@ bool BenBound::seedCuts( const CutMemory & mem )
  // ...with costs that are nowhere smaller (r >= 0, so d( . ) does not
  // decrease when a cost increases)
  for( int i = 0 ; i < numLinks ; ++i )
-  if( Links[ i ].cost < mem.cost[ i ] )
+  if( ( Links[ i ].cost < mem.cost[ i ] ) ||
+      ( Links[ i ].fixed < mem.fixed[ i ] ) )
    return( false );
 
  for( int i = 0 ; i < numNodes ; ++i )
@@ -1693,6 +1698,7 @@ void BenBound::copyDataArray( DCR::DCRFlow flow ,
   Links[ i ].capacity = links[ i ].capacity;
   Links[ i ].delay = links[ i ].delay;
   Links[ i ].cost = links[ i ].cost; //Flow.costs[i];
+  Links[ i ].fixed = links[ i ].fixed;
   }
 
  for( i = 0 ; i < numNodes ; i++ ) {
@@ -2443,6 +2449,7 @@ void BenBound::Inizial()
       sqr = sqrt( lambda * MTU / Links[ i ].cost ); //sqrt(lambda * L / f_ij)
       d = SPLabels[ Links[ i ].startnode ] -
           SPLabels[ Links[ i ].endnode ]; //d_i-d_j
+      d += Links[ i ].fixed;  // see Solve()
       //cout<<"d = "<<d<<endl;
       if( d < 0 ) {
        if( lambda == 0 ) //first, simplified case

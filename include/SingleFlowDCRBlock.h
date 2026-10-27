@@ -1291,6 +1291,23 @@ public:
   }
 
 /*--------------------------------------------------------------------------*/
+ /// gets the coefficient of the routing Variable of the given arc in the
+ /// Objective
+ /** The Objective of the Block only depends on the reserved rates, so this
+  * is 0, unless a Solver (typically, a proximal term of
+  * PrimalProximalHeur) has added the routing Variable to it. */
+
+ double get_x_obj_coeff( Index arc ) {
+  if( ( ! ( AR & HasVar ) ) || ( ! ( AR & HasObj ) ) ||
+      ( arc >= get_NArcs() ) )
+   return( 0 );
+
+  auto lfo = get_lfo();
+  const auto k = lfo->is_active( & x[ arc ] );
+  return( k < lfo->get_num_active_var() ? lfo->get_coefficient( k ) : 0.0 );
+  }
+
+/*--------------------------------------------------------------------------*/
  /// gets the current value of r_min, the minimum reserved rate
 
  double get_rmin( void ) const { return( r_min.get_value() ); }

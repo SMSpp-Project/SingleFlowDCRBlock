@@ -538,8 +538,8 @@ class MultiFlowDCRBlock : public Block
  /** Given a commodity index k and an arc index ij, this function provides
   * the value of the associated variable x^k_ij. In the case of the knapsack
   * relaxation, the variables of the block are rescaled in such a way that
-  * x \in [ 0 , 1 ]. In this case the functions get_flow provide the values
-  * already rescaled wigth x^k_{ij} in [ 0 , u_ij ].
+  * \f$ x \in [ 0 , 1 ] \f$. In this case the functions get_flow provide the
+  * values already rescaled with \f$ x^k_{ij} \in [ 0 , u_{ij} ] \f$.
   *
   * IMPLEMENTATION NOTE: the current implementation always reads x^k_ij out
   * of the corresponding SingleFlowDCRBlock sub-Block (the "flow"
