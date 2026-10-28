@@ -315,9 +315,12 @@ public:
  /// Copies across subintervals and reused cuts do not consume the budget.
  /// A nonconvex pair needs two remaining slots. The limit must be positive.
  void setMaxCuts( int value ) {
-  if( value < 1 )
+  if (value == 0)
+   f_max_cuts = std::numeric_limits< int >::max();
+  else if( value < 1 )
    throw( std::invalid_argument( "BenBound::setMaxCuts: value must be positive" ) );
-  f_max_cuts = value;
+  else
+   f_max_cuts = value;
  }
  int getMaxCuts() const { return( f_max_cuts ); }
  int getNumGeneratedCuts() const { return( f_generated_cuts ); }
