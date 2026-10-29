@@ -317,7 +317,7 @@ public:
  void setMaxCuts( int value ) {
   if (value == 0)
    f_max_cuts = std::numeric_limits< int >::max();
-  else if( value < 1 )
+  else if( value < 0 )
    throw( std::invalid_argument( "BenBound::setMaxCuts: value must be positive" ) );
   else
    f_max_cuts = value;

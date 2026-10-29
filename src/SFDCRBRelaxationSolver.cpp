@@ -190,7 +190,7 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
    f_log->precision( 12 );
    *f_log << "[node_profile] solver=" << this << " run=" << f_compute_id
     << " status=" << status << " reason=" << reason
-    << " warm_lambda=0"
+    << " warm_lambda=0 refine_enabled=1"
     << " total_s=" << total << " setup_s=" << setup_seconds
     << " benbound_s=" << benbound_seconds
     << " probes_s=" << f_profile.probe_seconds
@@ -328,12 +328,12 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
  OFValue tol = std::max( f_AbsAcc ,
   f_RelAcc * std::max( OFValue( 1 ) , std::abs( ub ) ) );
 
- // Prepare the branching pair while still in compute(): the fallback can
- // prove the node closed, and the driver must see that bound before it
- // decides whether to call branch(). A finite UB is needed for closure.
+ // Prepare the final master pair before the driver's branching decision.
+ // The master evaluation can improve the bound or verified primal cost.
+ // Coincident paths alone do not close an open global gap.
  if( ! std::isfinite( ub ) || ( ub - get_lb() > tol ) ) {
   const auto prepare_start = f_log ? ProfileClock::now() : ProfileClock::time_point{};
-  prepare_branch( std::min( 1.0 , 0.5 * ben_elapsed ) );
+  prepare_branch();
   if( f_log )
    prepare_seconds += profile_seconds( prepare_start );
   }
@@ -375,26 +375,17 @@ Solver::OFValue SFDCRBRelaxationSolver::get_lb( void )
 
 /*--------------------------------------------------------------------------*/
 
-void SFDCRBRelaxationSolver::prepare_branch( double refine_seconds )
+void SFDCRBRelaxationSolver::prepare_branch()
 {
- // A short proof attempt can avoid an entire subtree even when the
- // Lagrangian already offers two distinct paths. Reuse the screening heap.
- refine_lb( false , 24 , refine_seconds );
- const OFValue refined_ub = get_ub();
- const OFValue refined_tol = std::max( f_AbsAcc ,
-  f_RelAcc * std::max( OFValue( 1 ) , std::abs( refined_ub ) ) );
- if( ( std::isfinite( f_UpCutOff ) && get_lb() >= f_UpCutOff ) ||
-     ( std::isfinite( refined_ub ) && refined_ub - get_lb() <= refined_tol ) )
-  return;
-
  prepare_branch_result();
  invalidate_solution_cache();
- const OFValue prepared_ub = get_ub();
- const OFValue prepared_tol = std::max( f_AbsAcc ,
-  f_RelAcc * std::max( OFValue( 1 ) , std::abs( prepared_ub ) ) );
+ const OFValue ub = get_ub();
+ const OFValue tol = std::max( f_AbsAcc ,
+  f_RelAcc * std::max( OFValue( 1 ) , std::abs( ub ) ) );
  if( ( std::isfinite( f_UpCutOff ) && get_lb() >= f_UpCutOff ) ||
-     ( std::isfinite( prepared_ub ) && prepared_ub - get_lb() <= prepared_tol ) )
+     ( std::isfinite( ub ) && ub - get_lb() <= tol ) )
   return;
+
  const auto & result = branch_result();
  if( result.available ) {
   ++f_profile.cache_hits;
@@ -412,38 +403,9 @@ void SFDCRBRelaxationSolver::prepare_branch( double refine_seconds )
    }
   }
 
- // Equality at a fixed rate is not a global certificate if the master
- // stopped early. Retain its actual bound; the fallback can strengthen
- // it, but must not manufacture an unrelated branching pair.
+ // Refine only while no pair is ready. Each new weakest-interval endpoint
+ // is checked with the original flow, and the first distinct pair stops it.
  refine_lb();
- const OFValue ub = get_ub();
- const double tolerance = std::max( f_AbsAcc ,
-  f_RelAcc * std::max( OFValue( 1 ) , std::abs( ub ) ) );
- if( ( std::isfinite( f_UpCutOff ) && get_lb() >= f_UpCutOff ) ||
-     ( std::isfinite( ub ) && ub - get_lb() <= tolerance ) )
-  return;
-
- // The interval master now selects [f_za,b]. Its bound is evaluated
- // with rates >= f_za, so use that same rate for the original flow.
- // This replaces the old scans over unrelated cached witnesses.
- const auto probe_start = f_log ? ProfileClock::now() : ProfileClock::time_point{};
- evaluate_branch_candidate( f_za , internal_bound( get_lb() ) );
- invalidate_solution_cache();
- const auto & refined = branch_result();
- const bool distinct = refined.available && refined.plus != refined.minus;
- if( distinct ) {
-  v_branch_plus = refined.plus;
-  v_branch_minus = refined.minus;
-  }
- if( f_log ) {
-  ++f_profile.probes;
-  f_profile.probe_seconds += profile_seconds( probe_start );
-  *f_log << "[prepare_branch] solver=" << this << " run=" << f_compute_id
-         << " source=refined_master rmin=" << refined.rmin
-         << " value=" << refined.value << " available=" << refined.available
-         << " equal=" << ( refined.available && refined.plus == refined.minus )
-         << " found=" << distinct << '\n';
-  }
 }
 
 /*--------------------------------------------------------------------------*/
@@ -621,15 +583,46 @@ void SFDCRBRelaxationSolver::refine_lb( bool cutoff_only , int max_splits ,
   push( L , U );
   }
 
- // Before BenBound, only the driver's incumbent is meaningful. After
- // it, the verified local UB can further tighten the stopping target.
+ // A probe can improve the verified UB, so refresh the target afterwards.
  OFValue target = f_UpCutOff;
- if( ! cutoff_only ) {
-  const OFValue ub = get_ub();
-  if( std::isfinite( ub ) )
-   target = std::min( target , ub - std::max( f_AbsAcc ,
-    f_RelAcc * std::max( OFValue( 1 ) , std::abs( ub ) ) ) );
-  }
+ auto update_target = [ & ]() {
+  target = f_UpCutOff;
+  if( ! cutoff_only ) {
+   const OFValue ub = get_ub();
+   if( std::isfinite( ub ) )
+    target = std::min( target , ub - std::max( f_AbsAcc ,
+     f_RelAcc * std::max( OFValue( 1 ) , std::abs( ub ) ) ) );
+   }
+  };
+ double last_probe = branch_result().rmin;
+ double probe_seconds = 0;
+ auto probe_pair = [ & ]() {
+  const double candidate = Q.front().a;
+  if( candidate != last_probe ) {
+   const auto probe_start = f_log ? ProfileClock::now() : ProfileClock::time_point{};
+   evaluate_branch_candidate( candidate , internal_bound( get_lb() ) );
+   invalidate_solution_cache();
+   last_probe = candidate;
+   if( f_log ) {
+    ++f_profile.probes;
+    const double elapsed = profile_seconds( probe_start );
+    probe_seconds += elapsed;
+    f_profile.probe_seconds += elapsed;
+    const auto & pair = branch_result();
+    *f_log << "[prepare_branch] solver=" << this << " run=" << f_compute_id
+           << " source=refined_master rmin=" << pair.rmin
+           << " value=" << pair.value << " available=" << pair.available
+           << " equal=" << ( pair.available && pair.plus == pair.minus )
+           << " found=" << ( pair.available && pair.plus != pair.minus ) << '\n';
+    }
+   }
+  const auto & pair = branch_result();
+  if( ! pair.available || pair.rmin != candidate || pair.plus == pair.minus )
+   return false;
+  v_branch_plus = pair.plus;
+  v_branch_minus = pair.minus;
+  return true;
+  };
  const int remaining = std::max( 0 , f_MaxIv - int( Q.size() - 1 ) );
  const int requested = max_splits >= 0 ? max_splits :
                        ( cutoff_only ? 16 : remaining );
@@ -637,9 +630,16 @@ void SFDCRBRelaxationSolver::refine_lb( bool cutoff_only , int max_splits ,
  const int extended_budget = cutoff_only ?
   std::min( remaining , budget + 8 ) : budget;
  const double initial_lb = Q.front().lb;
- for( int it = 0 ; it < budget ; ++it ) {
+ for( int it = 0 ; ; ++it ) {
   const BoundInterval top = Q.front();
-  if( std::isfinite( target ) && ( top.lb >= target ) ) {
+  // Publish the global certificate before evaluating a branching witness.
+  // Its value is the minimum over all covering intervals, never the value
+  // of the original-flow solve at this single candidate.
+  f_cert = std::max( f_cert , top.lb );
+  f_za = top.a;
+  f_zstar = 0.5 * ( top.a + top.b );
+  update_target();
+  if( std::isfinite( target ) && ( get_lb() >= target ) ) {
    reason = "target_reached";
    break;
    }
@@ -647,6 +647,20 @@ void SFDCRBRelaxationSolver::refine_lb( bool cutoff_only , int max_splits ,
    reason = "time_budget";
    break;
    }
+  if( ! cutoff_only ) {
+   const bool ready = probe_pair();
+   update_target();
+   if( std::isfinite( target ) && get_lb() >= target ) {
+    reason = "target_reached";
+    break;
+    }
+   if( ready ) {
+    reason = "branch_pair_found";
+    break;
+    }
+   }
+  if( it >= budget )
+   break;
   if( top.b - top.a <= 1e-1 * f_RelAcc * top.b ) {
    reason = "interval_narrow";
    break;
@@ -677,10 +691,12 @@ void SFDCRBRelaxationSolver::refine_lb( bool cutoff_only , int max_splits ,
  f_zstar = 0.5 * ( Q.front().a + Q.front().b );         // where the bound is lowest
  if( f_log ) {
   const double elapsed = profile_seconds( refine_start );
-  f_profile.refine_seconds += elapsed;
+  // Probe time is accounted for separately in node_profile.
+  f_profile.refine_seconds += std::max( 0.0 , elapsed - probe_seconds );
   f_profile.refine_splits += splits;
   *f_log << "[refine_profile] solver=" << this << " run=" << f_compute_id
-         << " elapsed_s=" << elapsed << " splits=" << splits
+         << " elapsed_s=" << elapsed << " probes_s=" << probe_seconds
+         << " splits=" << splits
          << " interval_solves=" << interval_solves << " leaves=" << Q.size()
          << " phase=" << ( cutoff_only ? "before_benbound" :
                               ( max_splits >= 0 ? "before_branch" : "fallback" ) )

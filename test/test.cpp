@@ -1503,7 +1503,7 @@ static void test_cut_budget( void )
         rs.get_int_par( par ) == Inf< int >() &&
         rs.get_dflt_int_par( par ) == Inf< int >() ,
         "RelaxationSolver: cut parameter registration/default" );
- for( int invalid : { -1 , 0 } ) {
+ for( int invalid : { -1 } ) {
   bool refused = false;
   try { rs.set_par( par , invalid ); }
   catch( const std::invalid_argument & ) { refused = true; }

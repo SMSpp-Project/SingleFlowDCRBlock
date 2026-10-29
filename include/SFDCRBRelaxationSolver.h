@@ -67,28 +67,21 @@ namespace SMSpp_di_unipi_it
  * reached from the source on the arcs left open is infeasible, and
  * compute() says so without running the Benders scheme at all.
  *
- * With a finite incumbent, children first run a bounded interval check.
- * A bound reaching the incumbent skips BenBound entirely. Otherwise the
- * computed intervals are retained for the fallback on this same node.
- *
+ * Children first screen against a finite incumbent using interval bounds.
  * Warm multiplier hints are suspended during compute(), with the configured
- * option restored on exit. An open gap gets a bounded proof attempt before
- * branching, even when distinct paths are available.
+ * option restored on exit.
  *
- * When a gap remains, compute() uses the defining paths at the final
- * master candidate from BenBound, including the case where they coincide.
- * Equal paths close a node only if its global bound meets the verified
- * primal cost. Otherwise the interval bound is refined and the original
- * flow is evaluated at the lower endpoint of the weakest remaining
- * interval. No pair is taken from an unrelated rate or another node.
- * If the bound remains open without distinct paths, compute() returns
- * kStopIter rather than declaring optimality or calling branch().
+ * An open gap first uses the defining paths at BenBound's final master
+ * candidate. If no distinct pair is available, refine_lb() bisects the
+ * weakest interval and checks its lower endpoint with the ORIGINAL flow.
+ * It stops as soon as that evaluation provides two distinct valid paths,
+ * or a bound closes the node. Equal paths alone do not certify global
+ * optimality. If neither closure nor a pair is obtained within the budget,
+ * compute() returns kStopIter.
  *
- * When a log stream is set [see Solver::set_log()], compute(), branch()
- * write diagnostic information on it. [node_profile] separates wall time
- * spent in setup, BenBound, extra solves and refinement. It also reports
- * the selected rate, path equality, convergence, bounds and exit reason.
- * [prepare_branch] and [refine_profile] detail individual operations.
+ * Node profiles report refine_enabled=1. [refine_profile] records
+ * reason=branch_pair_found for early exits, or the bound/budget stop reason;
+ * original-flow probes are timed separately from interval solves.
  * Records are identified by solver address and a local compute sequence
  * (run); timers are disabled when no log stream is set. */
 
@@ -139,9 +132,9 @@ public:
  using SingleFlowDCRBendersSolver::set_par;  // keep the other set_par()
 
  /// set the double parameters of the Solver
- /** dblRelAcc [1e-6] controls closure of the relative gap in compute() and
-  * stopping of the fallback refinement in compute(). dblUpCutOff is the
-  * global incumbent supplied by the driver: a lower bound reaching it
+ /** dblRelAcc [1e-6] controls closure of the relative gap in compute().
+  * dblUpCutOff is the global incumbent supplied by the driver: a lower
+  * bound reaching it
   * stops computation with kCutOff, without preparing a branching pair.
   * dblAbsAcc is stored; the other parameters are passed to the base. */
 
@@ -345,11 +338,11 @@ private:
 /*--------------------------- PRIVATE METHODS ------------------------------*/
 /*--------------------------------------------------------------------------*/
 
- /// use the final master pair; strengthen the bound if no pair is distinct
- /** Called by compute() before its final gap check, so a node closed by
-  * refinement is pruned by the driver before branch() is requested. */
+ /// use a distinct master pair or refine until the first pair is found
+ /** Called by compute() before its final gap check. Refinement also stops
+  * when a global bound closes the node, or its budget is exhausted. */
 
- void prepare_branch( double refine_seconds );
+ void prepare_branch();
 
 /*--------------------------------------------------------------------------*/
 
@@ -364,8 +357,10 @@ private:
  /// refine the lower bound of the node by bisecting the domain of r_min
  /** Bisects [ max{ rho , burst / deadline } , largest capacity ] keeping the
   * interval with the smallest lower bound, until it reaches dblUpCutOff
-  * or the local upper bound within tolerance, it is narrow, or f_MaxIv
-  * bisections have been done. With cutoff_only, uses the incumbent alone
+  * or the local upper bound within tolerance, or a distinct original-flow
+  * branching pair is found. Also stops on a narrow interval or f_MaxIv
+  * bisections. With cutoff_only, uses the incumbent alone and performs no
+  * branching probes: BenBound has not been solved on this node yet. Uses
   * 16 bisections before BenBound, extended by at most eight when the bound
   * is improving and close to the incumbent. max_splits limits an explicit
   * pre-branch attempt; -1 uses the default budget. A positive max_seconds
