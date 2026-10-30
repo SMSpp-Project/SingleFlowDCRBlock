@@ -66,6 +66,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `SingleFlowDCRBlockMod` says again what it changes to the constructor of
+  `Modification`: a merge had brought back its `changes()`, which overrides
+  nothing since `Modification::changes()` is no longer virtual, and the
+  module did not compile
+
 - the makefiles of the tests and of the tools build also with g++: they
   take the option that stops at the first error and the one of the
   debugging information, which clang++ and g++ spell differently
