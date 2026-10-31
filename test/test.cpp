@@ -24,7 +24,8 @@
  * - SingleFlowDCRBlock is checked in the feasibility of given solutions,
  *   the default data of load(), the netCDF round trip, the feasibility of
  *   the instance against the enumeration, and the Modification its changes
- *   issue, which a Solver attached to it sees when it solves again.
+ *   issue, which a Solver attached to it sees when it solves again, with
+ *   what each says it changes [see Modification::changes()].
  *
  * The edge cases are checked on their own: source equal to sink, no path at
  * all, every path violating the deadline, a deadline met with equality, ties
@@ -1259,22 +1260,27 @@ static void test_block_feasible_instance( void )
  }
 
 /*--------------------------------------------------------------------------*/
-/* A Solver that counts the physical Modification it receives, by type, and
- * solves the SingleFlowDCRBlock again with ERA-I on its current data, the
- * closed arcs left out. */
+/* A Solver that counts the physical Modification it receives, by type,
+ * keeps the or of what those of each type say they change [see
+ * Modification::changes()], and solves the SingleFlowDCRBlock again with
+ * ERA-I on its current data, the closed arcs left out. */
 
 class ERAITestSolver : public Solver
 {
  public:
 
  int count[ 5 ] = { 0 , 0 , 0 , 0 , 0 };  // per SingleFlowDCRBlockMod type
+ Modification::ModConcern said[ 5 ] = { 0 , 0 , 0 , 0 , 0 };  // the same
  double value = INF;                      // the cost ERA-I finds
 
  int compute( bool changedvars = true ) override {
   for( ; ! v_mod.empty() ; v_mod.pop_front() )
    if( auto dm = std::dynamic_pointer_cast< const SingleFlowDCRBlockMod >(
         v_mod.front() ) )
+   {
     ++count[ dm->type() ];
+    said[ dm->type() ] |= dm->changes();
+    }
 
   auto blk = static_cast< SingleFlowDCRBlock * >( f_Block );
   Net g;
@@ -1314,8 +1320,31 @@ class ERAITestSolver : public Solver
  };
 
 /*--------------------------------------------------------------------------*/
+/// what a SingleFlowDCRBlockMod of type t has to say it changes, written
+/// from what the change does to the model: the costs are the Objective, the
+/// capacities and the deficits the Constraint, opening an arc enlarges the
+/// feasible region and closing it shrinks it
+
+static Modification::ModConcern expected_changes( int t )
+{
+ using M = Modification;
+ switch( t ) {
+  case( SingleFlowDCRBlockMod::eChgCost ):
+   return( M::eModPhys | M::eModObj | M::eObjUp | M::eObjDown );
+  case( SingleFlowDCRBlockMod::eOpenArc ):
+   return( M::eModPhys | M::eModCnsSide | M::eRegnGrow );
+  case( SingleFlowDCRBlockMod::eCloseArc ):
+   return( M::eModPhys | M::eModCnsSide | M::eRegnShrink );
+  default:
+   return( M::eModPhys | M::eModCnsSide | M::eModCnsCoef | M::eRegnGrow |
+           M::eRegnShrink );
+  }
+ }
+
+/*--------------------------------------------------------------------------*/
 /* The changes of the SingleFlowDCRBlock, each issuing its physical
- * Modification, seen by the Solver attached to it when it solves again.
+ * Modification, seen by the Solver attached to it when it solves again,
+ * which also checks what the Modification say they change.
  * The instance: 0 -> 3 (capacity 8, cost 1), the fastest, and 0 -> 1 -> 3
  * and 0 -> 2 -> 3 (capacity 4, cost 1 each), which ERA-I prices at full
  * rate: 8 the first, 8 each of the other two. ERA-I takes, among the paths
@@ -1380,6 +1409,12 @@ static void test_block_modifications( void )
 
  blk.chg_st( 3 , 0 );                     // no path back
  check( slv.compute() == Solver::kInfeasible , "Block Mod: no path back" );
+
+ for( int t = 0 ; t < 5 ; ++t )
+  check( slv.said[ t ] == expected_changes( t ) , "Block Mod: the type " +
+         std::to_string( t ) + " says it changes " +
+         std::to_string( slv.said[ t ] ) + " instead of " +
+         std::to_string( expected_changes( t ) ) );
 
  blk.unregister_Solver( &slv );
  }

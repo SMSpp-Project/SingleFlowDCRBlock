@@ -23,7 +23,9 @@ default data of `load()`, the netCDF round trip (the file is written in the
 working directory and removed), `is_feasible_instance()` against the
 enumeration, and the physical `Modification` issued by the changes of costs,
 capacities, source and sink and by closing and opening arcs, which a `Solver`
-attached to the `Block` sees when it solves again; the delays and the deadline
+attached to the `Block` sees when it solves again, together with what each of
+them says it changes (`changes()`, against what the change does to the model,
+written down in the tester); the delays and the deadline
 cannot be changed but by loading the instance again.
 
 The edge cases are checked on their own: source equal to sink, no path at all,
