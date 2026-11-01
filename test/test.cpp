@@ -1393,7 +1393,7 @@ static void test_block_modifications( void )
 
  // 0 -> 1 -> 3 at capacity 32 becomes the fastest, at 64 in all
  const std::vector< double > caps = { 32 , 32 };
- blk.chg_ucaps( caps.begin() , Block::Range( 1 , 3 ) );
+ blk.chg_ucaps( Block::MF_dbl_sp( caps ) , Block::Range( 1 , 3 ) );
  slv.compute();
  check( slv.count[ SingleFlowDCRBlockMod::eChgCaps ] == 1 ,
         "Block Mod: chg_ucaps() issues no eChgCaps" );

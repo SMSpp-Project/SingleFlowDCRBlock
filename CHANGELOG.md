@@ -41,6 +41,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `chg_costs()`, `chg_ucaps()` and `chg_dfcts()` take their data as a
+  `MF_dbl_sp`, whose length they check against the Range or the Subset
+  (`std::invalid_argument` is thrown if it is shorter), and are registered
+  in the methods factory only in that form
+
 - the README leaves the channels that distribute SMS++ to the
   installation guide of the wiki (Installing-SMS++), keeping the names
   of the packages of the module
@@ -73,6 +78,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before extracts once more
 
 ### Fixed
+
+- the Range versions of `chg_costs()` and `chg_ucaps()` read the cost or the
+  capacity of the arc past the end of the Range when none changed, checking
+  the end of the Range after it; the Subset version of `chg_dfcts()` did not
+  change the deficits, nor the flow conservation rows, once these were
+  constructed
 
 - on Windows, the executables that copy their DLLs next to themselves
   are linked one at a time (a job pool of Ninja), since two copies of the
