@@ -1,5 +1,11 @@
 # SingleFlowDCRBlock
 
+[![Pipeline](https://gitlab.com/smspp/singleflowdcrblock/badges/develop/pipeline.svg)](https://gitlab.com/smspp/singleflowdcrblock/-/pipelines?ref=develop)
+[![Release](https://gitlab.com/smspp/singleflowdcrblock/-/badges/release.svg)](https://gitlab.com/smspp/singleflowdcrblock/-/releases)
+[![Documentation](https://img.shields.io/badge/docs-Doxygen-blue)](https://smspp.gitlab.io/smspp-project/)
+[![C++ Standard](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
+[![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
+
 `SingleFlowDCRBlock` is a SMS++ module for Delay-Constrained Routing (DCR)
 problems, i.e., the problem of routing one or more flows on a network so that
 the worst-case end-to-end delay of each flow, as given by a network-calculus
@@ -46,22 +52,11 @@ algorithms.
 These instructions will let you build the `SingleFlowDCRBlock` module on
 your system.
 
-The module also comes ready-made, in any of
-
-```sh
-sudo add-apt-repository ppa:smspp-project/smspp   # Ubuntu
-sudo apt install libsmspp-sfdcr-dev               # and smspp-sfdcr for the tool
-
-conda install -c conda-forge smspp-project        # Linux, macOS, Windows
-
-brew tap SMSpp-Project/smspp                      # macOS, Linux
-brew install smspp
-
-vcpkg install "smspp[core,sfdcr]"                 # from the sources
-```
-
-where apt and the port give the module alone, while conda and the tap carry
-the whole framework. What follows is about building it yourself.
+The module also comes ready-made: on Ubuntu as `libsmspp-sfdcr-dev` (and
+`smspp-sfdcr` for the tool), in vcpkg as `smspp[core,sfdcr]`, and in the other
+channels that the [installation
+guide](https://gitlab.com/smspp/smspp-project/-/wikis/Installing-SMS++) of
+SMS++ lists. What follows is about building it yourself.
 
 ### Requirements
 

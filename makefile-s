@@ -41,8 +41,8 @@ include $(SFDCRBkSDR)/makefile
 
 # macros to be exported - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-# append external -I directives to SFDCRBkINC, SFDCRBkOBJ and SFDCRBkH as defined
-# by the makefile, thus the := assignment has to be used (use GNU make)
+# append external -I directives to SFDCRBkINC, SFDCRBkOBJ and SFDCRBkH as
+# defined by the makefile, thus the := assignment has to be used (use GNU make)
 SFDCRBkOBJ := $(SFDCRBkOBJ)
 SFDCRBkINC := $(SFDCRBkINC)
 

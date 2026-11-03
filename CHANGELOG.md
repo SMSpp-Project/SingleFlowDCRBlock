@@ -7,6 +7,107 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-03
+
+### Added
+
+- the tester checks what each physical Modification says it changes
+  (`changes()`) against what the change does to the model, written down in
+  the tester, for every type of `SingleFlowDCRBlockMod`
+
+- the makefiles build the C++20 module `smspp.singleflowdcrblock` when
+  `SMSppMOD` is not empty (e.g., `make SMSppMOD=1`), with clang++ 16 or
+  later [see `lib/makefile-mod` of SMS++]
+
+- `SingleFlowDCRBendersSolver` reuses its cuts across the calls of
+  `compute()` with `intReuseCuts` 1 (0 by default): a call starts from the
+  cuts of an earlier one when the instance is the same save for capacities
+  and speeds that are not larger and costs that are not smaller, which is
+  what makes them valid, as across the iterations of a Lagrangian method
+  whose costs are the original ones plus nonnegative multipliers; the cuts
+  can also be taken out and offered explicitly [see `get_cut_memory()` and
+  `seed_cuts()`, and `BenBound::getCutMemory()` and `BenBound::seedCuts()`]
+
+- with `intWarmLambda` 1 (0 by default) the search for the multiplier of
+  `DCRLagrangianSolver` starts from the critical pairs of the points solved
+  earlier, re-evaluated with the present costs, instead of from 1, and the
+  delay-feasible path found while doubling it is kept as the heuristic
+  value [see `DCRLagrangianSolver::setWarmStart()`]
+
+- the C++20 module `smspp.singleflowdcrblock`
+  (`src/SingleFlowDCRBlock.cppm`), which exports every name that the headers
+  declare at namespace scope and re-exports `smspp`, so that a source file
+  can write `import smspp.singleflowdcrblock;` in place of the `#include` of
+  the headers; it is built with the CMake option `SMSpp_BUILD_MODULE`, as
+  the target `SMS++::SingleFlowDCRBlock_module`
+
+### Changed
+
+- `chg_costs()`, `chg_ucaps()` and `chg_dfcts()` take their data as a
+  `MF_dbl_sp`, whose length they check against the Range or the Subset
+  (`std::invalid_argument` is thrown if it is shorter), and are registered
+  in the methods factory only in that form
+
+- the README leaves the channels that distribute SMS++ to the
+  installation guide of the wiki (Installing-SMS++), keeping the names
+  of the packages of the module
+
+- the Modification of the module say what they change to the constructor
+  of `Modification`, since `changes()` is no longer virtual and returns
+  that value, which whoever forwards them can refine with `set_changes()`
+
+- the pipeline builds the module also with its makefiles, after CMake, and
+  runs on a change of the makefiles too [see `ci/makefile` of the umbrella]
+
+- `SMSpp_BUILD_MODULE` no longer stops the configuration when the C++20
+  module cannot be built, i.e., with a CMake older than 3.28, a generator
+  other than Ninja or Visual Studio, a compiler other than Clang 16 (with
+  `clang-scan-deps`) or MSVC 19.34, or a module it imports that is not
+  there: the option is turned off with a warning that says why, and the
+  build goes on with the headers [see `cmake/CheckModule.cmake` of SMS++]
+
+- `FACTOR`, the oversubscription factor with which
+  `MultiFlowDCRBlock::load()` computes the mutual capacity of an arc out of
+  the individual ones of a textual instance, is 1 (formerly 0.8), so that
+  the mutual capacity is the sum of the individual ones; the multi-flow
+  instances of `data/` are written anew with it, as the data version
+  2026-10-18, the single-flow ones being the same as before
+
+- the instances of `data/` are downloaded and extracted by the targets
+  `download_dcr_<fmt>` and `extract_dcr_<fmt>`, written as in every module
+  that keeps its instances in the Package Registry, and the marker of the
+  extraction carries the format in its name, so that a tree extracted
+  before extracts once more
+
+### Fixed
+
+- the Range versions of `chg_costs()` and `chg_ucaps()` read the cost or the
+  capacity of the arc past the end of the Range when none changed, checking
+  the end of the Range after it; the Subset version of `chg_dfcts()` did not
+  change the deficits, nor the flow conservation rows, once these were
+  constructed
+
+- on Windows, the executables that copy their DLLs next to themselves
+  are linked one at a time (a job pool of Ninja), since two copies of the
+  same DLL into one directory collided (e.g., with the clang++ of MSYS2)
+
+- with the compilers of MinGW (MSYS2) the target asks whoever links it
+  for the symbol that forces the module in, as with MSVC and on macOS:
+  the linker imports a DLL only for the symbols asked for, so that a
+  program that used none had the module left out and its classes
+  missing from the factory
+
+- `SingleFlowDCRBlockMod` says again what it changes to the constructor of
+  `Modification`: a merge had brought back its `changes()`, which overrides
+  nothing since `Modification::changes()` is no longer virtual, and the
+  module did not compile
+
+- the makefiles of the tests and of the tools build also with g++: they
+  take the option that stops at the first error and the one of the
+  debugging information, which clang++ and g++ spell differently
+  (`-ferror-limit=1` and `-glldb` against `-fmax-errors=1` and `-ggdb`),
+  from `SMSppSWERR` and `SMSppSWDBG` of `lib/makefile-OS` of SMS++
+
 ## [0.2.0] - 2026-10-09
 
 ### Added
@@ -249,7 +350,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that is not a solution together with a value below the optimum. The
   point is now moved towards that endpoint, and stops there
 
-[Unreleased]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.2.0...develop
+[Unreleased]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.3.0...develop
+[0.3.0]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.2.0...0.3.0
 [0.2.0]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.1.1...0.2.0
 [0.1.1]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.1.0...0.1.1
 [0.1.0]: https://gitlab.com/smspp/singleflowdcrblock/-/tags/0.1.0

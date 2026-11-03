@@ -400,9 +400,9 @@ public:
   * deficits, i.e., a node with positive supply is a source node). Finally,
   * the arc definition lines must be found, in the form
   *
-  *    a <start node> <end node> <lower bound> <upper bound> <flow cost>
+  *      a <start node> <end node> <lower bound> <upper bound> <flow cost>
   *
-  * There must be exactly <number of arcs> arc definition lines in the file.
+  * There must be exactly \<number of arcs\> arc definition lines in the file.
   *
   * Note that the file format accepted by load() is more general than the
   * DIMACS standard format, in that node and arc definitions can be mixed in
@@ -1289,6 +1289,23 @@ public:
   }
 
 /*--------------------------------------------------------------------------*/
+ /// gets the coefficient of the routing Variable of the given arc in the
+ /// Objective
+ /** The Objective of the Block only depends on the reserved rates, so this
+  * is 0, unless a Solver (typically, a proximal term of
+  * PrimalProximalHeur) has added the routing Variable to it. */
+
+ double get_x_obj_coeff( Index arc ) {
+  if( ( ! ( AR & HasVar ) ) || ( ! ( AR & HasObj ) ) ||
+      ( arc >= get_NArcs() ) )
+   return( 0 );
+
+  auto lfo = get_lfo();
+  const auto k = lfo->is_active( & x[ arc ] );
+  return( k < lfo->get_num_active_var() ? lfo->get_coefficient( k ) : 0.0 );
+  }
+
+/*--------------------------------------------------------------------------*/
  /// gets the current value of r_min, the minimum reserved rate
 
  double get_rmin( void ) const { return( r_min.get_value() ); }
@@ -1521,9 +1538,10 @@ public:
 
  /// change the costs of a contiguous interval of arcs
  /** Method to change the costs of a subset of arcs with "contiguous names".
-  * That is, *( NCost + i - strt ) becomes the new cost of the i-th arc in
+  * That is, NCost[ i - strt ] becomes the new cost of the i-th arc in
   * \p rng. Note that if the right extreme of the range is >= get_NArcs() it
-  * is ignored.
+  * is ignored; \p NCost has to be at least as long as what is left of
+  * \p rng.
   *
   * Note that if \p rng contains some closed arc, its cost is also changed.
   * While this has no immediate impact on the problem solved, if the arc is
@@ -1544,14 +1562,14 @@ public:
   * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is
   * issued. */
 
- void chg_costs( c_Vec_double_it NCost , Range rng = INFRange ,
+ void chg_costs( MF_dbl_sp NCost , Range rng = INFRange ,
                  ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// change the costs of an arbitrary subset of arcs
  /** Method to change the costs of an arbitrary subset of arc. That is,
-  * *( NCost + i ) becomes the new cost of arc nms[ i ] for all 0 <= i <
-  * NCost.size(), (which means that nms.size() == NCost.size()). The
+  * NCost[ i ] becomes the new cost of arc nms[ i ] for all 0 <= i <
+  * nms.size(), \p NCost having to be at least as long as \p nms. The
   * parameter ordered tells if the nms vector is ordered for increasing
   * index of the arc. As the && tells, nms is "consumed" by the method,
   * typically being shipped to an appropriate SingleFlowDCRBlockSbstMod
@@ -1561,7 +1579,7 @@ public:
   * the "physical" one is a SingleFlowDCRBlockSbstMod), and about changes in
   * costs of closed arcs. */
 
- void chg_costs( c_Vec_double_it NCost ,
+ void chg_costs( MF_dbl_sp NCost ,
                  Subset && nms , bool ordered = false ,
                  ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
@@ -1578,9 +1596,10 @@ public:
 /*--------------------------------------------------------------------------*/
  /// change the capacities of a contiguous interval of arcs
  /** Method to change the capacities of a subset of arcs with "contiguous
-  * names". That is, *( NCap + i - strt ) becomes the new capacity of the i-th
+  * names". That is, NCap[ i - strt ] becomes the new capacity of the i-th
   * arc in \p rng. Note that if the right extreme of the range is
-  * >= get_NArcs() it is ignored. Note that, according to the Configuration of
+  * >= get_NArcs() it is ignored; \p NCap has to be at least as long as what
+  * is left of \p rng. Note that, according to the Configuration of
   * the static Constraint, the capacity of the arcs cannot be changed: trying
   * to do that will result in an exception being thrown.
   *
@@ -1607,17 +1626,18 @@ public:
   * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is
   * issued. */
 
- void chg_ucaps( c_Vec_double_it NCap , Range rng = INFRange ,
+ void chg_ucaps( MF_dbl_sp NCap , Range rng = INFRange ,
                  ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// change the capacities of an arbitrary subset of arcs
  /** Method to change the capacities of an arbitrary subset of arc. That is,
-  * *( NCap + i ) becomes the new capacity of arc nms[ i ] for all 0 <= i <
-  * NCap.size() (which means that nms.size() == NCap.size()). The parameter
-  * ordered tells if the nms vector is ordered for increasing index of the
-  * arc. As the && tells, nms is "consumed" by the method, typically
-  * being shipped to an appropriate SingleFlowDCRBlockSbstMod object.
+  * NCap[ i ] becomes the new capacity of arc nms[ i ] for all 0 <= i <
+  * nms.size(), \p NCap having to be at least as long as \p nms. The
+  * parameter ordered tells if the nms vector is ordered for increasing
+  * index of the arc. As the && tells, nms is "consumed" by the method,
+  * typically being shipped to an appropriate SingleFlowDCRBlockSbstMod
+  * object.
   *
   * Note that, according to the Configuration of the static Constraint, the
   * capacity of the arcs cannot be changed: trying to do that will result in
@@ -1627,7 +1647,7 @@ public:
   * the "physical" one is a SingleFlowDCRBlockSbstMod) and about changing
   * capacities of closed arcs. */
 
- void chg_ucaps( c_Vec_double_it NCap ,
+ void chg_ucaps( MF_dbl_sp NCap ,
                  Subset && nms , bool ordered = false ,
                  ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
@@ -1647,9 +1667,10 @@ public:
 /*--------------------------------------------------------------------------*/
  /// change the deficits of a contiguous interval of nodes
  /** Method to change the deficits of a subset of nodes with "contiguous
-  * names". That is, *( NDfct + i - strt ) becomes the new deficit of the i-th
+  * names". That is, NDfct[ i - strt ] becomes the new deficit of the i-th
   * node in \p rng. Note that if the right extreme of the range is
-  * >= get_NNodes() it is ignored. Note that "node names" here go from 0 to
+  * >= get_NNodes() it is ignored; \p NDfct has to be at least as long as
+  * what is left of \p rng. Note that "node names" here go from 0 to
   * get_NNodes() - 1, despite the fact that get_SN() and get_EN() report node
   * "names" between 1 and get_NNodes().
   *
@@ -1667,14 +1688,14 @@ public:
   * Also, if issueMod says so then a "physical" SingleFlowDCRBlockRngdMod is
   * issued. */
 
- void chg_dfcts( c_Vec_double_it NDfct , Range rng = INFRange ,
+ void chg_dfcts( MF_dbl_sp NDfct , Range rng = INFRange ,
                  ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// change the deficits of an arbitrary subset of nodes
  /** Method to change the deficits of an arbitrary subset of nodes. That is,
-  * *( NDfct + i ) becomes the new deficit of node nms[ i ] for all 0 <= i <
-  * NDfct.size(), (which means that nms.size() == NDfct.size()). The
+  * NDfct[ i ] becomes the new deficit of node nms[ i ] for all 0 <= i <
+  * nms.size(), \p NDfct having to be at least as long as \p nms. The
   * parameter ordered tells if the nms vector is ordered for increasing index
   * of the node. Note that "node names" here go from 0 to get_NNodes() - 1,
   * despite the fact that get_SN() and get_EN() report node "names" between
@@ -1685,7 +1706,7 @@ public:
   * See chg_dfcts( range ) for Modification issued (except that, of course,
   * the "physical" one is a SingleFlowDCRBlockSbstMod). */
 
- void chg_dfcts( c_Vec_double_it NDfct ,
+ void chg_dfcts( MF_dbl_sp NDfct ,
                  Subset && nms , bool ordered = false ,
                  ModParam issueMod = eNoBlck , ModParam issueAMod = eNoBlck );
 
@@ -1705,7 +1726,7 @@ public:
 /*--------------------------------------------------------------------------*/
  /// closes a contiguous interval of arcs
  /** Method to close a subset of arcs with all "contiguous names" given in
-  * \rng; note that if the right extreme of the range is >= get_NArcs() it is
+  * \p rng; note that if the right extreme of the range is >= get_NArcs() it is
   * ignored. The flow on the arcs is fixed to 0 but the arcs are not removed
   * from the problem, and their capacity and cost are not changed, so that
   * they can be easily re-opened later. When the problem is created, all arcs
@@ -1765,7 +1786,7 @@ public:
 /*--------------------------------------------------------------------------*/
 /// re-opens a contiguous interval of arcs
  /** Method to "open" a subset of closed arcs with all "contiguous names"
-  * given in \rng; note that if the right extreme of the range is >=
+  * given in \p rng; note that if the right extreme of the range is >=
   * get_NArcs() it is ignored. Opening an already open arc (which is what all
   * arcs are when the problem is created) does nothing.
   *
@@ -1997,18 +2018,18 @@ public:
    * use the slightly less compact one with the explicit argument and be done
    * with it. !!*/
 
-  register_method< SingleFlowDCRBlock , MF_dbl_it , Range >(
+  register_method< SingleFlowDCRBlock , MF_dbl_sp , Range >(
                                           "SingleFlowDCRBlock::chg_costs" ,
                                           & SingleFlowDCRBlock::chg_costs );
 
-  register_method< SingleFlowDCRBlock , MF_dbl_it , Subset && , bool >(
+  register_method< SingleFlowDCRBlock , MF_dbl_sp , Subset && , bool >(
    "SingleFlowDCRBlock::chg_costs" , & SingleFlowDCRBlock::chg_costs );
 
-  register_method< SingleFlowDCRBlock , MF_dbl_it , Range >(
+  register_method< SingleFlowDCRBlock , MF_dbl_sp , Range >(
                                           "SingleFlowDCRBlock::chg_ucaps" ,
                                           & SingleFlowDCRBlock::chg_ucaps );
 
-  register_method< SingleFlowDCRBlock , MF_dbl_it , Subset && , bool >(
+  register_method< SingleFlowDCRBlock , MF_dbl_sp , Subset && , bool >(
    "SingleFlowDCRBlock::chg_ucaps" , & SingleFlowDCRBlock::chg_ucaps );
 
   register_method< SingleFlowDCRBlock , Range >(
@@ -2190,12 +2211,37 @@ class SingleFlowDCRBlockMod : public Modification
   eCloseArc    ,   ///< close arcs
   };
 
+ /// what a Modification of the given type changes
+ /** What a Modification of the given type changes of the model [see
+  * Modification::ModConcern], which is what changes() says and what the
+  * methods that issue it ask before issuing it [see
+  * Observer::issue_pmod()]: the costs are the Objective, opening an arc
+  * makes the feasible region grow and closing it makes it shrink, and the
+  * capacities and the deficits are said to change the Constraint. */
+
+ static ModConcern changes_of( int type ) {
+  switch( type ) {
+   case( eChgCost ):
+    return( ePhysObj );
+   case( eChgCaps ):
+   case( eChgDfct ):
+    return( ePhysCns );
+   case( eOpenArc ):
+    return( eModPhys | eModCnsSide | eRegnGrow );
+   case( eCloseArc ):
+    return( eModPhys | eModCnsSide | eRegnShrink );
+   default:
+    return( eModPhys | eEffAny );
+   }
+  }
+
 /*---------------------- CONSTRUCTOR & DESTRUCTOR --------------------------*/
 
  /// constructor: takes the SingleFlowDCRBlock and the type
 
  SingleFlowDCRBlockMod( SingleFlowDCRBlock * fblock , int type )
-  : f_Block( fblock ) , f_type( type ) {}
+  : Modification( changes_of( type ) ) ,
+    f_Block( fblock ) , f_type( type ) {}
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 

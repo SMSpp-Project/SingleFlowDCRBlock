@@ -67,7 +67,7 @@ SMSpp_insert_in_factory_cpp_1( MultiFlowDCRBlock );
 // capacity at the same time, so the arcs can be "oversubscribed" w.r.t.
 // the sum of the individual capacities
 
-static const auto FACTOR = 0.8;
+static const auto FACTOR = 1.0;
 
 /*--------------------------------------------------------------------------*/
 /*------------------------ OTHER INITIALIZATIONS ---------------------------*/
@@ -559,10 +559,7 @@ void MultiFlowDCRBlock::guts_of_destructor( void )
     themselves from Variable that are going to be deleted anyway. Then
     deletes all the "abstract representation", if any. */
 
- for( auto & cnst : MCs )
-  cnst.clear();
-
- MCs.clear();
+ Constraint::clear( MCs );
 
  for( auto bk : v_Block )
   delete bk;

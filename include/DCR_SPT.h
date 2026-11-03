@@ -211,7 +211,7 @@ public:
 
  virtual void DCRcloseArcs( int k , int * whch , int na );
  /**< Closes arcs of the network for a specific flow.
-  * \param which indices of the arcs to be closed
+  * \param whch indices of the arcs to be closed
   * \param k index of the flow to which the process applies*/
 
  /** @} */
