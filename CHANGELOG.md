@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-03
+
 ### Added
+
+- the tester checks what each physical Modification says it changes
+  (`changes()`) against what the change does to the model, written down in
+  the tester, for every type of `SingleFlowDCRBlockMod`
 
 - `SingleFlowDCRBendersSolver::intMaxCuts`, also inherited by
   `SFDCRBRelaxationSolver`, limits the new Benders cuts per `compute()`.
@@ -60,6 +66,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `chg_costs()`, `chg_ucaps()` and `chg_dfcts()` take their data as a
+  `MF_dbl_sp`, whose length they check against the Range or the Subset
+  (`std::invalid_argument` is thrown if it is shorter), and are registered
+  in the methods factory only in that form
+
+- the README leaves the channels that distribute SMS++ to the
+  installation guide of the wiki (Installing-SMS++), keeping the names
+  of the packages of the module
+
 - the Modification of the module say what they change to the constructor
   of `Modification`, since `changes()` is no longer virtual and returns
   that value, which whoever forwards them can refine with `set_changes()`
@@ -89,6 +104,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- the Range versions of `chg_costs()` and `chg_ucaps()` read the cost or the
+  capacity of the arc past the end of the Range when none changed, checking
+  the end of the Range after it; the Subset version of `chg_dfcts()` did not
+  change the deficits, nor the flow conservation rows, once these were
+  constructed
+
+- on Windows, the executables that copy their DLLs next to themselves
+  are linked one at a time (a job pool of Ninja), since two copies of the
+  same DLL into one directory collided (e.g., with the clang++ of MSYS2)
+
+- with the compilers of MinGW (MSYS2) the target asks whoever links it
+  for the symbol that forces the module in, as with MSVC and on macOS:
+  the linker imports a DLL only for the symbols asked for, so that a
+  program that used none had the module left out and its classes
+  missing from the factory
+
+- `SingleFlowDCRBlockMod` says again what it changes to the constructor of
+  `Modification`: a merge had brought back its `changes()`, which overrides
+  nothing since `Modification::changes()` is no longer virtual, and the
+  module did not compile
+
 - Physical modifications initialize their stored `changes()` value through
   the `Modification` constructor, matching the core's nonvirtual accessor.
 - The relaxation's interval certificates are translated back from reweighted
@@ -100,7 +136,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   debugging information, which clang++ and g++ spell differently
   (`-ferror-limit=1` and `-glldb` against `-fmax-errors=1` and `-ggdb`),
   from `SMSppSWERR` and `SMSppSWDBG` of `lib/makefile-OS` of SMS++
-
 
 ## [0.2.0] - 2026-10-09
 
@@ -344,7 +379,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that is not a solution together with a value below the optimum. The
   point is now moved towards that endpoint, and stops there
 
-[Unreleased]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.2.0...develop
+[Unreleased]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.3.0...develop
+[0.3.0]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.2.0...0.3.0
 [0.2.0]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.1.1...0.2.0
 [0.1.1]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.1.0...0.1.1
 [0.1.0]: https://gitlab.com/smspp/singleflowdcrblock/-/tags/0.1.0

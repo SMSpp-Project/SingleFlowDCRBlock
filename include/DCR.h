@@ -636,10 +636,11 @@ public:
 /*--------------------- PROTECTED PART OF THE CLASS ------------------------*/
 /*--------------------------------------------------------------------------*/
 
+protected:
+
  /** @name Protected fields of the class
     @{ */
 
-protected:
  int numNodes; ///< number of nodes in the network
  int numLinks; ///< number of links in the network
  int numFlows; ///< number of flows in the network
@@ -659,9 +660,10 @@ protected:
 
  bool Psol;  ///< true if continuous solution was found, false otherwise
  bool UBsol; ///< true if (mixed)-integer solution was found, false otherwise
- };
 
 /** @} ---------------------------------------------------------------------*/
+
+ };
 
 #endif
 
