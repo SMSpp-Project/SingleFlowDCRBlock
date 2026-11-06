@@ -1297,12 +1297,12 @@ public:
   * is 0, unless a Solver (typically, a proximal term of
   * PrimalProximalHeur) has added the routing Variable to it. */
 
- double get_x_obj_coeff( Index arc ) {
+ double get_x_obj_coeff( Index arc ) const {
   if( ( ! ( AR & HasVar ) ) || ( ! ( AR & HasObj ) ) ||
       ( arc >= get_NArcs() ) )
    return( 0 );
 
-  auto lfo = get_lfo();
+  auto lfo = static_cast<const LinearFunction *>(c.get_function());
   const auto k = lfo->is_active( & x[ arc ] );
   return( k < lfo->get_num_active_var() ? lfo->get_coefficient( k ) : 0.0 );
   }
@@ -2016,19 +2016,43 @@ public:
    * use the slightly less compact one with the explicit argument and be done
    * with it. !!*/
 
-  register_method< SingleFlowDCRBlock , MF_dbl_it , Range >(
-                                          "SingleFlowDCRBlock::chg_costs" ,
-                                          & SingleFlowDCRBlock::chg_costs );
+  // The core methods factory accepts spans. Keep the existing iterator
+  // setters available and adapt the factory calls through owned vectors.
+  register_method( "SingleFlowDCRBlock::chg_costs" ,
+   new FunctionType< MF_dbl_sp , Range >(
+    []( Block * block , MF_dbl_sp values , Range rng ,
+        ModParam issueMod , ModParam issueAMod ) {
+     Vec_double data( values.begin() , values.end() );
+     static_cast< SingleFlowDCRBlock * >( block )->chg_costs(
+      data.cbegin() , rng , issueMod , issueAMod );
+     } ) );
 
-  register_method< SingleFlowDCRBlock , MF_dbl_it , Subset && , bool >(
-   "SingleFlowDCRBlock::chg_costs" , & SingleFlowDCRBlock::chg_costs );
+  register_method( "SingleFlowDCRBlock::chg_costs" ,
+   new FunctionType< MF_dbl_sp , Subset && , bool >(
+    []( Block * block , MF_dbl_sp values , Subset && nms , bool ordered ,
+        ModParam issueMod , ModParam issueAMod ) {
+     Vec_double data( values.begin() , values.end() );
+     static_cast< SingleFlowDCRBlock * >( block )->chg_costs(
+      data.cbegin() , std::move( nms ) , ordered , issueMod , issueAMod );
+     } ) );
 
-  register_method< SingleFlowDCRBlock , MF_dbl_it , Range >(
-                                          "SingleFlowDCRBlock::chg_ucaps" ,
-                                          & SingleFlowDCRBlock::chg_ucaps );
+  register_method( "SingleFlowDCRBlock::chg_ucaps" ,
+   new FunctionType< MF_dbl_sp , Range >(
+    []( Block * block , MF_dbl_sp values , Range rng ,
+        ModParam issueMod , ModParam issueAMod ) {
+     Vec_double data( values.begin() , values.end() );
+     static_cast< SingleFlowDCRBlock * >( block )->chg_ucaps(
+      data.cbegin() , rng , issueMod , issueAMod );
+     } ) );
 
-  register_method< SingleFlowDCRBlock , MF_dbl_it , Subset && , bool >(
-   "SingleFlowDCRBlock::chg_ucaps" , & SingleFlowDCRBlock::chg_ucaps );
+  register_method( "SingleFlowDCRBlock::chg_ucaps" ,
+   new FunctionType< MF_dbl_sp , Subset && , bool >(
+    []( Block * block , MF_dbl_sp values , Subset && nms , bool ordered ,
+        ModParam issueMod , ModParam issueAMod ) {
+     Vec_double data( values.begin() , values.end() );
+     static_cast< SingleFlowDCRBlock * >( block )->chg_ucaps(
+      data.cbegin() , std::move( nms ) , ordered , issueMod , issueAMod );
+     } ) );
 
   register_method< SingleFlowDCRBlock , Range >(
                                        "SingleFlowDCRBlock::close_arcs" ,

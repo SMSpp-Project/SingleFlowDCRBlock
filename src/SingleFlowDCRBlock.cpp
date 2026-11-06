@@ -646,6 +646,20 @@ void SingleFlowDCRBlock::deserialize( const netCDF::NcGroup & group )
 
  Block::deserialize( group );
 
+ // Exported PPH subproblems include the linear routing part of the
+ // objective. Ignoring XCost silently replays a different optimization.
+ auto xcost=group.getVar("XCost");
+ if(!xcost.isNull()) {
+  if(xcost.getDimCount()!=1 || xcost.getDim(0).getSize()!=NArcs)
+   throw std::invalid_argument("XCost must have NArcs entries");
+  Vec_double coefficients(NArcs);xcost.getVar(coefficients.data());
+  generate_objective();
+  for(Index a=0;a<NArcs;++a) {
+   if(!std::isfinite(coefficients[a])) throw std::invalid_argument("nonfinite XCost");
+   if(coefficients[a]!=0) get_lfo()->add_variable(&x[a],coefficients[a]);
+  }
+ }
+
  } // end( SingleFlowDCRBlock::deserialize )
 
 /*--------------------------------------------------------------------------*/
@@ -1596,6 +1610,10 @@ Block * SingleFlowDCRBlock::get_R3_Block( Configuration * r3bc , Block * base ,
 
  DCRB->load( get_NNodes() , get_NArcs() , SN , EN , U , C , NodeDelays ,
              LinkDelays , FlowBursts , FlowDeadlines , MTU , rho );
+ for(Index a=0;a<get_NArcs();++a) if(get_x_obj_coeff(a)!=0) {
+  DCRB->generate_objective();
+  DCRB->get_lfo()->add_variable(DCRB->i2p_x(a),get_x_obj_coeff(a));
+ }
 
  return( DCRB );
 
@@ -2232,6 +2250,11 @@ void SingleFlowDCRBlock::serialize( netCDF::NcGroup & group ) const
  if( ! NodeDelays.empty() )
   ( group.addVar( "NodeDelays" , netCDF::NcDouble() , nn ) )
    .putVar( NodeDelays.data() );
+
+ Vec_double fixed(get_NArcs());
+ bool nonzero=false;
+ for(Index a=0;a<get_NArcs();++a) {fixed[a]=get_x_obj_coeff(a);nonzero|=fixed[a]!=0;}
+ if(nonzero) (group.addVar("XCost",netCDF::NcDouble(),na)).putVar(fixed.data());
 
  } // end( SingleFlowDCRBlock::serialize )
 

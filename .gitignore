@@ -67,3 +67,4 @@ data/nc4*.tgz
 data/txt
 data/txt*.tgz
 data/.extracted*
+data/subsolver_comparison

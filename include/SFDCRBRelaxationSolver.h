@@ -59,8 +59,9 @@ namespace SMSpp_di_unipi_it
  * routing that meets the deadline, i.e., a feasible solution of the true
  * problem [see has_true_var_solution()].
  *
- * The children of a node close one arc each [see branch()]. The closing
- * Changes (SingleFlowDCRBlockChange) are applied to the Solver and not to
+ * On acyclic graphs a distinct master pair closes one outgoing arc per
+ * child [see branch()]. Otherwise a binary x_a=0 / x_a=1 split covers the
+ * parent, including circulations. The closing and requirement Changes (SingleFlowDCRBlockChange) are applied to the Solver and not to
  * the Block [see apply()], which then keeps the arcs out of every routing
  * at the next compute() [see arc_closed()]; the arcs closed or deleted in
  * the Block are kept out as well. A node in which the sink cannot be
@@ -77,7 +78,9 @@ namespace SMSpp_di_unipi_it
  * It stops as soon as that evaluation provides two distinct valid paths,
  * or a bound closes the node. Equal paths alone do not certify global
  * optimality. If neither closure nor a pair is obtained within the budget,
- * compute() returns kStopIter.
+ * the complete binary fallback takes over. With intRoutingFallback=0,
+ * compute() returns kStopIter instead. Fully fixed routings use a convex
+ * rate solver, returning kLowPrecision if its primal/dual gap stays open.
  *
  * Node profiles report refine_enabled=1. [refine_profile] records
  * reason=branch_pair_found for early exits, or the bound/budget stop reason;
@@ -131,6 +134,36 @@ public:
 
  using SingleFlowDCRBendersSolver::set_par;  // keep the other set_par()
 
+ /// Refinement budgets are per tranche; zero intRefineSplits disables
+ /// splitting. intRefineStall=16 stops after consecutive nonimproving splits
+ /// (zero disables this test). intRoutingFallback=1 enables binary branching.
+ /// dblRefineTime=1 bounds a tranche between oracle calls; zero is unlimited.
+ /// The heap survives unchanged-node computes and is invalidated by model
+ /// notifications and applied/undone node Changes.
+ enum { intRefineSplits = SingleFlowDCRBendersSolver::intMaxCuts + 1,
+        intRefineStall, intRoutingFallback, intLastRABaX };
+ enum { dblRefineTime = Solver::dblLastAlgPar, dblLastRABaX };
+ void set_par( idx_type par , int value ) override;
+ idx_type get_num_int_par() const override { return intLastRABaX; }
+ int get_int_par( idx_type par ) const override;
+ int get_dflt_int_par( idx_type par ) const override;
+ idx_type int_par_str2idx( const std::string & name ) const override;
+ const std::string & int_par_idx2str( idx_type par ) const override;
+ idx_type get_num_dbl_par() const override { return dblLastRABaX; }
+ double get_dflt_dbl_par( idx_type par ) const override {
+  return par == dblRefineTime ? 1.0 :
+   SingleFlowDCRBendersSolver::get_dflt_dbl_par( par );
+ }
+ idx_type dbl_par_str2idx( const std::string & name ) const override {
+  return name == "dblRefineTime" ? dblRefineTime :
+   SingleFlowDCRBendersSolver::dbl_par_str2idx( name );
+ }
+ const std::string & dbl_par_idx2str( idx_type par ) const override {
+  static const std::string name = "dblRefineTime";
+  return par == dblRefineTime ? name :
+   SingleFlowDCRBendersSolver::dbl_par_idx2str( par );
+ }
+
  /// set the double parameters of the Solver
  /** dblRelAcc [1e-6] controls closure of the relative gap in compute().
   * dblUpCutOff is the global incumbent supplied by the driver: a lower
@@ -181,8 +214,8 @@ public:
   * certificate if it is larger. The certificate is also available when
   * early screening skips BenBound. It is obtained by bisecting the domain
   * of r_min and taking the minimum of
-  * the lower bounds on the resulting intervals. compute() reports LB == UB
-  * when a finite upper bound is reached within dblRelAcc.
+  * the lower bounds on the resulting intervals. Numerical gap closure
+  * never replaces the calculated LB with the candidate's UB.
   * +Inf if the node is infeasible, -Inf if no bound is available. */
 
  OFValue get_lb( void ) override;
@@ -234,8 +267,9 @@ public:
  /** Uses the defining paths at BenBound's final master candidate. Equal
   * paths are retained as a result, and compute() closes the node only
   * when its global bound meets the verified primal cost. If no distinct
-  * pair is available and the gap remains open, compute() returns kStopIter.
-  * The children close the two outgoing arcs at the first divergence. */
+  * pair is available and the gap remains open, a complete binary split is
+  * used. The outgoing-pair split is restricted to acyclic graphs, where
+  * binary unit flows cannot contain circulations. */
 
  std::vector< Change * > branch( void ) override;
 
@@ -297,7 +331,22 @@ protected:
 
  double f_za = 0; ///< the left end of the r_min interval that gives the bound
 
- int f_MaxIv = 200;   ///< the maximum number of bisections of refine_lb()
+ int f_refine_splits = 200; ///< maximum bisections per tranche
+ int f_refine_stall = 16;   ///< consecutive nonimproving splits before branching
+ int f_routing_fallback = 1; ///< complete binary branching when no path pair
+ double f_refine_time = 1; ///< seconds per tranche, zero means no time limit
+ std::vector< bool > v_required; ///< x_a=1 is a real restriction
+ bool f_terminal = false;
+ SingleFlowDCRBlock::Vec_double f_terminal_x, f_terminal_r;
+ OFValue f_terminal_cost = SMSpp_di_unipi_it::Inf< OFValue >();
+ void get_solution_vectors( SingleFlowDCRBlock::Vec_double & X,
+                            SingleFlowDCRBlock::Vec_double & R,
+                            bool heuristic = false ) override;
+ bool solution_matches_node( bool heuristic );
+ bool acyclic();
+ bool routing_fixed();
+ int solve_fixed_routing();
+ void polish_solution();
 
  /// distinct paths cached by compute() for branch(), empty if none found
  std::vector< int > v_branch_plus , v_branch_minus;
@@ -311,10 +360,12 @@ private:
  struct BoundInterval { double a , b , lb; };
  /// Current node only: retain the interval heap between screening and fallback.
  std::vector< BoundInterval > v_bound_intervals;
+ std::size_t f_partition_revision = std::numeric_limits<std::size_t>::max();
  bool f_bound_only = true; ///< BenBound has not been solved for this node
 
  /// A notification can arrive from another thread; only compute/query
  /// methods access the actual cache. Model notifications advance its key.
+ std::atomic< bool > f_bound_dirty{false};
  std::atomic< std::size_t > f_solution_revision{ 0 };
  std::size_t f_cached_revision = std::numeric_limits< std::size_t >::max();
  SolSource f_solution_source = SolSource::None;
@@ -358,7 +409,7 @@ private:
  /** Bisects [ max{ rho , burst / deadline } , largest capacity ] keeping the
   * interval with the smallest lower bound, until it reaches dblUpCutOff
   * or the local upper bound within tolerance, or a distinct original-flow
-  * branching pair is found. Also stops on a narrow interval or f_MaxIv
+  * branching pair is found. Also stops on a narrow interval or intRefineSplits
   * bisections. With cutoff_only, uses the incumbent alone and performs no
   * branching probes: BenBound has not been solved on this node yet. Uses
   * 16 bisections before BenBound, extended by at most eight when the bound

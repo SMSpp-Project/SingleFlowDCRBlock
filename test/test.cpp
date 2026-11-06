@@ -1487,12 +1487,177 @@ static void test_block_change( void )
 
 class InspectRelaxation : public SFDCRBRelaxationSolver {
 public:
+ bool closed(Index a) {return arc_closed(a);}
+ bool required(Index a) {return v_required[a];}
+ void force_routing(std::vector<bool> required) { v_required=std::move(required); }
  bool has_branch_witness() const { return( branch_result().available ); }
  bool has_fresh_instance() const { return( f_instance_fresh ); }
  double certificate() const { return( f_cert ); }
  double original( double value ) const { return( original_bound( value ) ); }
  double internal( double value ) const { return( internal_bound( value ) ); }
 };
+
+static void test_rabax_negative_cycles()
+{
+ Net g;
+ g.n=4; g.s=0; g.t=1; g.rate=1; g.burst=1; g.deadline=100;
+ g.ndel.assign(4,0);
+ g.arc(0,1,8,1); g.arc(2,3,8,1); g.arc(3,2,8,1);
+ SingleFlowDCRBlock blk; load(blk,g);
+ blk.generate_abstract_variables(); blk.generate_objective();
+ auto obj=dynamic_cast<FRealObjective *>(blk.get_objective());
+ auto fn=dynamic_cast<LinearFunction *>(obj->get_function());
+ fn->add_variable(blk.i2p_x(1),-10);
+ fn->add_variable(blk.i2p_x(2),-10);
+ const std::string roundtrip="rabax-xcost-roundtrip.nc4";
+ {
+  netCDF::NcFile out(roundtrip,netCDF::NcFile::replace);
+  blk.serialize(out);
+ }
+ {
+  netCDF::NcFile in(roundtrip,netCDF::NcFile::read);
+  SingleFlowDCRBlock copy;copy.deserialize(in);
+  check(copy.get_x_obj_coeff(1)==-10 && copy.get_x_obj_coeff(2)==-10,
+        "RABaX: XCost lost in netCDF round trip");
+ }
+ std::remove(roundtrip.c_str());
+ InspectRelaxation rs; blk.register_Solver(&rs);
+ rs.set_par("intRefineSplits",0); rs.set_par("intMaxCuts",1);
+ check(rs.int_par_str2idx("intRoutingFallback")==rs.intRoutingFallback &&
+       rs.get_dflt_int_par(rs.intRoutingFallback)==1 &&
+       rs.dbl_par_str2idx("dblRefineTime")==rs.dblRefineTime,
+       "RABaX: registered refinement parameters");
+ double best=Inf<double>(); int nodes=0, terminal=0;
+ std::function<void()> visit=[&]() {
+  ++nodes;
+  double opt=Inf<double>();
+  for(int mask=0;mask<8;++mask) {
+   SingleFlowDCRBlock::Vec_double X(3),R(3);
+   bool matches=true; double cost=0;
+   for(int a=0;a<3;++a) {
+    X[a]=R[a]=(mask>>a)&1;
+    if((rs.closed(a)&&X[a]) || (rs.required(a)&&!X[a])) matches=false;
+    cost+=(a==0?1:-9)*X[a];
+   }
+   if(matches && blk.flow_feasible(0,X) && blk.delay_feasible(0,X,R)) opt=std::min(opt,cost);
+  }
+  int status=rs.compute();
+  if(status==Solver::kInfeasible) {
+   check(!std::isfinite(opt),"RABaX: false infeasibility in binary tree"); return;
+  }
+  check(status==Solver::kOK,"RABaX: binary fallback stopped prematurely");
+  check(rs.get_lb()<=opt+1e-6,"RABaX: invalid original-objective bound");
+  if(rs.has_true_var_solution()) {
+   check(rs.get_true_ub()>=opt-1e-6,"RABaX: invalid original-objective UB");
+   best=std::min(best,rs.get_true_ub());
+  }
+  if(rs.get_true_ub()-rs.get_lb()<=1e-6) { ++terminal; return; }
+  auto branches=rs.branch();
+  check(branches.size()==2,"RABaX: fallback is not binary");
+  for(auto change:branches) {
+   auto undo=rs.apply(change,true); visit();
+   rs.apply(undo); delete undo; delete change;
+  }
+ };
+ visit();
+ check(near(best,-17),"RABaX: missed beneficial binary circulation");
+ check(nodes>1 && terminal>0,"RABaX: fallback/terminal rate solve not exercised");
+ // Lossy corrections cannot be inverted into lower-bound oracle hints.
+ check(!std::isfinite(rs.internal(-17)),"RABaX: inverted lossy bound correction");
+ blk.unregister_Solver(&rs);
+}
+
+static void test_rabax_fixed_rates()
+{
+ // One mandatory arc, active delay: r = (MTU+burst)/(D-MTU/U).
+ Net g; g.n=2;g.s=0;g.t=1;g.rate=1;g.burst=2;g.deadline=1;
+ g.ndel.assign(2,0);g.arc(0,1,8,3);
+ SingleFlowDCRBlock blk;load(blk,g);
+ InspectRelaxation rs;blk.register_Solver(&rs);
+ rs.force_routing({true});
+ const double opt=9/(1-1.0/8);
+ check(rs.compute()==Solver::kOK,"RABaX: fixed-rate convex solve did not close");
+ check(rs.get_lb()<=opt+1e-9 && rs.get_true_ub()>=opt-1e-9 &&
+       rs.get_true_ub()-rs.get_lb()<=1e-6*opt,
+       "RABaX: incorrect fixed-routing primal/dual bounds");
+ auto sol=dynamic_cast<DCRSolution *>(rs.get_true_solution());
+ check(sol && near(sol->get_r()[0],opt/3,1e-6),"RABaX: terminal Solution differs from UB");
+ delete sol;
+ blk.unregister_Solver(&rs);
+}
+
+static void test_rabax_random_binary()
+{
+ std::mt19937 rng(8137);
+ for(int trial=0;trial<16;++trial) {
+  Net g;g.n=3;g.s=0;g.t=2;g.rate=1;g.burst=1;g.deadline=100;
+  g.ndel.assign(3,0);
+  g.arc(0,1,8,1);g.arc(1,2,8,1);g.arc(0,2,8,1);
+  g.arc(1,0,8,1);g.arc(2,1,8,1);
+  SingleFlowDCRBlock blk;load(blk,g);
+  blk.generate_abstract_variables();blk.generate_objective();
+  auto fn=dynamic_cast<LinearFunction *>(dynamic_cast<FRealObjective *>(blk.get_objective())->get_function());
+  std::vector<double> p(g.m());
+  for(int a=0;a<g.m();++a) {p[a]=int(rng()%9)-4;fn->add_variable(blk.i2p_x(a),p[a]);}
+  InspectRelaxation rs;blk.register_Solver(&rs);
+  rs.set_par(rs.intRefineSplits,4);rs.set_par(rs.intMaxCuts,1);
+  rs.set_par(rs.intRoutingFallback,0);
+  const int without_fallback=rs.compute();
+  const double tolerance=1e-6*std::max(1.0,std::abs(rs.get_true_ub()));
+  if(!std::isfinite(rs.get_true_ub()) || rs.get_true_ub()-rs.get_lb()>tolerance)
+   check(without_fallback==Solver::kStopIter,
+         "random binary: disabled fallback reported an unusable branch pair");
+  rs.set_par(rs.intRoutingFallback,1);
+  double best=Inf<double>();
+  std::function<void()> visit=[&]() {
+   double opt=Inf<double>();
+   for(int mask=0;mask<(1<<g.m());++mask) {
+    SingleFlowDCRBlock::Vec_double X(g.m()),R(g.m());double cost=0;bool match=true;
+    for(int a=0;a<g.m();++a) {
+     X[a]=R[a]=(mask>>a)&1; cost+=(1+p[a])*X[a];
+     if((rs.closed(a)&&X[a])||(rs.required(a)&&!X[a])) match=false;
+    }
+    if(match && blk.flow_feasible(0,X) && blk.delay_feasible(0,X,R)) opt=std::min(opt,cost);
+   }
+   int status=rs.compute();
+   if(status==Solver::kInfeasible) {check(!std::isfinite(opt),"random binary: false infeasibility");return;}
+   check(status==Solver::kOK,"random binary: premature stop");
+   check(rs.get_lb()<=opt+1e-6,"random binary: lower bound exceeds enumerated optimum");
+   if(rs.has_true_var_solution()) {
+    check(rs.get_true_ub()>=opt-1e-6,"random binary: infeasible or mispriced UB");
+    best=std::min(best,rs.get_true_ub());
+   }
+   if(rs.get_true_ub()-rs.get_lb()<=1e-6) return;
+   for(auto change:rs.branch()) {auto undo=rs.apply(change,true);visit();rs.apply(undo);delete undo;delete change;}
+  };
+  visit();
+  double opt=Inf<double>();
+  for(int mask=0;mask<(1<<g.m());++mask) {
+   SingleFlowDCRBlock::Vec_double X(g.m());double c=0;
+   for(int a=0;a<g.m();++a) {X[a]=(mask>>a)&1;c+=(1+p[a])*X[a];}
+   if(blk.flow_feasible(0,X)) opt=std::min(opt,c);
+  }
+  check(near(best,opt,1e-6),"random binary: missed optimum");
+  blk.unregister_Solver(&rs);
+ }
+}
+
+static void test_rabax_refinement_tranches()
+{
+ Net g;g.n=2;g.s=0;g.t=1;g.rate=1;g.burst=2;g.deadline=1;
+ g.ndel.assign(2,0);g.arc(0,1,8,3);
+ SingleFlowDCRBlock blk;load(blk,g);
+ InspectRelaxation rs;blk.register_Solver(&rs);
+ rs.set_par(rs.intRefineSplits,1);rs.set_par(rs.intMaxCuts,1);
+ rs.compute();const double first=rs.certificate();
+ rs.compute();const double second=rs.certificate();
+ check(second>first && second<=9/(1-1.0/8)+1e-9,
+       "RABaX: unchanged-node refinement did not retain partition");
+ blk.chg_cost(0.25,0);rs.compute();
+ check(rs.get_lb()<=0.75/(1-1.0/8)+1e-9,
+       "RABaX: stale partition survived objective modification");
+ blk.unregister_Solver(&rs);
+}
 
 static void test_cut_budget( void )
 {
@@ -1704,6 +1869,10 @@ int main( void )
  test_relaxation_solver();
  test_cut_budget();
  test_shifted_certificate();
+ test_rabax_negative_cycles();
+ test_rabax_fixed_rates();
+ test_rabax_random_binary();
+ test_rabax_refinement_tranches();
 
  if( failures )
   std::cout << failures << " checks failed" << std::endl;

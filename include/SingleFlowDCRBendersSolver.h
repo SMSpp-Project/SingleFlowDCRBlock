@@ -355,7 +355,31 @@ public:
 
  OFValue get_lb( void ) override
  {
-  return( original_bound( this->BenBound::getLB() ) );
+  // The piecewise Benders master has overestimated on exported PPH
+  // problems. Certify independently over the complete r_min domain.
+  if( ! f_safe_lb_ready ) {
+   f_safe_lb = - SMSpp_di_unipi_it::Inf<OFValue>();
+   if( !v_links.empty() && !v_nodes.empty() ) {
+    const double a=std::max({f_flow.rate,f_flow.burst/f_flow.deadline,
+                             static_cast<SingleFlowDCRBlock *>(f_Block)->get_MTU()/f_flow.deadline});
+    double b=a;
+    for(const auto & link:v_links) b=std::max(b,double(link.capacity));
+    if(a>0 && std::isfinite(b)) {
+     auto flow=f_flow; flow.burst*=a/b;
+     DCRLagrangianSolver oracle;
+     oracle.LoadProblem(int(v_nodes.size()),int(v_links.size()),flow,
+      v_links.data(),v_nodes.data(),
+      static_cast<SingleFlowDCRBlock *>(f_Block)->get_MTU(),a);
+     oracle.Solve();
+     if(oracle.getStatus()==DCRLagrangianSolver::OK)
+      f_safe_lb=original_bound(oracle.getObjVal());
+     else if(oracle.getStatus()==DCRLagrangianSolver::Infeasible)
+      f_safe_lb=SMSpp_di_unipi_it::Inf<OFValue>();
+    }
+   }
+   f_safe_lb_ready=true;
+  }
+  return f_safe_lb;
   }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
@@ -790,6 +814,7 @@ protected:
  virtual void load_BenBound( void )
  {
   f_instance_fresh = false;
+  f_safe_lb_ready = false;
   auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
   auto nnodes = DCRB->get_NNodes();
   auto narcs = DCRB->get_NArcs();
@@ -821,7 +846,8 @@ protected:
 
   // no routing has a rate below rlow, hence none uses an arc whose
   // capacity is half of it
-  const double rlow = std::max( flow.rate , flow.burst / flow.deadline );
+  const double rlow = std::max( {flow.rate , flow.burst / flow.deadline,
+                                  DCRB->get_MTU()/flow.deadline} );
 
   auto & links = v_links;
   links.assign( narcs , {} );
@@ -842,6 +868,17 @@ protected:
    links[ i ].delay = LD.empty() ? 0 : LD[ i ];
    links[ i ].cost = DCRB->is_deleted( i ) ? 0 : DCRB->get_C( i );
    }
+
+  for( const auto & link : links )
+   if( ! std::isfinite( link.cost ) || link.cost < 0 ||
+       ! std::isfinite( link.delay ) || link.delay < 0 )
+    throw std::invalid_argument( "BenBound requires nonnegative finite rate costs/delays" );
+  if( flow.burst < 0 || flow.rate < 0 || flow.deadline <= 0 ||
+      DCRB->get_MTU() <= 0 )
+   throw std::invalid_argument( "BenBound requires positive MTU/deadline and nonnegative flow" );
+  for( double delay : ND )
+   if( ! std::isfinite( delay ) || delay < 0 )
+    throw std::invalid_argument( "BenBound requires nonnegative finite node delays" );
 
   // the routing Variable may have a coefficient in the Objective, which
   // is a fixed cost for using the arc [see set_fixed_costs()]
@@ -923,6 +960,8 @@ protected:
   SingleFlowDCRBlock::Vec_double X , R;
   get_solution_vectors( X , R , heuristic );
 
+  for( Index a=0; a<X.size(); ++a )
+   if( !std::isfinite(X[a]) || !std::isfinite(R[a]) ) return false;
   return( DCRB->flow_feasible( feps , X ) &&
           DCRB->bound_feasible( feps , X , R ) &&
           DCRB->link_feasible( feps , X , R ) &&
@@ -973,7 +1012,7 @@ protected:
    if( ! DCRB->is_deleted( i ) ) {
     sum += DCRB->get_C( i ) * R[ i ];
     if( ( i < f_pen.size() ) && ( X[ i ] > 0 ) )
-     sum += f_pen[ i ];
+     sum += DCRB->get_x_obj_coeff( i ) * X[ i ];
     }
 
   return( sum );
@@ -1014,7 +1053,7 @@ protected:
   * what get_var_value(), get_var_solution(), get_Solution() and
   * is_DCR_feasible() all go through. */
 
- void get_solution_vectors( SingleFlowDCRBlock::Vec_double & X ,
+ virtual void get_solution_vectors( SingleFlowDCRBlock::Vec_double & X ,
                             SingleFlowDCRBlock::Vec_double & R ,
                             bool heuristic = false )
  {
@@ -1036,11 +1075,20 @@ protected:
  /// Translate a bound from BenBound's reweighted costs to the Objective.
  /// Preserve infinity sentinels, as in get_lb().
  OFValue original_bound( OFValue value ) const {
-  return( std::abs( value ) < 1e200 ? value + f_pen_shift : value );
+  if( std::isnan( value ) )
+   return( - SMSpp_di_unipi_it::Inf< OFValue >() );
+  if( std::abs( value ) >= 1e200 )
+   return( value > 0 ? SMSpp_di_unipi_it::Inf< OFValue >() :
+                     - SMSpp_di_unipi_it::Inf< OFValue >() );
+  return( value + f_pen_shift );
  }
 
  /// Translate an original-objective bound to BenBound's reweighted costs.
  OFValue internal_bound( OFValue value ) const {
+  // A conservative correction is one-way: LB_p - correction is NOT
+  // generally a lower bound for q. Never feed it back into the oracle.
+  if( f_pen_lossy || std::isnan( value ) )
+   return( - SMSpp_di_unipi_it::Inf< OFValue >() );
   return( std::abs( value ) < 1e200 ? value - f_pen_shift : value );
  }
 
@@ -1062,8 +1110,11 @@ protected:
 /*--------------------------------------------------------------------------*/
 
 private:
+ OFValue f_safe_lb = - SMSpp_di_unipi_it::Inf<OFValue>();
+ bool f_safe_lb_ready = false;
  bool f_reuse_cuts = false;           ///< see set_reuse_cuts()
- std::vector< double > f_pen;         ///< fixed cost of using each arc
+ std::vector< double > f_pen;         ///< ORIGINAL fixed routing coefficients
+ bool f_pen_lossy = false;            ///< lower-bound conversion is one-way
  double f_pen_shift = 0;              ///< see set_fixed_costs()
  Index f_pen_negcycle = 0;            ///< see set_fixed_costs()
  bool f_warm = false;                 ///< see intWarmLambda
@@ -1136,10 +1187,13 @@ private:
   * to the sink t changes by the same \f$ u_s - u_t \f$, which is f_pen_shift
   * with the sign needed to bring the bounds of BenBound back to the
   * original objective. If \f$ p \f$ has a negative cycle, which can only
-  * happen if the proximal center is a fractional point with a circulation in
-  * it, the negative \f$ p_a \f$ are replaced by 0 instead (counted in
-  * f_pen_negcycle), and what is solved is that problem, whose objective is
-  * what the bounds and the value of the solution refer to. */
+  * happen on cyclic graphs, the oracle uses q_a = max(p_a,0).
+  * The ORIGINAL coefficients remain in f_pen for primal pricing. For binary
+  * routing, p*x >= q*x + sum min(p_a,0); that conservative correction is
+  * included in every reported lower bound (including interval bounds).
+  * Nonnegative rate costs and delays permit deleting circulations in the
+  * transformed problem, so its path oracle also bounds binary unit flows.
+  * This lower-bound conversion must not be inverted for oracle hints. */
 
  void set_fixed_costs( std::vector< DCR::DCRLink > & links , int source ,
                        int sink )
@@ -1149,11 +1203,14 @@ private:
 
   f_pen.assign( narcs , 0.0 );
   f_pen_shift = 0;
+  f_pen_lossy = false;
 
   bool any = false;
   for( Index i = 0 ; i < narcs ; ++i )
    if( ! DCRB->is_deleted( i ) ) {
     f_pen[ i ] = DCRB->get_x_obj_coeff( i );
+    if( ! std::isfinite( f_pen[ i ] ) )
+     throw std::invalid_argument( "nonfinite routing coefficient" );
     if( f_pen[ i ] != 0 )
      any = true;
     }
@@ -1175,18 +1232,25 @@ private:
     }
    }
 
-  if( changed ) {   // a negative cycle
+  if( changed ) {   // a negative cycle: preserve the original objective
    ++f_pen_negcycle;
-   for( Index i = 0 ; i < narcs ; ++i )
-    f_pen[ i ] = std::max( f_pen[ i ] , 0.0 );
-   std::fill( u.begin() , u.end() , 0.0 );
+   f_pen_lossy = true;
+   for( Index i = 0 ; i < narcs ; ++i ) {
+    links[ i ].fixed = std::max( f_pen[ i ] , 0.0 );
+    if( ! arc_closed(i) ) f_pen_shift += std::min( f_pen[ i ] , 0.0 );
+    }
+   return;
    }
 
-  for( Index i = 0 ; i < narcs ; ++i )
-   links[ i ].fixed = std::max( 0.0 , f_pen[ i ] + u[ links[ i ].startnode ] -
-                                      u[ links[ i ].endnode ] );
-
   f_pen_shift = u[ sink ] - u[ source ];
+  for( Index i = 0 ; i < narcs ; ++i ) {
+   const double reduced = f_pen[ i ] + u[ links[ i ].startnode ] -
+                                         u[ links[ i ].endnode ];
+   links[ i ].fixed = std::max( 0.0 , reduced );
+   // Even roundoff clamping must not increase a claimed lower bound.
+   f_pen_shift += std::min( reduced , 0.0 );
+   f_pen_lossy |= reduced < 0;
+   }
   }
 
  SMSpp_insert_in_factory_h;
