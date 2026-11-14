@@ -398,9 +398,9 @@ public:
   * are larger (the rates are nonnegative), so a line below the one is
   * below the other where it was. This is what lets the cuts be used across
   * the iterations of a Lagrangian-type algorithm, whose costs are the
-  * original ones plus nonnegative multipliers. A subinterval of the new partition gets the
-  * cuts that were in all the old subintervals that it overlaps, and none if
-  * part of it was outside of the old range of r_min.
+  * original ones plus nonnegative multipliers. A subinterval of the new
+  * partition gets the cuts that were in all the old subintervals that it
+  * overlaps, and none if part of it was outside of the old range of r_min.
   *
   * Returns true if the cuts have been accepted (and will be used by the next
   * Solve(), once), false if they have not. */
@@ -595,7 +595,8 @@ private:
  std::vector< SubInterval > Q;    //subintervals of V considered.
 
  CutMemory seedMem;      ///< the cuts seedCuts() has accepted
- bool hasSeed = false;   ///< whether there are cuts to start the next Solve() from
+ bool hasSeed = false;   ///< whether there are cuts to start the next Solve()
+                         ///< from
 
  double rminHint = 0;     ///< see setRminHint()
  bool hasHint = false;

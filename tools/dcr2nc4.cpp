@@ -188,7 +188,8 @@ static void write_single( const fs::path & tbase , int flow , int nflows ,
  std::string delays = read_file( name( ".dcr" ) );
  if( ( ! delays.empty() ) && ( delays.back() != '\n' ) )
   delays += '\n';
- dcr << delays << burst << "\n" << deadline << "\n" << mtu << "\n" << rho << "\n";
+ dcr << delays << burst << "\n" << deadline << "\n" << mtu << "\n" << rho
+     << "\n";
 
  auto SFB = dynamic_cast< SingleFlowDCRBlock * >(
                               Block::new_Block( "SingleFlowDCRBlock" ) );

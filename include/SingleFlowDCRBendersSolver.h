@@ -302,11 +302,13 @@ public:
   BenBound::DCRstopTime();
   if( stats_on )
    std::cout << "BENSTAT time "
-             << std::chrono::duration< double >( std::chrono::steady_clock::now() - stat_t0 ).count()
+             << std::chrono::duration< double >(
+                         std::chrono::steady_clock::now() - stat_t0 ).count()
              << " benders " << BenBound::getNumIterationBender() << " lagr "
              << BenBound::getNumIterationLagr() << " seeded " << stat_seeded
              << " hint " << BenBound::getHintUsed() << " lb " << get_lb()
-             << " ub " << get_ub() << " pen_shift " << f_pen_shift << " negcyc " << f_pen_negcycle << std::endl;
+             << " ub " << get_ub() << " pen_shift " << f_pen_shift
+             << " negcyc " << f_pen_negcycle << std::endl;
   f_last_solved = f_skip_same;     // f_last_inst is the instance solved
   f_last_rmin = BenBound::getr_min();
 
@@ -474,8 +476,10 @@ public:
  enum int_par_type_SFDCRB {
   intReuseCuts = intLastAlgPar ,   ///< 0/1: see set_reuse_cuts() [0]
   intWarmLambda ,                  ///< 0/1: see BenBound::setWarmLambda() [0]
-  intSkipSame ,                    ///< 0/1: answer from the last result if the instance is identical [0]
-  intRminStart                     ///< 0/1: start the search from the last r_min [0]
+  intSkipSame ,                    ///< 0/1: answer from the last result if the
+                                   ///< instance is identical [0]
+  intRminStart                     ///< 0/1: start the search from the last
+                                   ///< r_min [0]
   };
 
  using Solver::set_par;   // restore the hidden overloaded methods
@@ -592,7 +596,8 @@ public:
   auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
 
   SingleFlowDCRBlock::Vec_double X , R;
-  get_solution_vectors( X , R , pick_solution_source() == SolSource::Heuristic );
+  get_solution_vectors( X , R ,
+                        pick_solution_source() == SolSource::Heuristic );
 
   double rmin = std::numeric_limits< double >::infinity();
   for( Index i = 0 ; i < X.size() ; ++i ) {
@@ -822,7 +827,8 @@ protected:
   if( f_skip_same ) {
    Inst now;
    now.pen = f_pen;
-   now.nnodes = nnodes; now.narcs = narcs; now.source = source; now.sink = sink;
+   now.nnodes = nnodes; now.narcs = narcs; now.source = source;
+   now.sink = sink;
    now.burst = flow.burst; now.rate = flow.rate; now.deadline = flow.deadline;
    now.MTU = DCRB->get_MTU();
    for( Index i = 0 ; i < narcs ; ++i ) {

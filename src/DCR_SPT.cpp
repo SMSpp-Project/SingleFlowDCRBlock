@@ -101,9 +101,9 @@ DCR::DCRStatus DCR_SPT::DCRsolve( void )
   }
 
  if( UBsol )
-  return OK;
+  return( OK );
 
- return Infeasible;
+ return( Infeasible );
  }
 
 
@@ -115,7 +115,7 @@ DCR::DCRStatus DCR_SPT::DCRsolve( void )
 
 double DCR_SPT::DCRgetObj( void )
 {
- return objval;
+ return( objval );
  }
 
 
@@ -130,7 +130,7 @@ int DCR_SPT::DCRgetUBSolNPaths( int k )
   throw(
    DCR::DCRException( "DCR_SPT::DCRgetUBSolNPaths(): wrong flow index." ) );
  if( UBsol )
-  return 1;
+  return( 1 );
  else
   throw( DCR::DCRException( "DCR_SPT::DCRgetUBSolNPaths(): no solution "
                             "found." ) ); //FIXME: is this okay???
@@ -162,7 +162,7 @@ int DCR_SPT::DCRgetUBSolPath( int k , int p , int * X , double * R )
   throw( DCR::DCRException( "DCR_SPT::DCRgetUBSolPath(): no solution "
                             "found." ) ); //FIXME: is this okay ???
 
- return nhops;
+ return( nhops );
  }
 
 /*--------------------------------------------------------------------------*/

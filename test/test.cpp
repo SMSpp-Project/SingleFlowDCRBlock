@@ -156,7 +156,7 @@ static void paths_dfs( const Net & g , int u , int t ,
 
 static std::vector< Path > all_paths( const Net & g , int s , int t ,
                                       const std::function< bool( int ) > &
-                                      allowed = []( int ) { return true; } )
+                                      allowed = []( int ) { return( true ); } )
 {
  std::vector< Path > out;
  std::vector< bool > vis( g.n , false );

@@ -469,7 +469,7 @@ std::vector< double > BenBound::getyPlotData()
    SPLabels[ Flow.sinknode ]; //value of the objective function at xplot[i]
   }
 
- return yPlot;
+ return( yPlot );
  }
 
 
@@ -2002,9 +2002,9 @@ int BenBound::LineSearch()
  //std::cout << "minpos=" << minpos << std::endl;
 
  if( corrflag == 0 )
-  return minpos;
+  return( minpos );
  else
-  return minconflag;
+  return( minconflag );
  }
 
 
@@ -2071,7 +2071,7 @@ int BenBound::whchbest( int i )
 
  //cout<<"this is the return value of LineSearch "<<maxpos<<endl;
 
- return maxpos;
+ return( maxpos );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -2694,7 +2694,7 @@ double * BenBound::Limitrmin()
   {
    bounds[ 1 ] = caps[ dx ];
 
-   return bounds;
+   return( bounds );
    }
   else  // otherwise binary search over the capacity vector to find the
           // minimum one
@@ -2747,14 +2747,14 @@ double * BenBound::Limitrmin()
           in the large gap between the last feasible capacity
           and the first infeasible one, there are no salvageable values?*/
 
-   return bounds;
+   return( bounds );
    }
 
   } //if the problem is feasible
 
  else {
   BenStat = Infeasible;
-  return NULL;
+  return( NULL );
   }
  }
 
@@ -2815,7 +2815,7 @@ int BenBound::Distrib( int sx , int pv , int dx )  // private method for
  if( i != dx )
   Swap( i , dx );
 
- return i;
+ return( i );
  }
 
 /*--------------------------------------------------------------------------*/
