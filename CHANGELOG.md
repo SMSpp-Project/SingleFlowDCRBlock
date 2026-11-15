@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- the tester solves the instances of `BenBound` a second time, with and
+  without the cuts of the first solve
+
+### Fixed
+
+- `BenBound::Solve()` starts the search anew at each call: a second call on
+  the instance loaded kept the bound, the iterations and the flags of the
+  first one, and the cuts of the first subinterval of its partition, valid
+  on that piece only, on the whole range of `r_min`, so that the lower bound
+  could be above the optimum; this made the multi-flow battery with
+  `intReuseCuts` 1 give a bound above the optimum on `sndlib/janos-us_3`
+  and hang on `sndlib/di-yuan_3` and `sndlib/norway_3`, where the cuts of a
+  partition of thousands of subintervals were offered to the instance they
+  came from
+
+- `SingleFlowDCRBendersSolver::compute()` with nothing changed since the
+  last call answers with the result of that call instead of solving again,
+  whatever `intSkipSame`
+
 ## [0.3.0] - 2026-11-03
 
 ### Added

@@ -205,7 +205,10 @@ public:
   * and, if necessary, a read_lock on f_Block, processes any outstanding
   * Modification (see process_outstanding_Modification()), then calls
   * BenBound::DCRsetTime() / BenBound::Solve() / BenBound::DCRstopTime() to
-  * actually run the algorithm. \p changedvars is currently unused.
+  * actually run the algorithm, unless BenBound has already solved the
+  * instance it holds, i.e., nothing has changed since the last call, in
+  * which case its result is the answer. \p changedvars is currently
+  * unused.
   *
   * IMPLEMENTATION NOTE: the method contains a (large) commented-out block
   * that would run an external warm-start Solver (via BlockSolverConfig,
@@ -267,10 +270,11 @@ public:
  std::cout << "bound_PC = " << bound_PC << std::endl;
  std::cout << "sol = " << warmstart->get_lb() << std::endl;
    */
-  // the instance is the one BenBound has just solved: its result stands
-  const bool skip_solve = f_skip_same && f_skip_now && f_last_solved &&
-                          ( ! BenBound::seedPending() );
-  f_skip_now = false;
+  // BenBound holds the instance it has last solved, since no Modification
+  // has come or the one that has come has left it as it was [see
+  // intSkipSame]: its result stands, unless cuts have been offered with
+  // seed_cuts() to solve it again from
+  const bool skip_solve = f_held_solved && ( ! BenBound::seedPending() );
   if( skip_solve ) {
    ++f_skipped;
    unlock();
@@ -309,6 +313,7 @@ public:
              << " hint " << BenBound::getHintUsed() << " lb " << get_lb()
              << " ub " << get_ub() << " pen_shift " << f_pen_shift
              << " negcyc " << f_pen_negcycle << std::endl;
+  f_held_solved = true;
   f_last_solved = f_skip_same;     // f_last_inst is the instance solved
   f_last_rmin = BenBound::getr_min();
 
@@ -841,14 +846,13 @@ protected:
     }
    for( Index i = 0 ; i < nnodes ; ++i )
     now.ndelay.push_back( nodes[ i ].delay );
-   if( f_last_solved && ( now == f_last_inst ) ) {
-    f_skip_now = true;     // BenBound keeps the result of the last solve
-    return;
-    }
+   if( f_last_solved && ( now == f_last_inst ) )
+    return;                // BenBound keeps the result of the last solve
    f_last_inst = std::move( now );
    f_last_solved = false;
    }
 
+  f_held_solved = false;
   BenBound::LoadProblem( nnodes , narcs , flow , links , nodes ,
                          DCRB->get_MTU() );
  }
@@ -1029,7 +1033,7 @@ private:
   };
  Inst f_last_inst;
  bool f_last_solved = false;   ///< BenBound has solved f_last_inst
- bool f_skip_now = false;      ///< the instance just loaded is the one solved
+ bool f_held_solved = false;   ///< BenBound has solved the instance it holds
  bool f_skip_same = false;     ///< see intSkipSame
  bool f_rmin_start = false;    ///< see intRminStart
  double f_last_rmin = 0;       ///< r_min of the last solve

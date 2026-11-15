@@ -103,23 +103,13 @@ void BenBound::LoadProblem( int nnodes , int nlinks , DCR::DCRFlow flow ,
  numNodes = nnodes;
  numLinks = nlinks;
  MTU = mtu;
- ObjVal = Inf< double >();
- HeurVal = Inf< double >();
- BestUB = Inf< double >();
- BestUBrmin = -1;
- BestLB = -Inf< double >();
- ApproxVal = -Inf< double >();
- solvedflag = 0;
- counter_ite_Ben = 0;
- counter_ite_Lag = 0;
- is_convex_iteration = false;
 
  SPLabels.resize( numNodes );
 
  copyDataArray( flow , links , nodes );
 
  SOLUTION.resize( numLinks );
- HeurSOLUTION.assign( numLinks , 0.0 );
+ reset_search();
 
  lagSol.LoadProblem( numNodes , numLinks , Flow , Links , Nodes , MTU , 1 );
  }
@@ -135,21 +125,7 @@ void BenBound::LoadProblem( DCR::DCRFlow flow )
  int i;
  hasSeed = false;
 
- for( int i = 0 ; i < Q.size() ; i++ )
-  Q[ i ].Cuts.clear();
- Q.clear();
-
- ObjVal = Inf< double >();
- HeurVal = Inf< double >();
- HeurSOLUTION.assign( numLinks , 0.0 );
- BestUB = Inf< double >();
- BestUBrmin = -1;
- BestLB = -Inf< double >();
- ApproxVal = -Inf< double >();
- solvedflag = 0;
- counter_ite_Ben = 0;
- counter_ite_Lag = 0;
- is_convex_iteration = false;
+ reset_search();
 
  Flow = flow;
 
@@ -619,6 +595,11 @@ void BenBound::Solve()
  double tildez;
  double discrim; //if <=0 that arc gives a zero contribution
  double ms;      //helper for the computation, partial value of the slope
+
+ // the search starts anew: Inizial() adds its cuts to those of Q[ 1 ],
+ // which after an earlier search are valid on its first subinterval only,
+ // and BestLB only ever rises [see LineSearch()]
+ reset_search();
 
  Inizial();
 
@@ -2858,6 +2839,31 @@ void BenBound::clean_up()
 
  SOLUTION.clear();
  HeurSOLUTION.clear();
+ }
+
+/*--------------------------------------------------------------------------*/
+
+// empties Q and gives the bounds, the counters and the flags of the search
+// their values before any Solve(), for the instance currently loaded
+
+void BenBound::reset_search( void )
+{
+ for( int i = 0 ; i < Q.size() ; i++ )
+  Q[ i ].Cuts.clear();
+ Q.clear();
+
+ ObjVal = Inf< double >();
+ HeurVal = Inf< double >();
+ HeurSOLUTION.assign( numLinks , 0.0 );
+ BestUB = Inf< double >();
+ BestUBrmin = -1;
+ BestLB = -Inf< double >();
+ ApproxVal = -Inf< double >();
+ solvedflag = 0;
+ counter_ite_Ben = 0;
+ counter_ite_Lag = 0;
+ is_convex_iteration = false;
+ degenerate_streak = 0;
  }
 
 

@@ -307,7 +307,9 @@ public:
   * BestLB until they coincide (up to a relative tolerance) or the
   * maximum number of iterations is reached. After the call, getUB(),
   * getLB(), getObjVal(), getSolution() and the other get*() methods
-  * report the outcome. */
+  * report the outcome. Each call starts the search anew, from the instance
+  * loaded and the cuts or the hint given since the last call, if any: a
+  * second call with nothing changed solves the same instance again. */
 
  void Solve();
 
@@ -681,6 +683,10 @@ private:
 
  /// releases all dynamically allocated memory (Links, Nodes, caps, Q, ...)
  void clean_up();
+
+ /// gives the partition, the bounds, the counters and the flags of the
+ /// search the values they have before the first Solve()
+ void reset_search( void );
  };
 
 #endif

@@ -21,6 +21,10 @@
  *   not above the optimum of the problem it relaxes and a heuristic value
  *   not below the optimum of the DCR problem on the same reduced graph.
  *
+ * - BenBound, solved a second time on the instance it has loaded, with or
+ *   without the cuts of the first solve, has to give a lower bound not
+ *   above the optimum, and without them the very result of the first one.
+ *
  * - SingleFlowDCRBlock is checked in the feasibility of given solutions,
  *   the default data of load(), the netCDF round trip, the feasibility of
  *   the instance against the enumeration, and the Modification its changes
@@ -44,6 +48,8 @@
 /*--------------------------------------------------------------------------*/
 
 #include "SingleFlowDCRBlock.h"
+
+#include "BenBound.h"
 
 #include "DCRLagrangianSolver.h"
 
@@ -1042,6 +1048,63 @@ static void test_lagrangian_edges( void )
  }
 
 /*--------------------------------------------------------------------------*/
+/*-------------------------------- BenBound --------------------------------*/
+/*--------------------------------------------------------------------------*/
+/* A second Solve() on the instance loaded starts the search anew: without
+ * cuts it gives the result of the first one, and with the cuts of the first
+ * one [see BenBound::seedCuts()] a lower bound that is still not above the
+ * optimum. */
+
+static void test_benbound_resolve( void )
+{
+ std::mt19937 gen( 11 );
+ int nok = 0;
+ for( int k = 0 ; k < 200 ; ++k ) {
+  Net g = random_net( gen , 5 , 9 );
+  for( int a = 0 ; a < g.m() ; ++a )
+   g.cost[ a ] += 1;  // positive costs: see test_lagrangian_edges()
+  const double opt = dcr_optimum( g );
+  if( opt == INF )
+   continue;
+
+  DCRData d;
+  fill( d , g );
+  BenBound bb;
+  bb.LoadProblem( g.n , g.m() , d.flow , d.links , d.nodes , g.MTU );
+  bb.Solve();
+  if( bb.getStat() != BenBound::OK )
+   continue;
+  ++nok;
+
+  const std::string what = "BenBound random #" + std::to_string( k );
+  const double lb = bb.getLB() , ub = bb.getUB();
+  const int it = bb.getNumIterationBender();
+  check( lb <= opt * ( 1 + 1e-7 ) + 1e-9 , what + ": lower bound " +
+         std::to_string( lb ) + " above the optimum " +
+         std::to_string( opt ) );
+  const auto mem = bb.getCutMemory();
+
+  bb.Solve();
+  check( ( bb.getLB() == lb ) && ( bb.getUB() == ub ) &&
+         ( bb.getNumIterationBender() == it ) , what + ": the second "
+         "Solve() gives [ " + std::to_string( bb.getLB() ) + " , " +
+         std::to_string( bb.getUB() ) + " ] in " +
+         std::to_string( bb.getNumIterationBender() ) + " iterations, the "
+         "first [ " + std::to_string( lb ) + " , " + std::to_string( ub ) +
+         " ] in " + std::to_string( it ) );
+
+  if( bb.seedCuts( mem ) ) {
+   bb.Solve();
+   check( bb.getLB() <= opt * ( 1 + 1e-7 ) + 1e-9 , what + ": lower bound "
+          + std::to_string( bb.getLB() ) + " above the optimum " +
+          std::to_string( opt ) + " with the cuts of the first Solve()" );
+   }
+  }
+ check( nok > 20 , "BenBound random: " + std::to_string( nok ) +
+        " instances solved" );
+ }
+
+/*--------------------------------------------------------------------------*/
 /*--------------------------- SingleFlowDCRBlock ---------------------------*/
 /*--------------------------------------------------------------------------*/
 /// loads g into blk, with its source and sink
@@ -1463,6 +1526,7 @@ int main( void )
  test_dcr_spt_edges();
  test_lagrangian_random();
  test_lagrangian_edges();
+ test_benbound_resolve();
  test_block_feasibility();
  test_block_defaults();
  test_block_serialize();
