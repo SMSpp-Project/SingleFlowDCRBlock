@@ -169,6 +169,9 @@ public:
   * dblUpCutOff is the global incumbent supplied by the driver: a lower
   * bound reaching it
   * stops computation with kCutOff, without preparing a branching pair.
+  * dblMaxTime [+Inf] limits wall-clock seconds per compute(), including
+  * Benders, Lagrangian/shortest-path oracles and bound refinement. Zero
+  * stops immediately; expiration returns kStopTime with conservative bounds.
   * dblAbsAcc is stored; the other parameters are passed to the base. */
 
  void set_par( idx_type par , double value ) override;
@@ -356,6 +359,8 @@ protected:
 /*--------------------------------------------------------------------------*/
 
 private:
+
+ double f_max_time = SMSpp_di_unipi_it::Inf< double >();
 
  struct BoundInterval { double a , b , lb; };
  /// Current node only: retain the interval heap between screening and fallback.

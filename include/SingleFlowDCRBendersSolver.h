@@ -223,6 +223,10 @@ public:
  {
 
   lock(); // first of all, acquire self-lock
+  struct ReleaseLock {
+   SingleFlowDCRBendersSolver & solver;
+   ~ReleaseLock() { solver.unlock(); }
+  } release_lock{ *this };
   resetGeneratedCuts();
 
   if( ! f_Block )            // there is no [SingleFlowDCRBlock] to solve
@@ -275,7 +279,6 @@ public:
   f_skip_now = false;
   if( skip_solve ) {
    ++f_skipped;
-   unlock();
    return( kOK );
    }
 
@@ -301,7 +304,13 @@ public:
   f_instance_fresh = false;
   static const bool stats_on = ( std::getenv( "SFDCR_STATS" ) != nullptr );
   const auto stat_t0 = std::chrono::steady_clock::now();
-  BenBound::Solve();
+  try {
+   BenBound::Solve();
+  } catch( ... ) {
+   BenBound::DCRstopTime();
+   f_last_solved = false;
+   throw;
+  }
   BenBound::DCRstopTime();
   if( stats_on )
    std::cout << "BENSTAT time "
@@ -328,7 +337,6 @@ public:
   //std::cout << "LB = " << get_lb() << std::endl;
   //std::cout << "UB = " << get_ub() << std::endl;
 
-  unlock(); // unlock the mutex
 
   // now give out the result: note that the vector MCFstatus_2_sol_type[]
   // starts from 0 whereas the first value of MCFStatus is -1 (= kUnSolved),
@@ -793,6 +801,8 @@ public:
 /*--------------------------------------------------------------------------*/
 
 protected:
+ /// Interrupted results must never satisfy the identical-instance shortcut.
+ void discard_solve_cache() { f_last_solved = false; f_skip_now = false; }
 /*--------------------------------------------------------------------------*/
 /*-------------------------- PROTECTED METHODS -----------------------------*/
 /*--------------------------------------------------------------------------*/

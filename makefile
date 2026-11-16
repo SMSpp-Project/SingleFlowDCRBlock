@@ -38,7 +38,8 @@ SFDCRBkOBJ = $(SFDCRBkSDR)/obj/SingleFlowDCRBlock.o \
 
 SFDCRBkINC = -I$(SFDCRBkSDR)/include
 
-SFDCRBkH   = $(SFDCRBkSDR)/include/SingleFlowDCRBlock.h \
+SFDCRBkH   = $(SFDCRBkSDR)/include/DCRDeadline.h \
+	$(SFDCRBkSDR)/include/SingleFlowDCRBlock.h \
 	$(SFDCRBkSDR)/include/MultiFlowDCRBlock.h \
 	$(SFDCRBkSDR)/include/SingleFlowDCRBendersSolver.h \
 	$(SFDCRBkSDR)/include/BenBound.h \

@@ -147,7 +147,12 @@ void SFDCRBRelaxationSolver::set_Block( Block * block )
 
 void SFDCRBRelaxationSolver::set_par( idx_type par , double value )
 {
- if( par == dblRefineTime ) {
+ if( par == dblMaxTime ) {
+  if( std::isnan(value) || value < 0 )
+   throw std::invalid_argument("dblMaxTime must be nonnegative");
+  f_max_time = value;
+ }
+ else if( par == dblRefineTime ) {
   if( ! std::isfinite(value) || value < 0 )
    throw std::invalid_argument("dblRefineTime must be finite and nonnegative");
   f_refine_time = value;
@@ -169,6 +174,7 @@ void SFDCRBRelaxationSolver::set_par( idx_type par , double value )
 
 double SFDCRBRelaxationSolver::get_dbl_par( idx_type par ) const
 {
+ if( par == dblMaxTime ) return f_max_time;
  if( par == dblRefineTime ) return f_refine_time;
  if( par == dblRelAcc )
   return( f_RelAcc );
@@ -246,6 +252,15 @@ Solver::OFValue SFDCRBRelaxationSolver::get_var_value()
 
 int SFDCRBRelaxationSolver::compute( bool changedvars )
 {
+ DCRDeadline deadline( f_max_time );
+ struct RestoreDeadline {
+  BenBound & solver;
+  const DCRDeadline * previous;
+  ~RestoreDeadline() { solver.setDeadline( previous ); }
+ } restore_deadline{ *this , getDeadline() };
+ // Avoid clock reads in legacy loops when no budget was requested.
+ setDeadline( nullptr );
+
  // Hints can make the outer search much more expensive even at the root.
  // Suspend them for this compute, restoring the configured option on every
  // return path (and on exceptions), without changing the base solver.
@@ -294,7 +309,7 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
     << " cuts=" << ( results_available ? BenBound::getNumGeneratedCuts() : 0 )
     << " lagIt=" << ( results_available ? BenBound::getNumIterationLagr() : 0 )
     << " LB_before=" << lb_before
-    << " LB=" << ( ( results_available || ! v_bound_intervals.empty() ) ? get_lb() :
+    << " LB=" << ( ( status == kStopTime || results_available || ! v_bound_intervals.empty() ) ? get_lb() :
        ( status == kInfeasible ? SMSpp_di_unipi_it::Inf< OFValue >() : lb_before ) )
     << " UB=" << ub_before << " cutoff=" << f_UpCutOff
     << " master_rmin=" << ( results_available ? branch_result().rmin : 0 )
@@ -309,6 +324,7 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
   return( status );
   };
 
+ try {
  if( ! f_Block )
   return( finish( kError , "no_block" ) );
 
@@ -349,6 +365,9 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
  if( f_log )
   setup_seconds = profile_seconds( start );
 
+ setDeadline( std::isfinite(f_max_time) ? &deadline : nullptr );
+ checkDeadline();
+
  if( ! routable )
   return( finish( kError , "no_source_or_sink" ) );
 
@@ -387,7 +406,9 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
   }
 
  const auto ben_start = ProfileClock::now();
+ checkDeadline();
  const int rc = SingleFlowDCRBendersSolver::compute( changedvars );
+ checkDeadline();
  f_bound_only = false;
  // The base diagnostics can query the solution before this flag changes.
  // Discard a cached "no candidate" obtained while only bounds were exposed.
@@ -466,8 +487,25 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
        std::any_of(v_required.begin(),v_required.end(),[](bool x){return x;}) ) )
   return( finish( kStopIter , "master_unresolved_no_distinct_paths" ) );
 
+ checkDeadline();
  return( finish( kOK , std::isfinite( ub ) && ( ub - get_lb() <= tol ) ?
                  "gap_closed" : "gap_open" ) );
+
+ } catch( const DCRDeadline::Expired & ) {
+  // Interrupted master/oracle state is not a certificate or a solution.
+  // Reload before the next compute, and publish only conservative bounds.
+  f_instance_fresh = false;
+  discard_solve_cache();
+  f_bound_only = true;
+  f_terminal = false;
+  f_cert = -SMSpp_di_unipi_it::Inf<OFValue>();
+  v_bound_intervals.clear();
+  v_branch_plus.clear();
+  v_branch_minus.clear();
+  invalidate_solution_cache();
+  results_available = false;
+  return finish( kStopTime , "time_limit" );
+ }
 
  }  // end( SFDCRBRelaxationSolver::compute )
 
@@ -811,6 +849,7 @@ int SFDCRBRelaxationSolver::solve_fixed_routing()
   while(dual(hi)>available && expansions++<512) hi*=2;
   if(!std::isfinite(hi)) return kLowPrecision;
   for(int it=0; it<200; ++it) {
+   checkDeadline();
    const double mid=lo+(hi-lo)/2;
    if(mid==lo || mid==hi) break;
    if(dual(mid)>available) lo=mid; else hi=mid;
@@ -871,6 +910,8 @@ double SFDCRBRelaxationSolver::interval_lb( double a , double b )
   mandatory_shift+=reward;
  }
  DCRLagrangianSolver pr;
+ pr.setDeadline( getDeadline() );
+ checkDeadline();
  pr.LoadProblem( int( v_nodes.size() ) , int( v_links.size() ) , fl ,
                  links.data() , v_nodes.data() ,
                  static_cast< SingleFlowDCRBlock * >( f_Block )->get_MTU() ,
@@ -968,6 +1009,7 @@ void SFDCRBRelaxationSolver::refine_lb( bool cutoff_only , int max_splits ,
  double previous_lb = initial_lb;
  int stalled = 0;
  for( int it = 0 ; ; ++it ) {
+  checkDeadline();
   const BoundInterval top = Q.front();
   // Publish the global certificate before evaluating a branching witness.
   // Its value is the minimum over all covering intervals, never the value

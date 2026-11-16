@@ -184,13 +184,14 @@ int SPT::getNHops()
 
 void SPT::Solve()
 {
+ checkDeadline();
  int i , j , h;
  //int maxIter = pow(numNodes,2);
  // int iterat=0;  //if it exceeds n^2, then there will be at least one
  // negative-cost cycle (?)
- double * distance = new double[ numNodes ];
- int * previous = new int[ numNodes ];
- int * previousArc = new int[ numNodes ]; // arc realizing previous[]:
+ std::vector< double > distance( numNodes );
+ std::vector< int > previous( numNodes );
+ std::vector< int > previousArc( numNodes ); // arc realizing previous[]:
                                           // previousArc[ next ] is the
                                           // index (into Links) of the arc
                                           // from previous[ next ] to next
@@ -199,7 +200,7 @@ void SPT::Solve()
                                           // reconstructed by following it
                                           // without re-searching Links
                                           // for the connecting arc
- int * Q = new int[ numNodes ]; //FIFO queue
+ std::vector< int > Q( numNodes ); //FIFO queue
  double dist , inf = Inf< double >();
  int next;
  int HEAD; //FIFO head
@@ -219,6 +220,7 @@ void SPT::Solve()
  //solve SHORTEST PATH
  //////////////////////////////////////
  while( HEAD != -1 ) {
+  checkDeadline();
   //extract node from queue Q
   h = HEAD;
   HEAD = Q[ HEAD ];
@@ -265,10 +267,11 @@ void SPT::Solve()
   DualSol[ j ] = distance[ j ]; //is the for loop needed?
 
  i = t;
- int * indices = new int[ numNodes ];
+ std::vector< int > indices( numNodes );
  nhops = 0; //needed for subsequent calls
 
  while( i != s && stat == OK ) {
+  checkDeadline();
   if( previous[ i ] == -1 ) {
    // i was never reached by the relaxation above: the sink is
    // unreachable from the source (the graph is disconnected), exactly
@@ -303,11 +306,6 @@ void SPT::Solve()
   nhops = 0;
   }
 
- delete[] indices;
- delete[] previousArc;
- delete[] previous;
- delete[] distance;
- delete[] Q;
  }
 
 

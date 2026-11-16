@@ -1694,6 +1694,69 @@ static void test_rabax_refinement_tranches()
  blk.unregister_Solver(&rs);
 }
 
+static void test_time_budget( void )
+{
+ InspectRelaxation rs;
+ const auto par = rs.dbl_par_str2idx( "dblMaxTime" );
+ check( par == Solver::dblMaxTime && rs.dbl_par_idx2str(par) == "dblMaxTime" &&
+        rs.get_dbl_par(par) == Inf<double>() &&
+        rs.get_dflt_dbl_par(par) == Inf<double>(),
+        "RelaxationSolver: time parameter registration/default" );
+ for( double invalid : { -1.0, -Inf<double>(), std::numeric_limits<double>::quiet_NaN() } ) {
+  bool refused = false;
+  try { rs.set_par(par, invalid); }
+  catch( const std::invalid_argument & ) { refused = true; }
+  check(refused && rs.get_dbl_par(par) == Inf<double>(),
+        "RelaxationSolver: invalid time budget accepted");
+ }
+ std::istringstream config_text(
+  "1\n1\nSFDCRBRelaxationSolver\n1\nComputeConfig\n"
+  "1\n0\n1\ndblMaxTime 3600\n0\n0\n0\n0\n*\n" );
+ BlockSolverConfig config(config_text);
+ rs.set_ComputeConfig(config.get_SolverConfig(0));
+ check(rs.get_dbl_par(par) == 3600, "RelaxationSolver: time ComputeConfig");
+
+ Net g = base_path();
+ SingleFlowDCRBlock blk;
+ load(blk, g);
+ blk.register_Solver(&rs);
+ rs.set_par(SingleFlowDCRBendersSolver::intSkipSame, 1);
+ for( int repeat = 0; repeat < 2; ++repeat ) {
+  rs.set_par(par, 0.0);
+  check(rs.compute() == Solver::kStopTime,
+        "RelaxationSolver: zero budget must stop with kStopTime");
+  check(rs.get_lb() == -Inf<double>() && !rs.has_var_solution(),
+        "RelaxationSolver: timeout exposed stale bounds or primal solution");
+  check(rs.getDeadline() == nullptr, "RelaxationSolver: dangling deadline after timeout");
+  rs.set_par(par, repeat ? Inf<double>() : 3600.0);
+  const int status = rs.compute();
+  check(status == Solver::kOK || status == Solver::kStopIter,
+        "RelaxationSolver: could not solve again after timeout");
+  check(rs.get_lb() <= dcr_optimum(g) + 1e-5,
+        "RelaxationSolver: invalid bound after timeout/recompute");
+ }
+ blk.unregister_Solver(&rs);
+
+ // A negative cycle keeps the legacy SPT queue busy: only the nested
+ // deadline can stop it. This exercises expiration inside an oracle,
+ // rather than only checking the time before entering a solve.
+ SPT spt;
+ std::vector<SPT::SPTLink> arcs(2);
+ arcs[0].startnode=0; arcs[0].endnode=1; arcs[0].cost=-1;
+ arcs[1].startnode=1; arcs[1].endnode=0; arcs[1].cost=0;
+ spt.LoadProblem(2, 2, arcs, 0, 1);
+ DCRDeadline deadline(0.001);
+ spt.setDeadline(&deadline);
+ bool expired = false;
+ try { spt.Solve(); } catch( const DCRDeadline::Expired & ) { expired = true; }
+ check(expired, "SPT: nested deadline did not interrupt the negative cycle");
+ spt.setDeadline(nullptr);
+ arcs[0].cost=1;
+ spt.LoadProblem(2, 2, arcs, 0, 1);
+ spt.Solve();
+ check(spt.getStatus() == SPT::OK, "SPT: could not solve after timeout");
+}
+
 static void test_cut_budget( void )
 {
  InspectRelaxation rs;
@@ -1903,6 +1966,7 @@ int main( void )
  test_block_change();
  test_relaxation_solver();
  test_cut_budget();
+ test_time_budget();
  test_shifted_certificate();
  test_rabax_negative_cycles();
  test_rabax_fixed_rates();

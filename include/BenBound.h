@@ -98,7 +98,7 @@
  * found and the value of the master problem) coincide up to a relative
  * tolerance, or a maximum number of iterations is exceeded. */
 
-class BenBound
+class BenBound : public DCRDeadlineCheck
 {
 
 /*--------------------------------------------------------------------------*/
@@ -106,6 +106,11 @@ class BenBound
 /*--------------------------------------------------------------------------*/
 
 public:
+ /// Share the caller's wall-clock budget with all nested solves.
+ void setDeadline( const DCRDeadline * value ) {
+  DCRDeadlineCheck::setDeadline( value );
+  lagSol.setDeadline( value );
+ }
 /*--------------------------------------------------------------------------*/
 /*--------------------------- Inf() and Eps() ------------------------------*/
 /*--------------------------------------------------------------------------*/

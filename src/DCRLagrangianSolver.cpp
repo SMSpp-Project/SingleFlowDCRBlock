@@ -642,6 +642,7 @@ void DCRLagrangianSolver::DCRsetTimeLimit( long secs )
 
 void DCRLagrangianSolver::Solve( void )
 {
+ checkDeadline();
  int i;
  int opt = 1; //signals whether Reopt() has replaced the initialization
  std::vector< int > path;
@@ -700,6 +701,7 @@ void DCRLagrangianSolver::Solve( void )
  static constexpr int max_bisect_retries = 100;
  if( lagstat == OK && solvedflag != 1 ) {
   do {
+   checkDeadline();
    ////variables to save the new cut: generated at every iteration
    ///because extending their lifetime would cause a deterioration of
    //the data previously stored in the Cuts vector.
@@ -1132,6 +1134,7 @@ int DCRLagrangianSolver::Reopt( void )
  mCut.q = Cuts[ negpos ].c.q;
 
  do {
+  checkDeadline();
   lambda = ( mCut.q - pCut.q ) / ( pCut.m - mCut.m );
 
   ////FIXME: understand why this happens!!!!!!!
@@ -1356,6 +1359,7 @@ void DCRLagrangianSolver::Inizial( void )
    // Lagrangian value exceeds the trivial upper bound LimitVal
    // (declaring infeasibility), or SP itself fails
    while( beta > 0 && ObjVal <= LimitVal && spstat == 0 ) {
+    checkDeadline();
     alpha = 0; //initialized at every iteration
     beta = beta_0;
 

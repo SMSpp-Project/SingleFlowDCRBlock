@@ -133,13 +133,18 @@
  * cached cuts alone, only falling back to a full re-initialization
  * (Inizial()) if this is not possible. */
 
-class DCRLagrangianSolver
+class DCRLagrangianSolver : public DCRDeadlineCheck
 {
 
 /*--------------------------------------------------------------------------*/
 /*----------------------- PUBLIC PART OF THE CLASS -------------------------*/
 /*--------------------------------------------------------------------------*/
 public:
+ /// Share the caller's wall-clock budget with all nested solves.
+ void setDeadline( const DCRDeadline * value ) {
+  DCRDeadlineCheck::setDeadline( value );
+  spt.setDeadline( value );
+ }
 /*--------------------------------------------------------------------------*/
 /*--------------------------- Inf() and Eps() ------------------------------*/
 /*--------------------------------------------------------------------------*/

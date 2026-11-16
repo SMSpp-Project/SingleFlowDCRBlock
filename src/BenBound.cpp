@@ -39,6 +39,7 @@
 
 #include <iostream>
 #include <vector>
+#include <memory>
 #include <cmath>
 #include <stdexcept>
 #include <ctime>
@@ -646,6 +647,7 @@ void BenBound::DCRsetTimeLimit( long secs )
 
 void BenBound::Solve()
 {
+ checkDeadline();
  f_branch_result = {};
  resetGeneratedCuts();
  int i , j;
@@ -699,6 +701,7 @@ void BenBound::Solve()
  if( solvedflag == 0 ) {
   if( BenStat == 0 ) {
    do {
+    checkDeadline();
     if( f_generated_cuts >= f_max_cuts ) {
      p = LineSearch();
      approx = ApproxVal;
@@ -787,6 +790,7 @@ void BenBound::Solve()
       int count_iter_feas = 0;
 
       while( feas != 0 && count_iter_feas <= 20 ) {
+       checkDeadline();
        temppoint =
         mystep * Q[ 0 ].rmin +
         ( 1 - mystep ) *
@@ -1823,6 +1827,7 @@ int BenBound::LineSearch()
 
     do //here comes the LS at last!  //then in any case we start the LS
     {
+     checkDeadline();
      //poscounter = 0;
      interx =
       ( Q[ i ].pCut.q - Q[ i ].mCut.q ) /
@@ -2227,7 +2232,7 @@ int BenBound::whchbest( int i )
 void BenBound::Inizial()
 {
  int i;
- double * limits;
+ std::unique_ptr< double[] > limits;
  double lambda;
  double sqr;
  double barl;   //\bar{l}_ij
@@ -2250,10 +2255,8 @@ void BenBound::Inizial()
  c.q = 0;
 
 
- limits = new double[ 2 ];
-
- limits =
-  Limitrmin(); //limit values for which feasibility of r_min is guaranteed
+ limits.reset(
+  Limitrmin() ); //limit values for which feasibility of r_min is guaranteed
  // cout<<"limit values for rmin: "<<limits[0]<<"-"<<limits[1]<<endl;
 
  mystep = 0.9; // before it was 0.9
@@ -2307,6 +2310,7 @@ void BenBound::Inizial()
    //look for the other feasibility point
 
    while( feas != 0 ) {
+    checkDeadline();
     temppoint = Q[ 1 ].inter;
     Q[ 1 ].inter =
      myparam * Q[ 1 ].inter +
@@ -2352,6 +2356,7 @@ void BenBound::Inizial()
             pointeps *
              temps ) //use an LS to find the first point for which lambda = 0
      {
+      checkDeadline();
       lagSol.updrmin( cent );
 
       in0opt = lagSol.is0opt();
@@ -2401,6 +2406,7 @@ void BenBound::Inizial()
             pointeps *
              temps ) //use an LS to find the first point for which lambda = 0
      {
+      checkDeadline();
       lagSol.updrmin( cent );
 
       in0opt = lagSol.is0opt();
@@ -2781,6 +2787,7 @@ double * BenBound::Limitrmin()
  // still stumble onto a correct answer, exactly the non-reproducibility
  // this hunts
  while( feas != 0 && j < dx ) {
+  checkDeadline();
   j++;
 
   if( caps[ j ] != caps[ j - 1 ] ) //same rmin implies same result
@@ -2794,7 +2801,7 @@ double * BenBound::Limitrmin()
 
  if( feas == 0 ) {
   BenStat = OK;
-  double * bounds = new double[ 2 ];
+  auto bounds = std::make_unique< double[] >( 2 );
 
   if( Flow.rate < Flow.burst / Flow.deadline )
    bounds[ 0 ] =
@@ -2810,7 +2817,7 @@ double * BenBound::Limitrmin()
   {
    bounds[ 1 ] = caps[ dx ];
 
-   return bounds;
+   return bounds.release();
    }
   else  // otherwise binary search over the capacity vector to find the
           // minimum one
@@ -2820,6 +2827,7 @@ double * BenBound::Limitrmin()
    //FIXME: this could be improved, observing that capacities often repeat
    //and by doing a check on sx+1, since often only one feasible value exists.
    while( dx - sx > 1 ) {
+    checkDeadline();
     cent = ( sx + dx ) / 2;
     lagSol.updrmin( caps[ cent ] );
     feas = lagSol.isFeasible();
@@ -2863,7 +2871,7 @@ double * BenBound::Limitrmin()
           in the large gap between the last feasible capacity
           and the first infeasible one, there are no salvageable values?*/
 
-   return bounds;
+   return bounds.release();
    }
 
   } //if the problem is feasible

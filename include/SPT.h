@@ -41,6 +41,8 @@
 #ifndef SPT_H
 #define SPT_H
 
+#include "DCRDeadline.h"
+
 /*--------------------------------------------------------------------------*/
 /*------------------------------ INCLUDES ----------------------------------*/
 /*--------------------------------------------------------------------------*/
@@ -71,7 +73,7 @@
  * needed to reconstruct the path -- which is how an unbounded instance
  * manifests itself here -- getStatus() reports Error. */
 
-class SPT
+class SPT : public DCRDeadlineCheck
 {
 /*--------------------------------------------------------------------------*/
 /*----------------------- PUBLIC PART OF THE CLASS -------------------------*/
