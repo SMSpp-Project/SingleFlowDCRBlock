@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- the installed module `smspp.singleflowdcrblock` could not be imported,
+  since its package gave the interface of the module the target of the
+  library by its name in the build tree, which an installed package does not
+  have
+
 - `BenBound::Solve()` starts the search anew at each call: a second call on
   the instance loaded kept the bound, the iterations and the flags of the
   first one, and the cuts of the first subinterval of its partition, valid
