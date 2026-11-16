@@ -29,7 +29,9 @@
  *   the default data of load(), the netCDF round trip, the feasibility of
  *   the instance against the enumeration, and the Modification its changes
  *   issue, which a Solver attached to it sees when it solves again, with
- *   what each says it changes [see Modification::changes()].
+ *   what each says it changes [see Modification::changes()], and in the
+ *   groups of the P/C cuts, which are in the abstract representation once
+ *   however many times the cuts are separated.
  *
  * The edge cases are checked on their own: source equal to sink, no path at
  * all, every path violating the deadline, a deadline met with equality, ties
@@ -58,6 +60,8 @@
 #include "SPT.h"
 
 #include "Solver.h"
+
+#include "Configuration.h"
 
 #include <cmath>
 
@@ -1515,6 +1519,35 @@ static void test_block_fixing( void )
  }
 
 /*--------------------------------------------------------------------------*/
+/// the groups of the P/C cuts are in the abstract representation once
+
+static void test_block_pc_cuts( void )
+{
+ std::mt19937 gen( 7 );
+ const Net g = random_net( gen , 5 , 9 );
+ SingleFlowDCRBlock blk;
+ load( blk , g );
+
+ SimpleConfiguration< int > pc( 1 );  // the P/C formulation
+ blk.generate_abstract_variables();
+ blk.generate_abstract_constraints( & pc );
+
+ auto groups = [ & blk ]( const std::string & name ) {
+  int n = 0;
+  for( Block::Index i = 0 ; i < blk.get_number_dynamic_constraints() ; ++i )
+   n += ( blk.get_d_const_name( i ) == name );
+  return( n );
+  };
+
+ for( int k = 0 ; k < 3 ; ++k ) {
+  blk.generate_dynamic_constraints();
+  check( ( groups( "PC_cuts" ) == 1 ) && ( groups( "PC_cuts_min" ) == 1 ) ,
+         "Block P/C cuts: the groups once after separation #" +
+         std::to_string( k ) );
+  }
+ }
+
+/*--------------------------------------------------------------------------*/
 /*--------------------------------- MAIN -----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -1533,6 +1566,7 @@ int main( void )
  test_block_feasible_instance();
  test_block_modifications();
  test_block_fixing();
+ test_block_pc_cuts();
 
  if( failures )
   std::cout << failures << " checks failed" << std::endl;

@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- with the P/C formulation the groups of dynamic Constraint `PC_cuts` and
+  `PC_cuts_min` are added to the abstract representation once, by
+  `generate_abstract_constraints()`, while `generate_dynamic_constraints()`
+  added them again at each separation; the tester checks it
+
 - the installed module `smspp.singleflowdcrblock` could not be imported,
   since its package gave the interface of the module the target of the
   library by its name in the build tree, which an installed package does not

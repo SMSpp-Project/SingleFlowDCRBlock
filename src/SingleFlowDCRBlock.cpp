@@ -709,12 +709,10 @@ void SingleFlowDCRBlock::generate_abstract_variables( Configuration * stvv )
 
 void SingleFlowDCRBlock::generate_dynamic_constraints( Configuration * stcc )
 {
- // which of the two alternative formulations (P/C or SOCP) is in use: the
- // cuts are only actually *added* to the abstract representation if the P/C
- // one is selected, and the question is asked of the Block rather than of
- // stcc, which is the Configuration of *these* Constraint and carries the
- // separation tolerances below- - - - - - - - - - - - - - - - - - - - - - -
- c_Index form = formulation();
+ // the cuts go to PC_cuts and PC_cuts_min, which are in the abstract
+ // representation only if generate_abstract_constraints() has put them
+ // there, i.e., with the P/C formulation (with the SOCP one the cone is
+ // already exactly represented, and the cuts are just discarded)
 
  double tol = 1e-5; // threshold parameter for P/C separation
  double eps = 1e-4; // tolerance value to consider a binary variable
@@ -786,12 +784,6 @@ void SingleFlowDCRBlock::generate_dynamic_constraints( Configuration * stcc )
    }
   }
 
- // the cuts are only *added* to the abstract representation if the P/C
- // formulation is selected (otherwise they are just discarded: with the
- // SOCP formulation the cone is already exactly represented) - - - - - - -
- if( form == PCuts )
-  add_dynamic_constraint( PC_cuts , "PC_cuts" );
-
  // the aggregate cut: same as above, but for the single "source" cone
  // theta_min >= FlowBursts / r_min, linearized around the current
  // (theta_min, r_min) point- - - - - - - - - - - - - - - - - - - - - - - -
@@ -824,10 +816,6 @@ void SingleFlowDCRBlock::generate_dynamic_constraints( Configuration * stcc )
    add_dynamic_constraints( PC_cuts_min , cut_min , eNoBlck );
    }
   }
- //}
- if( form == PCuts )
-  add_dynamic_constraint( PC_cuts_min , "PC_cuts_min" );
-
  } // end( SingleFlowDCRBlock::generate_dynamic_constraints )
 
 /*--------------------------------------------------------------------------*/
@@ -908,8 +896,9 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration * stcc )
 
  // generate the rotated-cone constraints of the "SOCP" formulation- - - - -
  // (constructed unconditionally, but only added to the abstract
- // representation if the SOCP formulation is selected, see
- // generate_dynamic_constraints())
+ // representation if the SOCP formulation is selected; with the P/C one,
+ // the groups of the cuts that generate_dynamic_constraints() separates
+ // are added instead, once and for all)
 
  c_Index form = formulation( stcc );
 
@@ -959,6 +948,11 @@ void SingleFlowDCRBlock::generate_abstract_constraints( Configuration * stcc )
   add_static_constraint( cone_min_cnst );
   add_static_constraint( cone_cnst );
   }
+ else
+  if( form == PCuts ) {
+   add_dynamic_constraint( PC_cuts , "PC_cuts" );
+   add_dynamic_constraint( PC_cuts_min , "PC_cuts_min" );
+   }
 
  int j;
  double U_max = 0.0;
