@@ -429,6 +429,24 @@ public:
  /// true if seedCuts() has accepted cuts that no Solve() has used yet
  bool seedPending( void ) const { return( hasSeed ); }
 
+ /// whether Solve() checks the partition after every split
+ /** If on, after every split Solve() checks that the right endpoints of the
+  * subintervals are nondecreasing, i.e., that Q is a partition of the range
+  * of r_min listed from left to right, as the cuts that a split hands to the
+  * subintervals by their position need, and counts the splits after which it
+  * is not [see getUnsortedSplits()]. Off by default, as it costs a pass over
+  * Q at each split. */
+ void setCheckPartition( bool on ) { checkQ = on; }
+
+ /// number of splits of the last Solve() after which Q was not sorted
+ int getUnsortedSplits( void ) const { return( unsortedSplits ); }
+
+ /// number of subintervals of the partition of the last Solve()
+ int getNumSubIntervals( void ) const
+ {
+  return( Q.empty() ? 0 : int( Q.size() ) - 1 );
+  }
+
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns the status of the bounding procedure
  BndrStat getStat();
@@ -603,6 +621,9 @@ private:
  double rminHint = 0;     ///< see setRminHint()
  bool hasHint = false;
  long hintUsed = 0;
+
+ bool checkQ = false;     ///< see setCheckPartition()
+ int unsortedSplits = 0;  ///< see getUnsortedSplits()
 
  /// puts the hint, if any, as the first candidate of the search
  void applyHint( void );

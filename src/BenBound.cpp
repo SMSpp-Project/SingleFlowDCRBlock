@@ -43,6 +43,73 @@
 #include <stdexcept>
 #include <ctime>
 #include <cstdlib>
+#include <algorithm>
+
+/*--------------------------------------------------------------------------*/
+/*------------------------------ FUNCTIONS ---------------------------------*/
+/*--------------------------------------------------------------------------*/
+// the cost of arc l in the Lagrangian subproblem at r_min == r: the minimum
+// over z in [ r , capacity ] of cost z + lambda MTU / z + lambda barl, plus
+// the fixed cost
+
+static double arc_cost( const DCR::DCRLink & l , const DCR::DCRNode * N ,
+                        double MTU , double r , double lambda )
+{
+ double z = r;
+ if( lambda > 0 )
+  z = ( l.cost > 0 ) ?
+       std::min( l.capacity ,
+                 std::max( r , std::sqrt( lambda * MTU / l.cost ) ) ) :
+       l.capacity;
+ const double barl = MTU / l.speed + l.delay + N[ l.startnode ].delay;
+ if( lambda == 0 )  // z may be 0, if r_min is
+  return( l.cost * z + l.fixed );
+ return( l.cost * z + lambda * MTU / z + lambda * barl + l.fixed );
+ }
+
+/*--------------------------------------------------------------------------*/
+// The contribution of arc l to the Lagrangian value at r_min == r is
+// h( r ) = min( 0 , arc_cost( r ) + d ), d = pi( tail ) - pi( head ) being
+// the difference of the labels, for r up to the capacity of l, and 0 beyond
+// it, where l is not in the reduced graph. Returns true if the line
+// m r + q is not above h on [ lo , x ]. It is checked exactly: the line is
+// not above 0 iff it is not at lo and x; on [ lo , min( x , capacity ) ]
+// arc_cost( r ) is constant up to s = min( sqrt( lambda MTU / cost ) ,
+// capacity ), where the difference with the line is linear, and convex
+// after it, where the difference is smallest at an end or where the
+// derivative cost - lambda MTU / r^2 of arc_cost is m.
+
+static bool line_below( const DCR::DCRLink & l , const DCR::DCRNode * N ,
+                        double MTU , double lambda , double d , double lo ,
+                        double x , double m , double q )
+{
+ auto tol = []( double v ) {
+  return( 1e-9 * std::max( 1.0 , std::abs( v ) ) );
+  };
+ if( ( m * lo + q > 1e-9 ) || ( m * x + q > 1e-9 ) )
+  return( false );
+ const double hi = std::min( x , l.capacity );
+ if( hi < lo )
+  return( true );
+ auto ok = [ & ]( double r ) {
+  const double h = arc_cost( l , N , MTU , r , lambda ) + d;
+  return( h - ( m * r + q ) >= - tol( h ) );
+  };
+ if( ( ! ok( lo ) ) || ( ! ok( hi ) ) )
+  return( false );
+ if( ( lambda > 0 ) && ( l.cost > 0 ) ) {
+  const double s = std::sqrt( lambda * MTU / l.cost );
+  if( ( s > lo ) && ( s < hi ) && ( ! ok( s ) ) )
+   return( false );
+  if( l.cost > m ) {
+   const double rs = std::sqrt( lambda * MTU / ( l.cost - m ) );
+   if( ( rs > lo ) && ( rs < hi ) && ( ! ok( rs ) ) )
+    return( false );
+   }
+  }
+ return( true );
+ }
+
 
 
 /*--------------------------------------------------------------------------*/
@@ -650,14 +717,18 @@ void BenBound::Solve()
 
     if( Q[ p ].solflag == 1 && counter_ite_Ben > 2 ) {
      // the point has been solved already: move it a little, towards the
-     // left endpoint of the window of the r_min that can be feasible at
-     // all, exactly as the preliminary phase moves it towards the right
-     // one [see Inizial()]. Note that the endpoint is where it stops: a
-     // multiplicative shrink of the point alone walks past it, and an
-     // r_min below Q[ 0 ].rmin reserves less than the sustained rate of
-     // the flow, i.e. it is not a solution of the problem
-     Q[ p ].inter = myparam * Q[ p ].inter +
-                    ( 1 - myparam ) * Q[ 0 ].rmin;
+     // left endpoint of its subinterval, exactly as the preliminary phase
+     // moves it towards the right one of the window [see Inizial()]. Note
+     // that the endpoint is where it stops: the point has to stay in
+     // [ Q[ p - 1 ].rmin , Q[ p ].rmin ], since the split below gives the
+     // cuts to the subintervals by their position in Q [see the
+     // non-convex case], and Q[ p - 1 ].rmin is not below Q[ 0 ].rmin, the
+     // left endpoint of the window, below which r_min reserves less than
+     // the sustained rate of the flow, i.e. it is not a solution
+     // (rounding can put a convex combination a little out of its ends)
+     Q[ p ].inter = std::max( Q[ p - 1 ].rmin ,
+                              myparam * Q[ p ].inter +
+                              ( 1 - myparam ) * Q[ p - 1 ].rmin );
 
      lagSol.updrmin(
       Q[ p ].inter ); //let the new candidate show us its potential :)
@@ -668,10 +739,12 @@ void BenBound::Solve()
      }
 
     if( lgstat == 1 ) {
+     // a feasible point in the same subinterval, for the same reason
 
      for( int i = 0 ; i < 1000 ; i++ ) {
 
-      Qnew = ( i * ( Q[ 1 ].rmin - Q[ 0 ].rmin ) / 1000 ) + Q[ 0 ].rmin;
+      Qnew = ( i * ( Q[ p ].rmin - Q[ p - 1 ].rmin ) / 1000 ) +
+             Q[ p - 1 ].rmin;
 
       lagSol.updrmin( Qnew );
       lagSol.Solve();
@@ -704,10 +777,11 @@ void BenBound::Solve()
       int count_iter_feas = 0;
 
       while( feas != 0 && count_iter_feas <= 20 ) {
-       temppoint =
-        mystep * Q[ 0 ].rmin +
-        ( 1 - mystep ) *
-         Q[ 1 ].inter; //let's see which one changes based on feasibility
+       //let's see which one changes based on feasibility (not below
+       //Q[ 0 ].rmin by rounding, see the move above)
+       temppoint = std::max( Q[ 0 ].rmin ,
+                             mystep * Q[ 0 ].rmin +
+                             ( 1 - mystep ) * Q[ 1 ].inter );
 
        lagSol.updrmin( temppoint );
        feas = lagSol.isFeasible();
@@ -830,10 +904,13 @@ void BenBound::Solve()
       // the intercepts are also summed arc by arc, since some of them cause
       // discontinuities.
 
-      sqr = sqrt( lambda * MTU / Links[ 1 ].cost );
-
       for( i = 0 ; i < numLinks ; i++ ) {
-       if( Links[ i ].capacity > Q[ 0 ].rmin ) {
+       const double m0 = lc.m , q0 = lc.q;
+       // an arc whose capacity is Q[ 0 ].rmin is in the reduced graph at
+       // r_min == Q[ 0 ].rmin, and one whose capacity is below x, however
+       // little, is not at x: both have to give their line to the left cut,
+       // which is not below d( . ) at Q[ 0 ].rmin otherwise
+       if( Links[ i ].capacity >= Q[ 0 ].rmin ) {
         sqr =
          sqrt( lambda * MTU / Links[ i ].cost ); //sqrt(lambda * L / f_ij)
 
@@ -863,9 +940,9 @@ void BenBound::Solve()
            lc.q += -ms * Q[ p ].inter;
            }
 
-          if( Links[ i ].capacity - Q[ 0 ].rmin > Links[ i ].capacity * eps &&
+          if( Links[ i ].capacity >= Q[ 0 ].rmin &&
               zetaunico - Links[ i ].capacity > eps * zetaunico &&
-              Q[ p ].inter - Links[ i ].capacity > Q[ p ].inter * eps ) {
+              Q[ p ].inter > Links[ i ].capacity ) {
            if( zetaunico - Q[ p ].inter > zetaunico * eps ) {
             ms = ( Links[ i ].cost * Links[ i ].capacity + d ) /
                  ( Links[ i ].capacity - Q[ p ].inter );
@@ -997,6 +1074,25 @@ void BenBound::Solve()
           } //case lambda > 0
          } //if d < 0
         } //only the arcs with capacity greater than the minimum feasible one!
+
+       // the line of the arc has to be below its contribution on
+       // [ Q[ 0 ].rmin , x ]; the cases above give it assuming the reduced
+       // cost of the arc is not negative at x, which the labels need not
+       // grant (e.g., at a node that the shortest path tree does not reach),
+       // and leave out the arcs they do not cover: then the line is the
+       // contribution at Q[ 0 ].rmin, below it since it does not decrease
+       // with r_min [see line_below()]
+       if( Links[ i ].capacity >= Q[ 0 ].rmin ) {
+        const double dd = SPLabels[ Links[ i ].startnode ] -
+                          SPLabels[ Links[ i ].endnode ];
+        if( ! line_below( Links[ i ] , Nodes , MTU , lambda , dd ,
+                          Q[ 0 ].rmin , Q[ p ].inter , lc.m - m0 ,
+                          lc.q - q0 ) ) {
+         lc.m = m0;
+         lc.q = q0 + std::min( 0.0 , arc_cost( Links[ i ] , Nodes , MTU ,
+                                               Q[ 0 ].rmin , lambda ) + dd );
+         }
+        }
        } //for all the arcs.
 
       //finally we have to sum the contributions of the function g(z).
@@ -1023,6 +1119,21 @@ void BenBound::Solve()
       //cout<<" rc.m = "<<rc.m<<" rc.q = "<<rc.q<<endl;
 
       Q[ p ].Val = rc.q + Q[ p ].inter * rc.m; //take the value at the point.
+
+      // rc is below d( . ) on [ x , +INF ) if no arc of the reduced graph at
+      // x has a negative reduced cost there, since the reduced graph does
+      // not grow and the cost of an arc does not decrease with r_min; the
+      // labels need not grant it, and then the contribution of such an
+      // arc at x, which does not decrease either, is added to it
+      for( i = 0 ; i < numLinks ; i++ )
+       if( Links[ i ].capacity >= Q[ p ].inter ) {
+        const double pt = SPLabels[ Links[ i ].startnode ] > 1e200 ? 0 :
+                          SPLabels[ Links[ i ].startnode ];
+        const double ph = SPLabels[ Links[ i ].endnode ] > 1e200 ? 0 :
+                          SPLabels[ Links[ i ].endnode ];
+        rc.q += std::min( 0.0 , arc_cost( Links[ i ] , Nodes , MTU ,
+                                          Q[ p ].inter , lambda ) + pt - ph );
+        }
       Q[ p ].solflag = 1;
 
 
@@ -1052,7 +1163,28 @@ void BenBound::Solve()
       // subintervals at Q[p].inter (the new one, I, inherits the
       // "left" part), and propagate lc/rc as new candidate cuts
       // to, respectively, every subinterval to the left/right of
-      // the split point
+      // the split point.
+      //
+      // Each cut stays below d( . ) on the subinterval it is given to. Let
+      // x = Q[ p ].inter. For any labels pi with pi( source ) = 0, the cost
+      // of a path is pi( sink ) plus the reduced costs of its arcs, hence
+      // not below pi( sink ) plus the sum over the arcs of the reduced graph
+      // of min( 0 , reduced cost ), their contribution. rc is below d( . ) on
+      // [ x , +INF ): there the reduced graph has no more arcs and no arc a
+      // smaller cost than at x, so each contribution is not below its value
+      // at x, which rc adds for the arcs whose reduced cost is negative at
+      // x, and the burst term g( . ), convex, is above its tangent at x. lc
+      // is below d( . ) on [ Q[ 0 ].rmin , x ]: the line of each arc is
+      // below its contribution there [see line_below()], and the tangent of
+      // g( . ) at x is below g( . ). Q[ 0 ].rmin never decreases,
+      // so this holds on the range of every later partition too. Since
+      // Q[ p - 1 ].rmin <= x <= Q[ p ].rmin [see above] and Q is sorted,
+      // after the insertion Q[ 1 ], ..., Q[ p ] lie in [ Q[ 0 ].rmin , x ]
+      // and get lc, Q[ p + 1 ], ... lie in [ x , +INF ) and get rc, and the
+      // two halves of the old Q[ p ] keep its cuts, which were below d( . )
+      // on all of it; hence Q stays sorted as well. A point out of the
+      // subinterval would instead give lc to subintervals on its right, and
+      // the cuts of the old Q[ p ] to a piece that is not inside it
 
       if( nonConvexflag ==
           0 ) //add the new point to Q and the cuts it produces
@@ -1122,6 +1254,13 @@ void BenBound::Solve()
        for( i = p + 1 ; i < Qsize ; i++ ) {
         Q[ i ].Cuts.push_back( rc );
         }
+
+       if( checkQ )   // see setCheckPartition()
+        for( i = 1 ; i < Qsize ; i++ )
+         if( Q[ i ].rmin < Q[ i - 1 ].rmin ) {
+          ++unsortedSplits;
+          break;
+          }
 
        } //if non convex.
 
@@ -2175,11 +2314,10 @@ void BenBound::Inizial()
    while( feas != 0 ) {
     temppoint = Q[ 1 ].inter;
     Q[ 1 ].inter =
-     myparam * Q[ 1 ].inter +
-     ( 1 - myparam ) *
-      Q[ 1 ]
-       .rmin;  // the left endpoint varies, the right one stays fixed at
-               // Q[1].rmin
+     std::min( Q[ 1 ].rmin , myparam * Q[ 1 ].inter +
+                             ( 1 - myparam ) * Q[ 1 ].rmin );
+               // the left endpoint varies, the right one stays fixed at
+               // Q[1].rmin (and rounding must not take the point past it)
 
     lagSol.updrmin( Q[ 1 ].inter );
     feas = lagSol.isFeasible();
@@ -2193,11 +2331,19 @@ void BenBound::Inizial()
 
    //////PRELIMINARY PHASE OF INTERVAL RESTRICTION.
 
-   if(
-    crit_capc <
-    limits
-     [ 1 ] )  // case where the critical point falls inside the interval, let's
-              // start from there!
+   // crit_capc, the smallest capacity at which the subproblem is feasible,
+   // can be below the feasible point Q[ 1 ].inter just found, and even below
+   // Q[ 0 ].rmin = max( rate , burst / deadline ): it is used only if it is
+   // to the right of Q[ 1 ].inter, as a search between them would end below
+   // Q[ 0 ].rmin, giving Q[ 1 ] a right endpoint smaller than its left one.
+   // What is to the right of the point r where lambda = 0 is optimal can be
+   // cut away because for r' >= r the optimum is not below the cost of the
+   // shortest path at r' with rates r', which is not below the one at r,
+   // i.e., d( r ); this needs r to stay in the range, which it does
+   if( ( crit_capc > Q[ 1 ].inter ) &&
+       ( crit_capc < limits[ 1 ] ) )  // case where the critical point falls
+                                      // inside the interval, let's start
+                                      // from there!
    {
 
     //cout<<"I am here in crit_capc"<<endl;
@@ -2239,8 +2385,8 @@ void BenBound::Inizial()
             // the critical point.
     {
      mystep = 0.75; //mystep = 0.75;
-     Q[ 1 ].inter =
-      crit_capc - 2; //stop slightly before it to avoid computation errors
+     // stop slightly before it to avoid computation errors
+     Q[ 1 ].inter = std::max( crit_capc - 2 , Q[ 0 ].rmin );
 
      //cout<<"Q[1].inter  = "<<Q[1].inter<<endl;
      }
@@ -2323,8 +2469,9 @@ void BenBound::Inizial()
     // discontinuities.
 
     for( i = 0 ; i < numLinks ; i++ ) {
+     const double m0 = c.m , q0 = c.q;
 
-     if( Links[ i ].capacity > Q[ 0 ].rmin ) {
+     if( Links[ i ].capacity >= Q[ 0 ].rmin ) {  // see Solve()
       if( SPLabels[ Links[ i ].endnode ] > 1e200 )
        SPLabels[ Links[ i ].endnode ] = 0;
       if( SPLabels[ Links[ i ].startnode ] > 1e200 )
@@ -2361,9 +2508,9 @@ void BenBound::Inizial()
          c.q += -ms * Q[ 1 ].rmin;
          }
 
-        if( Links[ i ].capacity - Q[ 0 ].rmin > Links[ i ].capacity * eps &&
+        if( Links[ i ].capacity >= Q[ 0 ].rmin &&
             zetaunico - Links[ i ].capacity > eps * zetaunico &&
-            Q[ 1 ].rmin - Links[ i ].capacity > Q[ 1 ].rmin * eps ) {
+            Q[ 1 ].rmin > Links[ i ].capacity ) {
          if( zetaunico - Q[ 1 ].rmin > zetaunico * eps ) {
           ms = ( Links[ i ].cost * Links[ i ].capacity + d ) /
                ( Links[ i ].capacity - Q[ 1 ].rmin );
@@ -2485,6 +2632,17 @@ void BenBound::Inizial()
         } //case lambda > 0
        } //if d < 0
       } //only the arcs with capacity greater than the minimum feasible one!
+
+     if( Links[ i ].capacity >= Q[ 0 ].rmin ) {  // see Solve()
+      const double dd = SPLabels[ Links[ i ].startnode ] -
+                        SPLabels[ Links[ i ].endnode ];
+      if( ! line_below( Links[ i ] , Nodes , MTU , lambda , dd , Q[ 0 ].rmin ,
+                        Q[ 1 ].rmin , c.m - m0 , c.q - q0 ) ) {
+       c.m = m0;
+       c.q = q0 + std::min( 0.0 , arc_cost( Links[ i ] , Nodes , MTU ,
+                                            Q[ 0 ].rmin , lambda ) + dd );
+       }
+      }
      } //for all the arcs.
 
     //finally we have to sum the contributions of the function g(z).
@@ -2864,6 +3022,7 @@ void BenBound::reset_search( void )
  counter_ite_Lag = 0;
  is_convex_iteration = false;
  degenerate_streak = 0;
+ unsortedSplits = 0;
  }
 
 

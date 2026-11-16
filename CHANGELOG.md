@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - the tester solves the instances of `BenBound` a second time, with and
   without the cuts of the first solve
 
+- `BenBound::setCheckPartition()` checks that the partition of the range of
+  `r_min` is sorted after every split, which the tester and the
+  `SFDCR_STATS` statistics of `SingleFlowDCRBendersSolver` do
+
 ### Fixed
 
 - with the P/C formulation the groups of dynamic Constraint `PC_cuts` and
@@ -38,6 +42,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and hang on `sndlib/di-yuan_3` and `sndlib/norway_3`, where the cuts of a
   partition of thousands of subintervals were offered to the instance they
   came from
+
+- the partition of the range of `r_min` of `BenBound` stays sorted: a point
+  already solved was moved towards the left endpoint of the whole range,
+  and the search for a feasible one looked in the first subinterval, so that
+  the split could fall out of the subinterval it splits and give its cuts to
+  subintervals on the wrong side of it; and `Inizial()` could give the first
+  subinterval a right endpoint below its left one when the smallest
+  capacity that makes the subproblem feasible is below the rate of the flow,
+  and then evaluate an `r_min` below the rate, whose value could be below
+  the optimum
+
+- the cuts of `BenBound` are below the dual function where they are used:
+  the left cut left out the arcs whose capacity is the left endpoint of the
+  range or a little below the point, and gave a line through it to arcs
+  whose reduced cost the labels of the shortest path tree leave negative
+  there (e.g., at a node that the tree does not reach), so that the lower
+  bound could be above the optimum; the line of each arc is now checked
+  exactly against its contribution, and replaced by its value at the left
+  endpoint when it is not below it, and the right cut adds the contribution
+  of the arcs whose reduced cost is negative at the point
+
+- the solution of `SingleFlowDCRBendersSolver` meets the deadline exactly:
+  the rates of the Lagrangian subproblem met it only up to the tolerance of
+  the bisection on the multiplier, so that their cost, i.e., the upper
+  bound, could be a little below the optimum; they are now raised towards
+  the capacities, along the segment, just enough to meet it
+
+- `DCRLagrangianSolver::is0opt()` gives the shortest path tree the reduced
+  graph of the `r_min` it is called at, where it gave the costs only and the
+  tree read them as those of the reduced graph it last had (out of the
+  bounds of the vector when the new one has fewer arcs); and `BenBound` no
+  longer reads the second arc of an instance with one
 
 - `SingleFlowDCRBendersSolver::compute()` with nothing changed since the
   last call answers with the result of that call instead of solving again,

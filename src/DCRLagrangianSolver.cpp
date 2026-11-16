@@ -322,7 +322,11 @@ bool DCRLagrangianSolver::is0opt( void )
 
  setSPTcosts();
 
- spt.updCosts( Linksp );
+ // the reduced graph has just been rebuilt for rmin: the SPT has to be
+ // given it, not only its costs, which it would read as those of the arcs
+ // of the reduced graph it last had
+ spt.LoadProblem( numNodes , cardRedGraph , Linksp , Flow.sourcenode ,
+                  Flow.sinknode );
  spt.Solve(); //solve SP with this new lambda.
 
  nhops = spt.getNHops();

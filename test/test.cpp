@@ -1109,6 +1109,50 @@ static void test_benbound_resolve( void )
  }
 
 /*--------------------------------------------------------------------------*/
+/* After every split the partition of the range of r_min is sorted: a split
+ * hands its left cut to the subintervals before it in Q and its right cut to
+ * those after it, which is right only if they lie to its left and to its
+ * right [see BenBound::setCheckPartition()]. The bounds are on the two sides
+ * of the optimum. */
+
+static void test_benbound_partition( void )
+{
+ std::mt19937 gen( 11 );
+ int nok = 0;
+ for( int k = 0 ; k < 600 ; ++k ) {
+  Net g = random_net( gen , 5 , 9 + 3 * ( k % 3 ) );
+  for( int a = 0 ; a < g.m() ; ++a )
+   g.cost[ a ] += 1;  // positive costs: see test_lagrangian_edges()
+  const double opt = dcr_optimum( g );
+  if( opt == INF )
+   continue;
+
+  DCRData d;
+  fill( d , g );
+  BenBound bb;
+  bb.setCheckPartition( true );
+  bb.LoadProblem( g.n , g.m() , d.flow , d.links , d.nodes , g.MTU );
+  bb.Solve();
+  if( bb.getStat() != BenBound::OK )
+   continue;
+  ++nok;
+  check( bb.getUnsortedSplits() == 0 , "BenBound partition #" +
+         std::to_string( k ) + ": " + std::to_string( bb.getUnsortedSplits() )
+         + " splits leave Q unsorted" );
+  check( bb.getLB() <= opt * ( 1 + 1e-7 ) + 1e-9 , "BenBound partition #"
+         + std::to_string( k ) + ": lower bound " +
+         std::to_string( bb.getLB() ) + " above the optimum " +
+         std::to_string( opt ) );
+  check( bb.getUB() >= opt * ( 1 - 1e-7 ) - 1e-9 , "BenBound partition #"
+         + std::to_string( k ) + ": upper bound " +
+         std::to_string( bb.getUB() ) + " below the optimum " +
+         std::to_string( opt ) );
+  }
+ check( nok > 100 , "BenBound partition: " + std::to_string( nok ) +
+        " instances solved" );
+ }
+
+/*--------------------------------------------------------------------------*/
 /*--------------------------- SingleFlowDCRBlock ---------------------------*/
 /*--------------------------------------------------------------------------*/
 /// loads g into blk, with its source and sink
@@ -1560,6 +1604,7 @@ int main( void )
  test_lagrangian_random();
  test_lagrangian_edges();
  test_benbound_resolve();
+ test_benbound_partition();
  test_block_feasibility();
  test_block_defaults();
  test_block_serialize();

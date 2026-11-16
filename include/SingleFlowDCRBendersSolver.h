@@ -302,6 +302,7 @@ public:
   // then (try to) solve the SingleFlowDCR
   static const bool stats_on = ( std::getenv( "SFDCR_STATS" ) != nullptr );
   const auto stat_t0 = std::chrono::steady_clock::now();
+  BenBound::setCheckPartition( stats_on );
   BenBound::Solve();
   BenBound::DCRstopTime();
   if( stats_on )
@@ -312,7 +313,9 @@ public:
              << BenBound::getNumIterationLagr() << " seeded " << stat_seeded
              << " hint " << BenBound::getHintUsed() << " lb " << get_lb()
              << " ub " << get_ub() << " pen_shift " << f_pen_shift
-             << " negcyc " << f_pen_negcycle << std::endl;
+             << " negcyc " << f_pen_negcycle << " subint "
+             << BenBound::getNumSubIntervals() << " unsorted "
+             << BenBound::getUnsortedSplits() << std::endl;
   f_held_solved = true;
   f_last_solved = f_skip_same;     // f_last_inst is the instance solved
   f_last_rmin = BenBound::getr_min();
@@ -993,6 +996,40 @@ protected:
                        : BenBound::getSolution( i );
    R[ i ] = v;
    X[ i ] = v > 0 ? 1 : 0;
+   }
+
+  // The rates come from the Lagrangian subproblem at the multiplier the
+  // bisection on lambda ends at, so they meet the deadline only up to its
+  // tolerance, and a cost a little below the optimum can be the price of a
+  // delay a little above the deadline. The delay decreases with every rate,
+  // hence along R( t ) = R + t ( T - R ) on the arcs of the path, T being
+  // the capacity (twice the rate on an arc of infinite capacity), and if it
+  // meets the deadline at t = 1 a bisection finds the smallest t, up to the
+  // precision of the double, at which it meets it exactly. R( t ) is
+  // between R and T, so the bounds and the minimum rate still hold, and the
+  // rates are then a solution of the problem, whose cost is not below the
+  // optimum.
+  if( ! DCRB->delay_feasible( 0 , X , R ) ) {
+   SingleFlowDCRBlock::Vec_double Rt( R );
+   auto at = [ & ]( double t ) {
+    for( Index i = 0 ; i < narcs ; ++i )
+     if( X[ i ] > 0 ) {
+      const double Ui = DCRB->get_U( i );
+      const double Ti = ( Ui < SMSpp_di_unipi_it::Inf< double >() ) ?
+                        Ui : 2 * R[ i ];
+      Rt[ i ] = R[ i ] + t * ( Ti - R[ i ] );
+      }
+    return( DCRB->delay_feasible( 0 , X , Rt ) );
+    };
+   if( at( 1 ) ) {
+    double lo = 0 , hi = 1;
+    for( int k = 0 ; ( k < 60 ) && ( hi - lo > 1e-16 ) ; ++k ) {
+     const double t = ( lo + hi ) / 2;
+     ( at( t ) ? hi : lo ) = t;
+     }
+    at( hi );
+    R = std::move( Rt );
+    }
    }
   }
 
