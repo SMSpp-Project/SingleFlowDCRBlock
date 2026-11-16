@@ -307,7 +307,9 @@ public:
   * BestLB until they coincide (up to a relative tolerance) or the
   * maximum number of iterations is reached. After the call, getUB(),
   * getLB(), getObjVal(), getSolution() and the other get*() methods
-  * report the outcome. */
+  * report the outcome. Each call starts the search anew, from the instance
+  * loaded and the cuts or the hint given since the last call, if any: a
+  * second call with nothing changed solves the same instance again. */
 
  void Solve();
 
@@ -398,9 +400,9 @@ public:
   * are larger (the rates are nonnegative), so a line below the one is
   * below the other where it was. This is what lets the cuts be used across
   * the iterations of a Lagrangian-type algorithm, whose costs are the
-  * original ones plus nonnegative multipliers. A subinterval of the new partition gets the
-  * cuts that were in all the old subintervals that it overlaps, and none if
-  * part of it was outside of the old range of r_min.
+  * original ones plus nonnegative multipliers. A subinterval of the new
+  * partition gets the cuts that were in all the old subintervals that it
+  * overlaps, and none if part of it was outside of the old range of r_min.
   *
   * Returns true if the cuts have been accepted (and will be used by the next
   * Solve(), once), false if they have not. */
@@ -426,6 +428,24 @@ public:
 
  /// true if seedCuts() has accepted cuts that no Solve() has used yet
  bool seedPending( void ) const { return( hasSeed ); }
+
+ /// whether Solve() checks the partition after every split
+ /** If on, after every split Solve() checks that the right endpoints of the
+  * subintervals are nondecreasing, i.e., that Q is a partition of the range
+  * of r_min listed from left to right, as the cuts that a split hands to the
+  * subintervals by their position need, and counts the splits after which it
+  * is not [see getUnsortedSplits()]. Off by default, as it costs a pass over
+  * Q at each split. */
+ void setCheckPartition( bool on ) { checkQ = on; }
+
+ /// number of splits of the last Solve() after which Q was not sorted
+ int getUnsortedSplits( void ) const { return( unsortedSplits ); }
+
+ /// number of subintervals of the partition of the last Solve()
+ int getNumSubIntervals( void ) const
+ {
+  return( Q.empty() ? 0 : int( Q.size() ) - 1 );
+  }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// returns the status of the bounding procedure
@@ -595,11 +615,15 @@ private:
  std::vector< SubInterval > Q;    //subintervals of V considered.
 
  CutMemory seedMem;      ///< the cuts seedCuts() has accepted
- bool hasSeed = false;   ///< whether there are cuts to start the next Solve() from
+ bool hasSeed = false;   ///< whether there are cuts to start the next Solve()
+                         ///< from
 
  double rminHint = 0;     ///< see setRminHint()
  bool hasHint = false;
  long hintUsed = 0;
+
+ bool checkQ = false;     ///< see setCheckPartition()
+ int unsortedSplits = 0;  ///< see getUnsortedSplits()
 
  /// puts the hint, if any, as the first candidate of the search
  void applyHint( void );
@@ -680,6 +704,10 @@ private:
 
  /// releases all dynamically allocated memory (Links, Nodes, caps, Q, ...)
  void clean_up();
+
+ /// gives the partition, the bounds, the counters and the flags of the
+ /// search the values they have before the first Solve()
+ void reset_search( void );
  };
 
 #endif

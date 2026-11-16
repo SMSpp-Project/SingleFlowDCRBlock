@@ -205,7 +205,10 @@ public:
   * and, if necessary, a read_lock on f_Block, processes any outstanding
   * Modification (see process_outstanding_Modification()), then calls
   * BenBound::DCRsetTime() / BenBound::Solve() / BenBound::DCRstopTime() to
-  * actually run the algorithm. \p changedvars is currently unused.
+  * actually run the algorithm, unless BenBound has already solved the
+  * instance it holds, i.e., nothing has changed since the last call, in
+  * which case its result is the answer. \p changedvars is currently
+  * unused.
   *
   * IMPLEMENTATION NOTE: the method contains a (large) commented-out block
   * that would run an external warm-start Solver (via BlockSolverConfig,
@@ -267,10 +270,11 @@ public:
  std::cout << "bound_PC = " << bound_PC << std::endl;
  std::cout << "sol = " << warmstart->get_lb() << std::endl;
    */
-  // the instance is the one BenBound has just solved: its result stands
-  const bool skip_solve = f_skip_same && f_skip_now && f_last_solved &&
-                          ( ! BenBound::seedPending() );
-  f_skip_now = false;
+  // BenBound holds the instance it has last solved, since no Modification
+  // has come or the one that has come has left it as it was [see
+  // intSkipSame]: its result stands, unless cuts have been offered with
+  // seed_cuts() to solve it again from
+  const bool skip_solve = f_held_solved && ( ! BenBound::seedPending() );
   if( skip_solve ) {
    ++f_skipped;
    unlock();
@@ -298,15 +302,21 @@ public:
   // then (try to) solve the SingleFlowDCR
   static const bool stats_on = ( std::getenv( "SFDCR_STATS" ) != nullptr );
   const auto stat_t0 = std::chrono::steady_clock::now();
+  BenBound::setCheckPartition( stats_on );
   BenBound::Solve();
   BenBound::DCRstopTime();
   if( stats_on )
    std::cout << "BENSTAT time "
-             << std::chrono::duration< double >( std::chrono::steady_clock::now() - stat_t0 ).count()
+             << std::chrono::duration< double >(
+                         std::chrono::steady_clock::now() - stat_t0 ).count()
              << " benders " << BenBound::getNumIterationBender() << " lagr "
              << BenBound::getNumIterationLagr() << " seeded " << stat_seeded
              << " hint " << BenBound::getHintUsed() << " lb " << get_lb()
-             << " ub " << get_ub() << " pen_shift " << f_pen_shift << " negcyc " << f_pen_negcycle << std::endl;
+             << " ub " << get_ub() << " pen_shift " << f_pen_shift
+             << " negcyc " << f_pen_negcycle << " subint "
+             << BenBound::getNumSubIntervals() << " unsorted "
+             << BenBound::getUnsortedSplits() << std::endl;
+  f_held_solved = true;
   f_last_solved = f_skip_same;     // f_last_inst is the instance solved
   f_last_rmin = BenBound::getr_min();
 
@@ -474,8 +484,10 @@ public:
  enum int_par_type_SFDCRB {
   intReuseCuts = intLastAlgPar ,   ///< 0/1: see set_reuse_cuts() [0]
   intWarmLambda ,                  ///< 0/1: see BenBound::setWarmLambda() [0]
-  intSkipSame ,                    ///< 0/1: answer from the last result if the instance is identical [0]
-  intRminStart                     ///< 0/1: start the search from the last r_min [0]
+  intSkipSame ,                    ///< 0/1: answer from the last result if the
+                                   ///< instance is identical [0]
+  intRminStart                     ///< 0/1: start the search from the last
+                                   ///< r_min [0]
   };
 
  using Solver::set_par;   // restore the hidden overloaded methods
@@ -592,7 +604,8 @@ public:
   auto DCRB = static_cast< SingleFlowDCRBlock * >( f_Block );
 
   SingleFlowDCRBlock::Vec_double X , R;
-  get_solution_vectors( X , R , pick_solution_source() == SolSource::Heuristic );
+  get_solution_vectors( X , R ,
+                        pick_solution_source() == SolSource::Heuristic );
 
   double rmin = std::numeric_limits< double >::infinity();
   for( Index i = 0 ; i < X.size() ; ++i ) {
@@ -822,7 +835,8 @@ protected:
   if( f_skip_same ) {
    Inst now;
    now.pen = f_pen;
-   now.nnodes = nnodes; now.narcs = narcs; now.source = source; now.sink = sink;
+   now.nnodes = nnodes; now.narcs = narcs; now.source = source;
+   now.sink = sink;
    now.burst = flow.burst; now.rate = flow.rate; now.deadline = flow.deadline;
    now.MTU = DCRB->get_MTU();
    for( Index i = 0 ; i < narcs ; ++i ) {
@@ -835,14 +849,13 @@ protected:
     }
    for( Index i = 0 ; i < nnodes ; ++i )
     now.ndelay.push_back( nodes[ i ].delay );
-   if( f_last_solved && ( now == f_last_inst ) ) {
-    f_skip_now = true;     // BenBound keeps the result of the last solve
-    return;
-    }
+   if( f_last_solved && ( now == f_last_inst ) )
+    return;                // BenBound keeps the result of the last solve
    f_last_inst = std::move( now );
    f_last_solved = false;
    }
 
+  f_held_solved = false;
   BenBound::LoadProblem( nnodes , narcs , flow , links , nodes ,
                          DCRB->get_MTU() );
  }
@@ -984,6 +997,40 @@ protected:
    R[ i ] = v;
    X[ i ] = v > 0 ? 1 : 0;
    }
+
+  // The rates come from the Lagrangian subproblem at the multiplier the
+  // bisection on lambda ends at, so they meet the deadline only up to its
+  // tolerance, and a cost a little below the optimum can be the price of a
+  // delay a little above the deadline. The delay decreases with every rate,
+  // hence along R( t ) = R + t ( T - R ) on the arcs of the path, T being
+  // the capacity (twice the rate on an arc of infinite capacity), and if it
+  // meets the deadline at t = 1 a bisection finds the smallest t, up to the
+  // precision of the double, at which it meets it exactly. R( t ) is
+  // between R and T, so the bounds and the minimum rate still hold, and the
+  // rates are then a solution of the problem, whose cost is not below the
+  // optimum.
+  if( ! DCRB->delay_feasible( 0 , X , R ) ) {
+   SingleFlowDCRBlock::Vec_double Rt( R );
+   auto at = [ & ]( double t ) {
+    for( Index i = 0 ; i < narcs ; ++i )
+     if( X[ i ] > 0 ) {
+      const double Ui = DCRB->get_U( i );
+      const double Ti = ( Ui < SMSpp_di_unipi_it::Inf< double >() ) ?
+                        Ui : 2 * R[ i ];
+      Rt[ i ] = R[ i ] + t * ( Ti - R[ i ] );
+      }
+    return( DCRB->delay_feasible( 0 , X , Rt ) );
+    };
+   if( at( 1 ) ) {
+    double lo = 0 , hi = 1;
+    for( int k = 0 ; ( k < 60 ) && ( hi - lo > 1e-16 ) ; ++k ) {
+     const double t = ( lo + hi ) / 2;
+     ( at( t ) ? hi : lo ) = t;
+     }
+    at( hi );
+    R = std::move( Rt );
+    }
+   }
   }
 
 /*--------------------------------------------------------------------------*/
@@ -1023,7 +1070,7 @@ private:
   };
  Inst f_last_inst;
  bool f_last_solved = false;   ///< BenBound has solved f_last_inst
- bool f_skip_now = false;      ///< the instance just loaded is the one solved
+ bool f_held_solved = false;   ///< BenBound has solved the instance it holds
  bool f_skip_same = false;     ///< see intSkipSame
  bool f_rmin_start = false;    ///< see intRminStart
  double f_last_rmin = 0;       ///< r_min of the last solve
