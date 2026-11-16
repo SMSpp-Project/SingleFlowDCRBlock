@@ -304,9 +304,9 @@ bool DCRLagrangianSolver::isFeasible( void )
  //phase can be skipped.
 
  if( lagstat == 0 )
-  return 0;
+  return( 0 );
  else
-  return 1;
+  return( 1 );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -332,7 +332,11 @@ bool DCRLagrangianSolver::is0opt( void )
 
  setSPTcosts();
 
- spt.updCosts( Linksp );
+ // the reduced graph has just been rebuilt for rmin: the SPT has to be
+ // given it, not only its costs, which it would read as those of the arcs
+ // of the reduced graph it last had
+ spt.LoadProblem( numNodes , cardRedGraph , Linksp , Flow.sourcenode ,
+                  Flow.sinknode );
  spt.Solve(); //solve SP with this new lambda.
 
  nhops = spt.getNHops();
@@ -360,7 +364,7 @@ bool DCRLagrangianSolver::is0opt( void )
     HeurRSOLS[ RedGraPos[ path[ hi ] ] ] = Linksp[ path[ hi ] ].rstar;
    }
 
-  return 0; //then lambda = 0 is optimal
+  return( 0 ); //then lambda = 0 is optimal
   }
  else //otherwise try with a small lambda = eps - - - - - - - - - - - - -
  {
@@ -397,9 +401,9 @@ bool DCRLagrangianSolver::is0opt( void )
   // if the Lagrangian value increases with lambda, lambda = 0 is NOT
   // optimal (the dual function is still rising); otherwise it is
   if( epsobj > nulobj )
-   return 1;
+   return( 1 );
   else
-   return 0;
+   return( 0 );
   }
  }
 
@@ -1043,7 +1047,7 @@ double DCRLagrangianSolver::getCost( double r , int lindex )
                Nodes[ RedGraLinks[ lindex ].startnode ].delay;
  c = lambda * barl + RedGraLinks[ lindex ].cost * r + lambda * MTU / r;
 
- return c;
+ return( c );
  }
 /*<returns the costs for the arc lindex of SP as a function of r^*_ij,
   passed as input as r*/
@@ -1076,7 +1080,7 @@ int DCRLagrangianSolver::Reopt( void )
 
  //cout<<"cuts present"<<Cuts.size()<<endl;
  if( Cuts.size() <= 1 )
-  return 1; //a single cut, or none, is too little to reoptimize on
+  return( 1 ); //a single cut, or none, is too little to reoptimize on
 
  for( i = 0 ; i < Cuts.size() ; i++ )  // check which solutions are still
                                        // feasible
@@ -1120,11 +1124,11 @@ int DCRLagrangianSolver::Reopt( void )
   }
  //cout<<"cuts deleted"<<counterdeleted<<endl;
  if( Cuts.size() <= 1 )
-  return 1;
+  return( 1 );
  //cout<<"there remain "<<Cuts.size()<<endl;
 
  if( isnegcut == 1 || isposcut == 1 )
-  return 1; //if no positive- or no negative-slope cut survived, give up
+  return( 1 ); //if no positive- or no negative-slope cut survived, give up
 
  ////line search for the optimal intersection among the still-feasible cuts
 
@@ -1141,7 +1145,7 @@ int DCRLagrangianSolver::Reopt( void )
   if( lambda < 0 ||
       std::abs( pCut.m - mCut.m ) < 1e-20 ) { //cout<<"Bug in reopt"<<endl;
    lambda = 0;
-   return 1;
+   return( 1 );
    }
   approx = mCut.q + lambda * mCut.m;
 
@@ -1175,11 +1179,11 @@ int DCRLagrangianSolver::Reopt( void )
  //cout<<"niter = "<<maxiter<<endl;
  if( maxiter >= 30 ) {
   std::cout << "watch out, reopt has gone into a loop" << std::endl;
-  return 1; // did not converge: fall back to a full Inizial()
+  return( 1 ); // did not converge: fall back to a full Inizial()
   }
  // cout<<"reopt ends with value = "<<value<<endl;
  //cout<<"public cuts:"<<pCut.m<<"||"<<mCut.m<<endl;
- return 0;
+ return( 0 );
  }
 
 /*--------------------------------------------------------------------------*/

@@ -567,11 +567,11 @@ public:
   * and eps, in this order); if none is provided, the default values
   * tol == 1e-5 and eps == 1e-4 are used.
   *
-  * Whether the generated cuts are actually added to the abstract
-  * representation (as opposed to being merely available in PC_cuts and
-  * PC_cuts_min for later use) depends on the same formulation-selecting
-  * Configuration used by generate_abstract_constraints(): the cuts are
-  * added if and only if the "P/C" formulation is selected. */
+  * The generated cuts are in the abstract representation (as opposed to
+  * being merely available in PC_cuts and PC_cuts_min for later use) if and
+  * only if generate_abstract_constraints() has selected the "P/C"
+  * formulation, in which case it has added the two groups of dynamic
+  * Constraint PC_cuts and PC_cuts_min, once. */
 
  void generate_dynamic_constraints( Configuration *stcc = nullptr ) override;
 
