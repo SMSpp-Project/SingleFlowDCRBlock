@@ -773,21 +773,24 @@ void BenBound::Solve()
 
       oldinterx = Q[ 1 ].inter;
 
-      //look for the other feasibility point
+      //look for the other feasibility point; the search moves low past the
+      //infeasible points, Q[ 0 ].rmin only as far as infeasLeft() allows
       int count_iter_feas = 0;
+      double low = Q[ 0 ].rmin;
 
       while( feas != 0 && count_iter_feas <= 20 ) {
-       //let's see which one changes based on feasibility (not below
-       //Q[ 0 ].rmin by rounding, see the move above)
-       temppoint = std::max( Q[ 0 ].rmin ,
-                             mystep * Q[ 0 ].rmin +
-                             ( 1 - mystep ) * Q[ 1 ].inter );
+       //let's see which one changes based on feasibility (not below low by
+       //rounding, see the move above)
+       temppoint = std::max( low , mystep * low +
+                                   ( 1 - mystep ) * Q[ 1 ].inter );
 
        lagSol.updrmin( temppoint );
        feas = lagSol.isFeasible();
 
-       if( feas != 0 )
-        Q[ 0 ].rmin = temppoint;
+       if( feas != 0 ) {
+        low = temppoint;
+        Q[ 0 ].rmin = infeasLeft( Q[ 0 ].rmin , temppoint );
+        }
        else
         Q[ 1 ].inter = temppoint;
        count_iter_feas++;
@@ -1608,7 +1611,6 @@ void BenBound::applySeed( void )
    bp.push_back( b );
  bp.push_back( R );
 
- const double tol = 1e-12;
  const double oldHi = M.hi.back();
 
  auto same = []( const DCRLagrangianSolver::LinearCut & a ,
@@ -1633,17 +1635,28 @@ void BenBound::applySeed( void )
   P.Val = Inf< double >();
   P.bisect_retries = 0;
 
-  // the cuts of the old partition that are valid on the whole of [ a , b ]:
-  // those in every old subinterval that overlaps it, if the old partition
-  // covers it
+  // the cuts of the old partition that are valid on the whole of the piece:
+  // those in every old subinterval that has a point in common with it, if
+  // the old partition covers it. The first subinterval is [ lo , hi ], with
+  // its left end, and every other one ( left , right ]: d( . ) jumps up
+  // where r_min passes a capacity, so a subinterval that is a single point
+  // (the first one) may hold d( . ) below the rest, and one that is empty
+  // ( left == right ) holds nothing. The comparisons are exact, as a
+  // tolerance would leave out a subinterval the piece meets and keep cuts
+  // that are not valid on all of it
+  const bool closed = ( nq.size() == 1 );  // the piece is [ a , b ]
   std::vector< DCRLagrangianSolver::LinearCut > seeds;
-  if( ( a >= M.lo - tol ) && ( b <= oldHi + tol ) ) {
+  if( ( a >= M.lo ) && ( b <= oldHi ) ) {
    bool first = true;
    for( std::size_t j = 0 ; j < M.hi.size() ; ++j ) {
     const double left = ( j == 0 ) ? M.lo : M.hi[ j - 1 ];
     const double right = M.hi[ j ];
-    if( std::min( b , right ) - std::max( a , left ) <= tol )
-     continue;                       // no overlap
+    const double low = std::max( a , left ) , up = std::min( b , right );
+    // low is in both if each of them that starts there has its left end
+    const bool low_in = ( ( a < left ) || closed ) &&
+                        ( ( left < a ) || ( j == 0 ) );
+    if( ! ( ( low < up ) || ( ( low == up ) && low_in ) ) )
+     continue;                       // no point in common
     if( first ) {
      seeds = M.cuts[ j ];
      first = false;
@@ -2325,7 +2338,9 @@ void BenBound::Inizial()
     //cout<<"searching multiple times?"<<endl;
     }
 
-   Q[ 0 ].rmin = temppoint;
+   // temppoint is limits[ 0 ], or the last point found infeasible
+   if( temppoint != limits[ 0 ] )
+    Q[ 0 ].rmin = infeasLeft( limits[ 0 ] , temppoint );
 
    //cout<<"temppoint = "<<Q[0].rmin<<endl;
 
@@ -2905,6 +2920,17 @@ double * BenBound::Limitrmin()
  * input) of the array of link capacities caps[], used by Limitrmin() to
  * enable a binary search over the feasibility of the Lagrangian
  * subproblem as a function of r_min. */
+
+double BenBound::infeasLeft( double lo , double t ) const
+{
+ double c = -Inf< double >();  // the largest capacity below t
+ for( int i = 0 ; i < numLinks ; ++i )
+  if( ( Links[ i ].capacity < t ) && ( Links[ i ].capacity > c ) )
+   c = Links[ i ].capacity;
+ return( ( c >= lo ) ? c : t );
+ }
+
+/*--------------------------------------------------------------------------*/
 
 void BenBound::capSort( int sx , int dx ) //Randomized recursive quicksort.
 {

@@ -20,6 +20,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the one of `smspp_install_rpath()`, with no test on the system or on the
   compiler [see `SMSppModule.cmake` of SMS++]; CMake 3.24 or later is needed
 
+### Fixed
+
+- `BenBound::seedCuts()` gives a subinterval of the new partition the cuts of
+  every old subinterval it has a point in common with, the first one with its
+  left end included, where it left out the subintervals that meet it in a
+  single point: at a capacity d( . ) jumps up, and the cuts to its right are
+  not valid at it.
+- `BenBound` moves the left end of the range of r_min past an infeasible r_min
+  only as far as the largest capacity below it, where it took the whole range
+  to its left as infeasible: a link of capacity c can make r_min <= c feasible
+  where a larger r_min is not.
+
 ## [0.4.0] - 2026-11-16
 
 ### Added
