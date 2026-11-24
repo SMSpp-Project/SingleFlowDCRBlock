@@ -731,6 +731,16 @@ private:
  /// sorted array of link capacities (see capSort())
  double * Limitrmin();
 
+ /// how far an infeasible r_min lets the left end of the range move
+ /** The Lagrangian subproblem at r_min uses the links of capacity at least
+  * r_min, and its delay decreases with r_min, so feasibility is monotone
+  * between two consecutive capacities but not across one: there r_min can
+  * be feasible with a link that a larger r_min cannot use. If it is not
+  * feasible at t, then it is not on ( c , t ], c the largest capacity
+  * below t, while it may be at c and below; returns the new left end, c,
+  * or t if c is below the left end lo. */
+ double infeasLeft( double lo , double t ) const;
+
  /// recursive randomized quicksort of caps[ sx .. dx ]
  void capSort( int sx , int dx );
 

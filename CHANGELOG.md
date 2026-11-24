@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- the makefiles give the shared library of the module by default, a DLL on
+  Windows, as CMake does, and its objects with `SMSppSTATIC` [see
+  `lib/makefile-shared` of SMS++]
+
+- the library is kept in whoever links it by a source that calls its
+  `SMSpp_force_load_` function, the tests and the tools take the static
+  libraries whole by the `WHOLE_ARCHIVE` feature of CMake and copy the DLLs
+  next to them only where there are any, and the installed run-time path is
+  the one of `smspp_install_rpath()`, with no test on the system or on the
+  compiler [see `SMSppModule.cmake` of SMS++]; CMake 3.24 or later is needed
+
+### Fixed
+
+- `BenBound::seedCuts()` gives a subinterval of the new partition the cuts of
+  every old subinterval it has a point in common with, the first one with its
+  left end included, where it left out the subintervals that meet it in a
+  single point: at a capacity d( . ) jumps up, and the cuts to its right are
+  not valid at it.
+- `BenBound` moves the left end of the range of r_min past an infeasible r_min
+  only as far as the largest capacity below it, where it took the whole range
+  to its left as infeasible: a link of capacity c can make r_min <= c feasible
+  where a larger r_min is not.
+
+## [0.4.0] - 2026-11-16
+
 ### Added
 
 - the tester solves the instances of `BenBound` a second time, with and
@@ -451,7 +478,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that is not a solution together with a value below the optimum. The
   point is now moved towards that endpoint, and stops there
 
-[Unreleased]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.3.0...develop
+[Unreleased]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.4.0...develop
+[0.4.0]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.3.0...0.4.0
 [0.3.0]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.2.0...0.3.0
 [0.2.0]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.1.1...0.2.0
 [0.1.1]: https://gitlab.com/smspp/singleflowdcrblock/-/compare/0.1.0...0.1.1

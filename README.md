@@ -121,7 +121,7 @@ default location, it should only be necessary to create the
 `../extlib/makefile-paths` out of the `extlib/makefile-default-paths-*` for
 your OS `*` and edit the relevant bits (commenting out all the rest).
 
-Check the [SMS++ installation wiki](https://gitlab.com/smspp/smspp-project/-/wikis/Customize-the-configuration#location-of-required-libraries)
+Check the [SMS++ installation wiki](https://gitlab.com/smspp/smspp-project/-/wikis/Customize-the-configuration#location-of-external-libraries)
 for further details.
 
 
@@ -157,6 +157,10 @@ conduct, and the process for submitting merge requests to us.
   Università di Pisa
 
 - **Luca Mencarelli**  
+  Dipartimento di Informatica  
+  Università di Pisa
+
+- **Donato Meoli**  
   Dipartimento di Informatica  
   Università di Pisa
 
