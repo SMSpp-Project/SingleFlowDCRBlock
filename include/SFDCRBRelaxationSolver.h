@@ -420,7 +420,9 @@ private:
   * 16 bisections before BenBound, extended by at most eight when the bound
   * is improving and close to the incumbent. max_splits limits an explicit
   * pre-branch attempt; -1 uses the default budget. A positive max_seconds
-  * also limits elapsed time between interval solves. The heap is retained for
+  * also limits each nested oracle, while preserving the node deadline. A
+  * split replaces its parent only after both children are certified; timeout
+  * retains the complete covering heap and its last valid bound for
   * the later fallback, avoiding repeated interval solves. The least
   * lower bound found goes in f_cert, and the middle point of the interval
   * that attains it in f_zstar. */

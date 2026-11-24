@@ -524,6 +524,7 @@ std::vector< double > BenBound::getxPlotData()
  xPlot.resize( numPoints );
 
  Inizial();
+ if(BenStat == Uncertified) return {};
 
  for( i = 1 ; i < numPoints + 1 ; i++ ) {
   xPlot[ i - 1 ] =
@@ -557,6 +558,7 @@ std::vector< double > BenBound::getyPlotData()
   lagSol.updrmin( xPlot[ i ] );
 
   lagSol.Solve();
+  if(oracle_failed()) return {};
 
   lambda = lagSol.getLambda();
   SPLabels = lagSol.getSPLabels();
@@ -729,6 +731,7 @@ void BenBound::Solve()
  reset_search();
 
  Inizial();
+ if(BenStat == Uncertified) return;
 
  applySeed();   // start from the cuts of an earlier solve, if asked to
  applyHint();   // start from the r_min of an earlier solve, if asked to
@@ -778,6 +781,7 @@ void BenBound::Solve()
     lagSol.updrmin(
      Q[ p ].inter ); //let the new candidate show us its potential :)
     lagSol.Solve();
+    if(oracle_failed()) return;
     counter_ite_Lag += lagSol.getNumIte();
     lgstat = lagSol.getStatus();
 
@@ -799,6 +803,7 @@ void BenBound::Solve()
      lagSol.updrmin(
       Q[ p ].inter ); //let the new candidate show us its potential :)
      is_feas = lagSol.isFeasible();
+     if(oracle_failed()) return;
 
      if( lgstat == 0 )
       Q[ p ].solflag = 0;
@@ -814,6 +819,7 @@ void BenBound::Solve()
 
       lagSol.updrmin( Qnew );
       lagSol.Solve();
+      if(oracle_failed()) return;
       counter_ite_Lag += lagSol.getNumIte();
       lgstat = lagSol.getStatus();
 
@@ -853,6 +859,7 @@ void BenBound::Solve()
 
        lagSol.updrmin( temppoint );
        feas = lagSol.isFeasible();
+       if(oracle_failed()) return;
 
        if( feas != 0 ) {
 	low = temppoint;
@@ -889,6 +896,7 @@ void BenBound::Solve()
      lagSol.updrmin(
       Q[ p ].inter ); //let the candidate show us its potential :)
      lagSol.Solve();
+     if(oracle_failed()) return;
      counter_ite_Lag += lagSol.getNumIte();
 
      // The candidate can land on an r_min the reduced graph cannot
@@ -914,10 +922,13 @@ void BenBound::Solve()
        const double cand = lft + ( k * ( rgt - lft ) ) / nprobe;
 
        lagSol.updrmin( cand );
-       if( ! lagSol.isFeasible() )  // cheap test first: a full Solve()
+       const bool oracle_infeasible = lagSol.isFeasible();
+       if(oracle_failed()) return;
+       if( ! oracle_infeasible )  // cheap test first: a full Solve()
         continue;                   // at every probe would be far dearer
 
        lagSol.Solve();
+       if(oracle_failed()) return;
        counter_ite_Lag += lagSol.getNumIte();
 
        if( lagSol.getStatus() == 0 ) {
@@ -1550,10 +1561,26 @@ void BenBound::Solve()
  // this only does real work in the mismatched case)
  lagSol.updrmin( rmin );
  lagSol.Solve();
+ if(oracle_failed()) return;
 
  SOLUTION = lagSol.getRSOLS();
 
  }
+
+// A failed oracle cannot certify infeasibility or supply cuts/primal data.
+bool BenBound::oracle_failed()
+{
+ const auto status = lagSol.getStatus();
+ if(status == DCRLagrangianSolver::OK || status == DCRLagrangianSolver::Infeasible)
+  return false;
+ BenStat = Uncertified;
+ f_branch_result = {};
+ SOLUTION.clear();
+ HeurSOLUTION.clear();
+ BestLB = -Inf<double>();
+ BestUB = HeurVal = Inf<double>();
+ return true;
+}
 
 void BenBound::prepare_branch_result()
 {
@@ -1582,6 +1609,7 @@ void BenBound::evaluate_branch_candidate( double candidate , double master_bound
   return;
  lagSol.updrmin( candidate );
  lagSol.Solve();
+ if(oracle_failed()) return;
  if( lagSol.getStatus() == DCRLagrangianSolver::OK &&
      lagSol.getHeurVal() < HeurVal ) {
   HeurVal = lagSol.getHeurVal();
@@ -2399,6 +2427,7 @@ void BenBound::Inizial()
    lagSol.updrmin( limits[ 1 ] );
    //  lambda = lagSol.getLambda();
    lagSol.Solve();
+   if(oracle_failed()) return;
    counter_ite_Lag += lagSol.getNumIte();
    lgstat = lagSol.getStatus();
    lambda = lagSol.getLambda();
@@ -2452,6 +2481,7 @@ void BenBound::Inizial()
 
     lagSol.updrmin( Q[ 1 ].inter );
     feas = lagSol.isFeasible();
+    if(oracle_failed()) return;
     counter++;
     //cout<<"searching multiple times?"<<endl;
     }
@@ -2483,6 +2513,7 @@ void BenBound::Inizial()
     lagSol.updrmin( crit_capc );
 
     in0opt = lagSol.is0opt();
+    if(oracle_failed()) return;
 
     if( in0opt ==
         0 ) //in this case we can already cut away everything to its right
@@ -2501,6 +2532,7 @@ void BenBound::Inizial()
       lagSol.updrmin( cent );
 
       in0opt = lagSol.is0opt();
+      if(oracle_failed()) return;
 
       if( in0opt == 0 )
        tempd = cent;
@@ -2531,6 +2563,7 @@ void BenBound::Inizial()
     lagSol.updrmin( Q[ 1 ].rmin );
 
     in0opt = lagSol.is0opt();
+    if(oracle_failed()) return;
 
     if( in0opt ==
         0 ) //in this case we can already cut away everything to its right
@@ -2551,6 +2584,7 @@ void BenBound::Inizial()
       lagSol.updrmin( cent );
 
       in0opt = lagSol.is0opt();
+      if(oracle_failed()) return;
 
       if( in0opt == 0 )
        tempd = cent;
@@ -2574,6 +2608,7 @@ void BenBound::Inizial()
 
    lagSol.updrmin( Q[ 1 ].rmin ); //left cut for Q[1]
    lagSol.Solve();
+   if(oracle_failed()) return;
 
    counter_ite_Lag = lagSol.getNumIte();
    lgstat = lagSol.getStatus();
@@ -2914,6 +2949,7 @@ double * BenBound::Limitrmin()
  lagSol.LoadProblem( numNodes , numLinks , Flow , Links , Nodes , MTU ,
                      caps[ 0 ] );
  feas = lagSol.isFeasible();
+ if(oracle_failed()) return nullptr;
  /*
     if(feas == 1){
       lagSol.updrmin(std::max(Flow.rate, Flow.burst/Flow.deadline));
@@ -2947,6 +2983,7 @@ double * BenBound::Limitrmin()
   {
    lagSol.updrmin( caps[ j ] );
    feas = lagSol.isFeasible();
+   if(oracle_failed()) return nullptr;
    }
   }
 
@@ -2965,6 +3002,7 @@ double * BenBound::Limitrmin()
 
   lagSol.updrmin( caps[ dx ] );
   feas = lagSol.isFeasible();
+  if(oracle_failed()) return nullptr;
 
   if( feas == 0 ) //if it is fine for the last capacity we have the range;
   {
@@ -2984,6 +3022,7 @@ double * BenBound::Limitrmin()
     cent = ( sx + dx ) / 2;
     lagSol.updrmin( caps[ cent ] );
     feas = lagSol.isFeasible();
+    if(oracle_failed()) return nullptr;
 
     if( feas == 0 )
      sx = cent;
@@ -2993,6 +3032,7 @@ double * BenBound::Limitrmin()
 
    lagSol.updrmin( caps[ dx ] );
    feas = lagSol.isFeasible();
+   if(oracle_failed()) return nullptr;
    if( feas == 0 ) {
     bounds[ 1 ] = caps[ dx ];
     }

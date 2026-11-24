@@ -59,19 +59,12 @@
 /** SPT computes a Shortest Path Tree from a given source node s to all
  * other nodes of a directed graph with arbitrary (possibly negative) real
  * arc costs, and in particular the shortest s-t path to a given sink node
- * t. The algorithm implemented (see Solve()) is the classical FIFO-queue
- * label-correcting method (a variant of the Bellman-Ford algorithm often
- * attributed to D'Esopo and Pape): distance labels are relaxed arc by arc,
- * a node is (re-)enqueued in a FIFO queue whenever its label improves, and
- * it is not re-inserted while it is already in the queue; this correctly
- * handles negative arc costs (as needed when SPT is used, by
- * DCRLagrangianSolver, to solve a Lagrangian-relaxed shortest path
- * subproblem where "reduced costs" can be negative), unlike Dijkstra's
- * label-*setting* algorithm which would require nonnegative costs. The
- * method does not explicitly detect negative-cost cycles: if the graph
- * (implicitly) becomes disconnected between the source and some node
- * needed to reconstruct the path -- which is how an unbounded instance
- * manifests itself here -- getStatus() reports Error. */
+ * t. FIFO label correction preserves the usual ordering and speed. A bounded
+ * Bellman-Ford fallback uses synchronous rounds and detects reachable negative
+ * cycles on the nth round. Unreachable sinks have status Infeasible;
+ * negative cycles have status Unbounded, and invalid/nonfinite data or
+ * inconsistent predecessor chains have status Error. A deadline sets
+ * Interrupted and throws DCRDeadline::Expired. Only OK exposes a path. */
 
 class SPT : public DCRDeadlineCheck
 {
@@ -113,10 +106,10 @@ public:
  /// status of the Shortest Path computation
  enum Status {
   OK ,         ///<  solver found a feasible solution
-  Infeasible , ///<  problem infeasible
-  Unbounded ,  ///<  problem unbounded
-  Error       ///<  the graph is disconnected between s and some node
-              /// needed to reconstruct the s-t path
+  Infeasible , ///< sink unreachable from the source
+  Unbounded ,  ///< reachable negative cycle; no shortest-path certificate
+  Error ,      ///< invalid data, nonfinite arithmetic or broken predecessor chain
+  Interrupted  ///< deadline expired; no path or labels are available
   };
 
 /*--------------------------------------------------------------------------*/
@@ -180,8 +173,8 @@ public:
   * compute shortest distances from the source node to every other node,
   * and reconstructs the shortest s-t path (see getPath()). See the
   * general notes of the class for the details of the algorithm; sets
-  * getStatus() to Error if the sink cannot be reached backwards from
-  * itself down to the source (a disconnected/unbounded instance). */
+  * Infeasible for an unreachable sink, Unbounded for a reachable negative
+  * cycle, and Error for invalid data or an inconsistent predecessor chain. */
 
  virtual void Solve();
 

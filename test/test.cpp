@@ -414,7 +414,7 @@ static void check_spt( const Net & g , const std::string & what )
     }
 
  if( best[ g.t ] == INF ) {
-  check( spt.getStatus() == SPT::Error , what + ": no path, Error expected" );
+  check( spt.getStatus() == SPT::Infeasible , what + ": no path, Infeasible expected" );
   check( spt.getPath().empty() && ( spt.getNHops() == 0 ) ,
          what + ": no path, yet a path is returned" );
   return;
@@ -536,7 +536,7 @@ static void test_spt_edges( void )
   std::vector< SPT::SPTLink > back = { { 2 , 0 , 1 , 0 } };
   spt.LoadProblem( 3 , 1 , back , 0 , 2 );
   spt.Solve();
-  check( spt.getStatus() == SPT::Error , "SPT reloaded with no path" );
+  check( spt.getStatus() == SPT::Infeasible , "SPT reloaded with no path" );
   spt.LoadProblem( 3 , 3 , links , 0 , 2 );
   spt.Solve();
   check( ( spt.getStatus() == SPT::OK ) && ( spt.getPath() == Path{ 2 } ) ,
@@ -1832,10 +1832,11 @@ static void test_time_budget( void )
  blk.register_Solver(&rs);
  rs.set_par(SingleFlowDCRBendersSolver::intSkipSame, 1);
  for( int repeat = 0; repeat < 2; ++repeat ) {
+  const double certified_before = rs.get_lb();
   rs.set_par(par, 0.0);
   check(rs.compute() == Solver::kStopTime,
         "RelaxationSolver: zero budget must stop with kStopTime");
-  check(rs.get_lb() == -Inf<double>() && !rs.has_var_solution(),
+  check(rs.get_lb() == certified_before && !rs.has_var_solution(),
         "RelaxationSolver: timeout exposed stale bounds or primal solution");
   check(rs.getDeadline() == nullptr, "RelaxationSolver: dangling deadline after timeout");
   rs.set_par(par, repeat ? Inf<double>() : 3600.0);
@@ -1847,9 +1848,8 @@ static void test_time_budget( void )
  }
  blk.unregister_Solver(&rs);
 
- // A negative cycle keeps the legacy SPT queue busy: only the nested
- // deadline can stop it. This exercises expiration inside an oracle,
- // rather than only checking the time before entering a solve.
+ // Negative cycles now terminate with an explicit noncertificate status.
+ // Deadline expiration itself is tested independently with a zero budget.
  SPT spt;
  std::vector<SPT::SPTLink> arcs(2);
  arcs[0].startnode=0; arcs[0].endnode=1; arcs[0].cost=-1;
@@ -1859,12 +1859,36 @@ static void test_time_budget( void )
  spt.setDeadline(&deadline);
  bool expired = false;
  try { spt.Solve(); } catch( const DCRDeadline::Expired & ) { expired = true; }
- check(expired, "SPT: nested deadline did not interrupt the negative cycle");
+ check(!expired && spt.getStatus()==SPT::Unbounded && spt.getPath().empty(),
+       "SPT: reachable negative cycle must terminate without a certificate");
  spt.setDeadline(nullptr);
  arcs[0].cost=1;
  spt.LoadProblem(2, 2, arcs, 0, 1);
  spt.Solve();
  check(spt.getStatus() == SPT::OK, "SPT: could not solve after timeout");
+}
+
+// Exercise unwinding inside the base solve, after its timer has been set.
+// A later compute must work with the same solver and block.
+static void test_solve_guard()
+{
+ Net g = base_path();
+ SingleFlowDCRBlock blk;
+ load(blk,g);
+ InspectRelaxation rs;
+ blk.register_Solver(&rs);
+ DCRDeadline expired(0);
+ rs.setDeadline(&expired);
+ bool interrupted = false;
+ try { rs.SingleFlowDCRBendersSolver::compute(); }
+ catch(const DCRDeadline::Expired &) { interrupted = true; }
+ check(interrupted && !rs.has_fresh_instance(),
+       "SolveGuard: interrupted solve exposed a reusable instance");
+ rs.setDeadline(nullptr);
+ check(rs.SingleFlowDCRBendersSolver::compute()==Solver::kOK &&
+       rs.BenBound::getStat()==BenBound::OK,
+       "SolveGuard: could not solve again after unwinding");
+ blk.unregister_Solver(&rs);
 }
 
 static void test_cut_budget( void )
@@ -2108,6 +2132,7 @@ int main( void )
  test_relaxation_solver();
  test_cut_budget();
  test_time_budget();
+ test_solve_guard();
  test_shifted_certificate();
  test_rabax_negative_cycles();
  test_rabax_fixed_rates();

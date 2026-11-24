@@ -309,14 +309,24 @@ public:
   static const bool stats_on = ( std::getenv( "SFDCR_STATS" ) != nullptr );
   const auto stat_t0 = std::chrono::steady_clock::now();
   BenBound::setCheckPartition( stats_on );
-  try {
+  {
+   // Stack-only cleanup: stop the timer on every exit and discard partial
+   // state if Solve() is interrupted. No catch/rethrow or heap allocation.
+   struct SolveGuard {
+    SingleFlowDCRBendersSolver & solver;
+    bool completed = false;
+    ~SolveGuard() {
+     solver.BenBound::DCRstopTime();
+     if(!completed) solver.discard_solve_cache();
+    }
+   } guard{*this};
    BenBound::Solve();
-  } catch( ... ) {
-   BenBound::DCRstopTime();
-   discard_solve_cache();
-   throw;
+   guard.completed = true;
   }
-  BenBound::DCRstopTime();
+  if(BenBound::getStat() == BenBound::Uncertified) {
+   discard_solve_cache();
+   return kLowPrecision;
+  }
   if( stats_on )
    std::cout << "BENSTAT time "
              << std::chrono::duration< double >(

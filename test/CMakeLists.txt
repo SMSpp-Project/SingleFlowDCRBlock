@@ -40,3 +40,9 @@ if (_tests)
 endif ()
 
 # --------------------------------------------------------------------------- #
+
+add_executable(SingleFlowDCRBlock_numeric_regression numeric_regression.cpp)
+target_link_libraries(SingleFlowDCRBlock_numeric_regression PRIVATE SMS++::SingleFlowDCRBlock)
+add_test(NAME SingleFlowDCRBlock_numeric_regression
+ COMMAND SingleFlowDCRBlock_numeric_regression ${CMAKE_CURRENT_SOURCE_DIR}/data/43-27-negative.txt)
+set_tests_properties(SingleFlowDCRBlock_numeric_regression PROPERTIES TIMEOUT 20 LABELS SingleFlowDCRBlock)

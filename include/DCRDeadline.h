@@ -8,17 +8,18 @@
 class DCRDeadline {
 public:
  struct Expired {};
- explicit DCRDeadline( double seconds ) : seconds( seconds ),
-  start( std::chrono::steady_clock::now() ) {}
+ explicit DCRDeadline( double seconds , const DCRDeadline * parent = nullptr ) :
+  expires(std::chrono::steady_clock::now()+std::chrono::duration<double>(seconds)) {
+  // Materialize the tighter absolute limit once: checking a deeply nested
+  // oracle still needs only one clock read, independent of nesting depth.
+  if(parent && parent->expires < expires) expires = parent->expires;
+ }
  void check() const {
-  if( std::isfinite( seconds ) &&
-      std::chrono::duration<double>( std::chrono::steady_clock::now() - start ).count()
-       >= seconds )
-   throw Expired{};
+  if(std::chrono::steady_clock::now() >= expires) throw Expired{};
  }
 private:
- double seconds;
- std::chrono::steady_clock::time_point start;
+ std::chrono::time_point<std::chrono::steady_clock,
+                         std::chrono::duration<double>> expires;
 };
 
 /// Non-owning deadline; unset for standalone legacy solvers by default.

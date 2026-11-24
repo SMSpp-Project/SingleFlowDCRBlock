@@ -637,11 +637,14 @@ public:
   * found, in which case lagstat is set to OK and the search can start
   * from lambda = 0, or the running Lagrangian value exceeds LimitVal, in
   * which case lagstat is set to Infeasible, or the Shortest Path Tree
-  * itself fails (negative-cost cycle / disconnected sink), in which case
-  * lagstat is also set to Infeasible. In every case both pCut and mCut are
-  * updated with the cuts found along the way. */
+  * reports a disconnected sink (Infeasible). A reachable negative cycle or
+  * arithmetic failure sets Error and returns without a certificate; no cuts are
+  * created from that failed oracle evaluation. */
 
  void Inizial();
+ /// Returns false on failure: Infeasible for a disconnected sink, Error
+ /// for negative cycles / arithmetic failures. Callers must inspect status.
+ bool solveSPT();
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
  /// updates the best positive- or negative-slope cut with a new one

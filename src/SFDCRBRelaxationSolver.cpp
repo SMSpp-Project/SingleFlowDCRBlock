@@ -23,6 +23,7 @@
 /*--------------------------------------------------------------------------*/
 
 #include "SFDCRBRelaxationSolver.h"
+#include "DCRCertificate.h"
 
 #include <algorithm>
 #include <chrono>
@@ -273,6 +274,8 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
 
  const bool partition_valid = f_partition_revision ==
   f_solution_revision.load(std::memory_order_relaxed);
+ const OFValue retained_cert = partition_valid ? f_cert :
+  -SMSpp_di_unipi_it::Inf<OFValue>();
  invalidate_solution_cache();
  const auto start = f_log ? ProfileClock::now() : ProfileClock::time_point{};
  ++f_compute_id;
@@ -328,7 +331,7 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
  if( ! f_Block )
   return( finish( kError , "no_block" ) );
 
- f_cert = - SMSpp_di_unipi_it::Inf< OFValue >();
+ f_cert = retained_cert;
  f_zstar = 0;
  f_za = 0;
  f_bound_only = true;
@@ -361,6 +364,7 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
 
  if( ! owned )
   f_Block->read_unlock();
+ f_cert = std::max(f_cert,retained_cert);
 
  if( f_log )
   setup_seconds = profile_seconds( start );
@@ -469,6 +473,16 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
    prepare_seconds += profile_seconds( prepare_start );
   }
 
+ if(BenBound::getStat() == BenBound::Uncertified) {
+  f_instance_fresh = false;
+  discard_solve_cache();
+  f_bound_only = true;
+  f_terminal = false;
+  v_branch_plus.clear(); v_branch_minus.clear();
+  invalidate_solution_cache();
+  results_available = false;
+  return finish(kLowPrecision,"uncertified_oracle");
+ }
  polish_solution();
  ub = get_ub();
  ub_before = ub;
@@ -498,13 +512,13 @@ int SFDCRBRelaxationSolver::compute( bool changedvars )
   discard_solve_cache();
   f_bound_only = true;
   f_terminal = false;
-  f_cert = -SMSpp_di_unipi_it::Inf<OFValue>();
-  v_bound_intervals.clear();
+  // f_cert and the covering partition survive an interrupted oracle.
   v_branch_plus.clear();
   v_branch_minus.clear();
   invalidate_solution_cache();
   results_available = false;
   return finish( kStopTime , "time_limit" );
+
  }
 
  }  // end( SFDCRBRelaxationSolver::compute )
@@ -531,6 +545,7 @@ Solver::OFValue SFDCRBRelaxationSolver::get_lb( void )
 void SFDCRBRelaxationSolver::prepare_branch()
 {
  prepare_branch_result();
+ if(BenBound::getStat() == BenBound::Uncertified) return;
  invalidate_solution_cache();
  const OFValue ub = get_ub();
  const OFValue tol = std::max( f_AbsAcc ,
@@ -905,9 +920,12 @@ double SFDCRBRelaxationSolver::interval_lb( double a , double b )
  double mandatory_shift=0;
  for(Index i=0;i<links.size();++i) if(v_required[i]) {
   if(links[i].capacity<a) return SMSpp_di_unipi_it::Inf<OFValue>();
-  const double reward=links[i].fixed+links[i].cost*a;
-  links[i].fixed-=reward;
-  mandatory_shift+=reward;
+  const auto reward = DCRCertificate::mandatory(links[i].fixed,
+   links[i].cost,a,links[i].capacity);
+  if(!std::isfinite(reward.fixed) || !std::isfinite(reward.shift))
+   return -SMSpp_di_unipi_it::Inf<OFValue>();
+  links[i].fixed=reward.fixed;
+  mandatory_shift=DCRCertificate::add(mandatory_shift,reward.shift);
  }
  DCRLagrangianSolver pr;
  pr.setDeadline( getDeadline() );
@@ -922,13 +940,25 @@ double SFDCRBRelaxationSolver::interval_lb( double a , double b )
   return( SMSpp_di_unipi_it::Inf< OFValue >() );     // no solution here
  if( pr.getStatus() != DCRLagrangianSolver::OK )
   return( - SMSpp_di_unipi_it::Inf< OFValue >() );   // claim nothing
- return( original_bound( pr.getObjVal() + mandatory_shift ) );
+ // Round both additions down, including the pre-existing reweighting shift.
+ return DCRCertificate::down(original_bound(
+  DCRCertificate::add(pr.getObjVal(),mandatory_shift)));
  }//end (SFDCRBRelaxationSolver::interval_lb )
 
 void SFDCRBRelaxationSolver::refine_lb( bool cutoff_only , int max_splits ,
                                         double max_seconds )
 {
  if( max_seconds < 0 ) max_seconds = f_refine_time;
+ const DCRDeadline * parent_deadline = getDeadline();
+ DCRDeadline tranche(max_seconds > 0 ? max_seconds :
+  SMSpp_di_unipi_it::Inf<double>(),parent_deadline);
+ struct RestoreRefineDeadline {
+  BenBound & solver;
+  const DCRDeadline * previous;
+  ~RestoreRefineDeadline() { solver.setDeadline(previous); }
+ } restore_refine_deadline{*this,parent_deadline};
+ if(max_seconds > 0) setDeadline(&tranche);
+ try {
  const auto refine_start = ( f_log || max_seconds > 0 ) ?
   ProfileClock::now() : ProfileClock::time_point{};
  const OFValue lb_before = get_lb();
@@ -1052,10 +1082,14 @@ void SFDCRBRelaxationSolver::refine_lb( bool cutoff_only , int max_splits ,
    reason = "interval_narrow";
    break;
    }
-  std::pop_heap( Q.begin() , Q.end() , cmp );
-  Q.pop_back();
-  push( top.a , m );
-  push( m , top.b );
+  if(!DCRCertificate::split(Q,m,[&](double a,double b) {
+      const double lb = interval_lb(a,b);
+      ++interval_solves;
+      return lb;
+     },cmp)) {
+   reason = "uncertified_child";
+   break;
+  }
   ++splits;
   const double next_lb = Q.front().lb;
   stalled = next_lb > previous_lb + 1e-12 * std::max(1.0,std::abs(previous_lb)) ? 0 : stalled+1;
@@ -1090,6 +1124,14 @@ void SFDCRBRelaxationSolver::refine_lb( bool cutoff_only , int max_splits ,
          << " LB_before=" << lb_before << " LB=" << get_lb()
          << " a=" << Q.front().a << " b=" << Q.front().b << '\n';
   }
+ } catch(const DCRDeadline::Expired &) {
+  // Propagate the node deadline. A tranche timeout only ends refinement;
+  // the last complete covering partition and its certificate remain valid.
+  if(parent_deadline) parent_deadline->check();
+  if(f_log) *f_log << "[refine_interrupted] run=" << f_compute_id
+   << " reason=time_budget leaves=" << v_bound_intervals.size()
+   << " LB=" << get_lb() << '\n';
+ }
  }//end (SFDCRBRelaxationSolver::refine_lb )
 
 /*--------------------------------------------------------------------------*/

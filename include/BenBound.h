@@ -146,7 +146,8 @@ public:
   OK ,         ///<  solver found a feasible solution
   Infeasible , ///<  problem infeasible
   Unbounded ,  ///<  problem unbounded
-  Error       ///<  an error occurred
+  Error ,     ///< an error occurred
+  Uncertified ///< a nested path oracle could not provide a certificate
   };
 
 /*--------------------------------------------------------------------------*/
@@ -606,6 +607,7 @@ protected:
 
 /*--------------------------------------------------------------------------*/
 private:
+ bool oracle_failed();
  bool f_collect_branch_paths = false;
  int f_max_cuts = std::numeric_limits< int >::max();
  int f_generated_cuts = 0;

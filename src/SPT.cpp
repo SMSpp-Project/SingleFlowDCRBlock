@@ -41,6 +41,10 @@
 
 #include <iostream>
 #include <cstdlib>
+#include <fstream>
+#include <iomanip>
+#include <algorithm>
+#include <queue>
 
 
 /*--------------------------------------------------------------------------*/
@@ -62,6 +66,7 @@ SPT::SPT()
 {
  Links.resize( 1 );
  nhops = 0;
+ numNodes = numLinks = 0;
  s = 0;
  t = 0;
  stat = OK;
@@ -88,6 +93,13 @@ void SPT::LoadProblem( int nnodes , int nlinks , std::vector< SPTLink > links ,
  t = sinknode;
  numNodes = nnodes;
  numLinks = nlinks;
+ Sol.clear(); DualSol.clear(); nhops = 0;
+ if(nnodes <= 0 || nlinks < 0 || links.size() != std::size_t(nlinks) ||
+    s < 0 || s >= nnodes || t < 0 || t >= nnodes) { stat = Error; return; }
+ for(const auto & e : links)
+  if(e.startnode < 0 || e.startnode >= nnodes || e.endnode < 0 || e.endnode >= nnodes) {
+   stat = Error; return;
+  }
  copyDataArrays( links );
  }
 
@@ -107,6 +119,8 @@ void SPT::updCosts( std::vector< SPTLink > links )
  //delete[] DualSol;
  //Links = new SPT::SPTLink[numLinks];
 
+ nhops = 0;
+ if(links.size() != Links.size()) { Links.clear(); stat = Error; return; }
  stat = OK;
 
  for( i = 0 ; i < numLinks ; i++ )
@@ -155,158 +169,106 @@ int SPT::getNHops()
 /*----------------------------------SOLVE-----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
-/// computes the Shortest Path Tree from the source node s
-/** FIFO-queue label-correcting algorithm (a variant of Bellman-Ford,
- * sometimes attributed to D'Esopo-Pape): distance[] is initialized to
- * +Infinity everywhere but the source (distance[ s ] = 0), and nodes
- * are processed out of a FIFO queue Q[] (initially containing only s):
- * when node h is extracted, every arc leaving h is relaxed, and
- * whenever the relaxation improves the distance label of the head node
- * "next", that node is appended to the tail of the queue -- unless it
- * is already the head, the tail, or somewhere in the middle of it
- * (Q[ next ] == -1 tests exactly this), in which case it is left where
- * it is and will naturally be reprocessed with the updated label. Since
- * a node can be enqueued several times (which is what allows the
- * algorithm, unlike Dijkstra, to correctly handle negative arc costs),
- * the loop terminates only when the queue becomes empty, i.e., no
- * further improvement is possible; this implicitly assumes the graph
- * has no negative-cost cycle reachable from s (which is not checked
- * for directly: an infinite loop would ensue in that case).
- *
- * Once distances have stabilized, the shortest s-t path is reconstructed
- * backwards from t by repeatedly following previous[] / previousArc[]
- * (respectively the predecessor node and the connecting arc recorded
- * while relaxing) until s is reached; if at any point previous[ i ] is
- * still -1 (i was never reached), the reconstruction stops early,
- * signalling that t is not reachable from s. The resulting arc indices
- * are stored, in source-to-sink order, in Sol (see getPath()), and the
- * final node distances in DualSol (see getLabel()). */
-
+/// FIFO label correction, with a bounded Bellman-Ford fallback if a
+/// predecessor walk reaches n arcs. In the fallback, after k rounds labels describe
+/// walks of at most k arcs. An improvement in round n signals a reachable
+/// negative cycle (or uncertifiable floating-point arithmetic). Unreachable
+/// components are never relaxed. No tolerance masks small negative costs.
 void SPT::Solve()
 {
- checkDeadline();
- int i , j , h;
- //int maxIter = pow(numNodes,2);
- // int iterat=0;  //if it exceeds n^2, then there will be at least one
- // negative-cost cycle (?)
- std::vector< double > distance( numNodes );
- std::vector< int > previous( numNodes );
- std::vector< int > previousArc( numNodes ); // arc realizing previous[]:
-                                          // previousArc[ next ] is the
-                                          // index (into Links) of the arc
-                                          // from previous[ next ] to next
-                                          // that last improved next's
-                                          // label, so the s-t path can be
-                                          // reconstructed by following it
-                                          // without re-searching Links
-                                          // for the connecting arc
- std::vector< int > Q( numNodes ); //FIFO queue
- double dist , inf = Inf< double >();
- int next;
- int HEAD; //FIFO head
- int TAIL; //FIFO tail
-
- //initialization of the structures
- for( i = 0 ; i < numNodes ; i++ ) {
-  distance[ i ] = inf;
-  previous[ i ] = -1;
-  previousArc[ i ] = -1;
-  Q[ i ] = -1;
-  }
- distance[ s ] = 0;
- HEAD = s;
- TAIL = s;
-
- //solve SHORTEST PATH
- //////////////////////////////////////
- while( HEAD != -1 ) {
+ Sol.clear();
+ DualSol.clear();
+ nhops = 0;
+ stat = Error;
+ try {
   checkDeadline();
-  //extract node from queue Q
-  h = HEAD;
-  HEAD = Q[ HEAD ];
-  Q[ h ] = -1;
-  if( HEAD == -1 )
-   TAIL = -1;
+  if(numNodes <= 0 || s < 0 || s >= numNodes || t < 0 || t >= numNodes ||
+     numLinks < 0 || Links.size() != std::size_t(numLinks)) return;
+  for(const auto & e : Links)
+   if(e.startnode < 0 || e.startnode >= numNodes ||
+      e.endnode < 0 || e.endnode >= numNodes || !std::isfinite(e.cost)) return;
 
-  //consider all neighbours of h: adjOut[ h ] lists only the arcs that
-  //actually leave h, instead of scanning the whole (possibly much
-  //larger) Links array to find them
-  for( int aj = 0 ; aj < (int) adjOut[ h ].size() ; aj++ ) {
-   j = adjOut[ h ][ aj ];
-   next = Links[ j ].endnode;
-   dist = Links[ j ].cost + distance[ h ];
-
-   if( dist < distance[ next ] ) {
-    distance[ next ] = dist;
-    previous[ next ] = h;
-    previousArc[ next ] = j;
-
-    //insert node in queue Q
-    if( HEAD == -1 ) {
-     HEAD = next;
-     TAIL = next;
-     }
-    else if( ( HEAD != next ) && ( TAIL != next ) &&
-               ( Q[ next ] == -1 ) ) {
-     Q[ TAIL ] = next;
-     TAIL = next;
-     }
-
-    } //if (distance label update)
-
-   } //for (all arcs leaving h)
-  } //while (head != -1)
- //Set up the variables for the get methods.
-
- ///  /////is this ok? or new[nnodes] and ignore what was done in load pr, or
- /// delete and new??
- DualSol.resize( numNodes );
- //cout<<"total distance in SP = "<<distance[t]<<endl;
-
- for( j = 0 ; j < numNodes ; j++ )
-  DualSol[ j ] = distance[ j ]; //is the for loop needed?
-
- i = t;
- std::vector< int > indices( numNodes );
- nhops = 0; //needed for subsequent calls
-
- while( i != s && stat == OK ) {
-  checkDeadline();
-  if( previous[ i ] == -1 ) {
-   // i was never reached by the relaxation above: the sink is
-   // unreachable from the source (the graph is disconnected), exactly
-   // the condition the old from-scratch getLink( previous[ i ], i )
-   // search used to detect by failing to find a connecting arc
-   stat = Error;
-   break;
-   }
-  indices[ nhops ] =
-   previousArc[ i ]; //copies the indices of the optimal path in reverse
-  i = previous[ i ];
-  nhops++; //saves the number of these indices
-  }
-
- if( stat == OK ) {
-  Sol.resize( nhops );
-
-  for( j = 0 ; j < nhops ; j++ ) {
-   Sol[ nhops - j - 1 ] =
-    indices[ j ]; //takes the optimal path, putting it back in s-t order.
+  const double inf = Inf<double>();
+  std::vector<double> distance(numNodes,inf);
+  std::vector<int> previous(numNodes,-1), previousArc(numNodes,-1);
+  distance[s] = 0;
+  std::queue<int> pending;
+  std::vector<bool> queued(numNodes,false);
+  std::vector<int> depth(numNodes,0);
+  pending.push(s); queued[s] = true;
+  bool fallback = false;
+  while(!pending.empty() && !fallback) {
+   checkDeadline();
+   const int u = pending.front(); pending.pop(); queued[u] = false;
+   unsigned scanned = 0;
+   for(int j : adjOut[u]) {
+    // Keep deadline checks bounded even for a very high-degree vertex,
+    // without reading the clock on every individual arc of small graphs.
+    if((scanned++ & 255) == 0) checkDeadline();
+    const auto & e = Links[j];
+    const double candidate = distance[u] + e.cost;
+    if(!std::isfinite(candidate)) return;
+    if(candidate < distance[e.endnode]) {
+     distance[e.endnode] = candidate;
+     previous[e.endnode] = u;
+     previousArc[e.endnode] = j;
+     depth[e.endnode] = depth[u] + 1;
+     if(depth[e.endnode] >= numNodes) { fallback = true; break; }
+     if(!queued[e.endnode]) {pending.push(e.endnode); queued[e.endnode] = true;}
+    }
    }
   }
- else {
-  // the sink is unreachable from the source in the current graph (or the
-  // backtrack could not complete): leave no stale path behind for
-  // getPath()/getNHops() to hand out. Without this, a caller that does
-  // not check getStatus() (or one who does check it but only nhops/path
-  // afterwards) would silently reuse whatever a previous, unrelated, and
-  // possibly differently-sized successful Solve() left in Sol, mixing
-  // arcs from two different solves into one bogus "path"
-  Sol.clear();
-  nhops = 0;
+  // Depth is only a trigger, never a negative-cycle certificate. Confirm
+  // with n synchronous Bellman-Ford rounds to avoid false queue-count alarms.
+  if(fallback) {
+   distance.assign(numNodes,inf); distance[s] = 0;
+   previous.assign(numNodes,-1); previousArc.assign(numNodes,-1);
   }
+  for(int round = 0; fallback && round < numNodes; ++round) {
+   checkDeadline();
+   auto nextDistance = distance;
+   bool changed = false;
+   for(int j = 0; j < numLinks; ++j) {
+    if((j & 255) == 0) checkDeadline();
+    const auto & e = Links[j];
+    if(distance[e.startnode] == inf) continue;
+    const double candidate = distance[e.startnode] + e.cost;
+    if(!std::isfinite(candidate)) return;
+    if(candidate < nextDistance[e.endnode]) {
+     nextDistance[e.endnode] = candidate;
+     previous[e.endnode] = e.startnode;
+     previousArc[e.endnode] = j;
+     changed = true;
+    }
+   }
+   if(!changed) break;
+   if(round == numNodes - 1) { stat = Unbounded; return; }
+   distance.swap(nextDistance);
+  }
+  if(distance[t] == inf) { stat = Infeasible; return; }
 
+  std::vector<bool> seen(numNodes,false);
+  std::vector<int> reverse;
+  for(int v = t; v != s;) {
+   checkDeadline();
+   if(v < 0 || v >= numNodes || seen[v] || reverse.size() >= std::size_t(numNodes))
+    return;
+   seen[v] = true;
+   const int arc = previousArc[v], pred = previous[v];
+   if(arc < 0 || arc >= numLinks || pred < 0 || pred >= numNodes ||
+      Links[arc].startnode != pred || Links[arc].endnode != v) return;
+   reverse.push_back(arc);
+   v = pred;
+  }
+  Sol.assign(reverse.rbegin(),reverse.rend());
+  nhops = int(Sol.size());
+  DualSol = std::move(distance);
+  stat = OK;
+ } catch(const DCRDeadline::Expired &) {
+  stat = Interrupted;
+  throw;
  }
+}
 
 
 /*--------------------------------------------------------------------------*/

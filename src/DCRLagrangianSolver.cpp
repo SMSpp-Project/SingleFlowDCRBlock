@@ -337,7 +337,7 @@ bool DCRLagrangianSolver::is0opt( void )
  // of the reduced graph it last had
  spt.LoadProblem( numNodes , cardRedGraph , Linksp , Flow.sourcenode ,
                   Flow.sinknode );
- spt.Solve(); //solve SP with this new lambda.
+ if(!solveSPT()) return false; //solve SP with this new lambda.
 
  nhops = spt.getNHops();
 
@@ -377,7 +377,7 @@ bool DCRLagrangianSolver::is0opt( void )
   setSPTcosts();
 
   spt.updCosts( Linksp );
-  spt.Solve(); //solve SP with this new lambda.
+  if(!solveSPT()) return false; //solve SP with this new lambda.
 
   nhops = spt.getNHops();
 
@@ -675,6 +675,7 @@ void DCRLagrangianSolver::Solve( void )
   // by a previous call to isFeasible() on the same data)
   if( inizialflag == 0 ) {
    Inizial();
+   if(lagstat == Error) return;
    inizialflag = 1;
    }
   }
@@ -756,7 +757,7 @@ void DCRLagrangianSolver::Solve( void )
    //cout<<"1beta_0 ="<<beta_o<<endl;
    setSPTcosts(); //new lambda, new costs.
    spt.updCosts( Linksp );
-   spt.Solve(); //solve SP with this new lambda.
+   if(!solveSPT()) return; //solve SP with this new lambda.
 
    nhops = spt.getNHops();
 
@@ -1222,7 +1223,7 @@ void DCRLagrangianSolver::Inizial( void )
 
  spt.LoadProblem( numNodes , cardRedGraph , Linksp , Flow.sourcenode ,
                   Flow.sinknode );
- spt.Solve();
+ if(!solveSPT()) return;
 
  spstat = spt.getStatus();
  //cout<<"spstat is "<<spstat<<endl;
@@ -1369,7 +1370,7 @@ void DCRLagrangianSolver::Inizial( void )
 
     setSPTcosts();
     spt.updCosts( Linksp );
-    spt.Solve();
+    if(!solveSPT()) return;
     spstat = spt.getStatus();
     nhops = spt.getNHops();
 
@@ -1887,6 +1888,32 @@ void DCRLagrangianSolver::tightenPath( const std::vector< int > & path ,
   }
  }
 
+
+// A negative cycle in a path relaxation does not prove infeasibility of the
+// original binary-flow problem. Refuse to create cuts from an absent path.
+bool DCRLagrangianSolver::solveSPT()
+{
+ // Invalidate the previous result before a possibly interrupted solve.
+ const int was_solved = solvedflag, was_initialized = inizialflag;
+ lagstat = Error;
+ solvedflag = inizialflag = 0;
+ spt.Solve();
+ spstat = spt.getStatus();
+ if(spstat == SPT::OK) {
+  lagstat = OK;
+  solvedflag = was_solved; inizialflag = was_initialized;
+  return true;
+ }
+ solvedflag = inizialflag = 0;
+ lagstat = spstat == SPT::Infeasible ? Infeasible : Error;
+ if(spstat != SPT::Infeasible) {
+  ObjVal = -Inf<double>();
+  HeurVal = Inf<double>();
+  RSOLS.clear(); HeurRSOLS.clear();
+
+ }
+ return false;
+}
 
 /*--------------------------------------------------------------------------*/
 /*-------------------- End File DCRLagrangianSolver.cpp --------------------*/
