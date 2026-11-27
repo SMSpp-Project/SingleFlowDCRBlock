@@ -1417,7 +1417,7 @@ class ERAITestSolver : public Solver
   slv.DCRsetHeur( '1' );
   const bool ok = ( slv.DCRsolve() == DCR::OK );
   value = ok ? slv.DCRgetObj() : INF;
-  return( ok ? kOK : kInfeasible );
+  return( ok ? int( kOK ) : int( kInfeasible ) );
   }
 
  void get_var_solution( Configuration * solc = nullptr ) override {}
@@ -1592,6 +1592,38 @@ static void test_block_pc_cuts( void )
  }
 
 /*--------------------------------------------------------------------------*/
+/// SingleFlowDCRBendersSolver refuses an arc of negative cost
+
+static void test_benders_negative_cost( void )
+{
+ Net g = base_path();
+ g.rate = 1;
+ SingleFlowDCRBlock blk;
+ load( blk , g );
+ auto slv = Solver::new_Solver( "SingleFlowDCRBendersSolver" );
+ blk.register_Solver( slv );
+
+ auto throws = [ & ]( void ) {
+  try {
+   slv->compute();
+   }
+  catch( std::invalid_argument & ) {
+   return( true );
+   }
+  return( false );
+  };
+
+ check( ! throws() , "Benders, nonnegative costs: refused" );
+ const double c = blk.get_C( 0 );
+ blk.chg_cost( -1 , 0 , eModBlck );
+ check( throws() , "Benders, a negative cost: not refused" );
+ blk.chg_cost( c , 0 , eModBlck );
+ check( ! throws() , "Benders, the cost restored: refused" );
+
+ blk.unregister_Solver( slv , true );
+ }
+
+/*--------------------------------------------------------------------------*/
 /*--------------------------------- MAIN -----------------------------------*/
 /*--------------------------------------------------------------------------*/
 
@@ -1612,6 +1644,7 @@ int main( void )
  test_block_modifications();
  test_block_fixing();
  test_block_pc_cuts();
+ test_benders_negative_cost();
 
  if( failures )
   std::cout << failures << " checks failed" << std::endl;

@@ -208,7 +208,10 @@ public:
   * actually run the algorithm, unless BenBound has already solved the
   * instance it holds, i.e., nothing has changed since the last call, in
   * which case its result is the answer. \p changedvars is currently
-  * unused.
+  * unused. BenBound requires the costs C of the arcs to be nonnegative
+  * (its cuts and its bound rely on that [see BenBound::getLB()]):
+  * std::invalid_argument is thrown if one of the arcs that are not
+  * deleted has C < 0.
   *
   * IMPLEMENTATION NOTE: the method contains a (large) commented-out block
   * that would run an external warm-start Solver (via BlockSolverConfig,
@@ -226,12 +229,16 @@ public:
 
   lock(); // first of all, acquire self-lock
 
-  if( ! f_Block )            // there is no [SingleFlowDCRBlock] to solve
-   return( kBlockLocked ); // return error
+  if( ! f_Block ) {  // there is no [SingleFlowDCRBlock] to solve
+   unlock();
+   return( kBlockLocked );  // return error
+   }
 
-  bool owned = f_Block->is_owned_by( f_id );    // check if already locked
-  if( ( ! owned ) && ( ! f_Block->read_lock() ) ) // if not try to read_lock
+  bool owned = f_Block->is_owned_by( f_id );         // check if already locked
+  if( ( ! owned ) && ( ! f_Block->read_lock() ) ) {  // if not try to lock
+   unlock();
    return( kBlockLocked );                     // return error on failure
+   }
 
   // while [read_]locked, process any outstanding Modification
 
@@ -240,7 +247,12 @@ public:
 
   process_outstanding_Modification();
 
-  auto f_Block_aux = f_Block;
+  if( f_negative_cost ) {
+   unlock();
+   throw( std::invalid_argument( "SingleFlowDCRBendersSolver::compute: "
+				 "an arc has negative cost C" ) );
+   }
+
   /*
  const std::string warmstart_cfg_file = "MILPPar-initial.txt";
 
@@ -747,8 +759,8 @@ public:
    ;
 
   // process all the Modifications
-  for( auto mod : v_mod )
-   if( auto tmod = mod.get() ) {
+  for( auto & mod : v_mod )
+   if( mod ) {
     reload = true; // a reset must be done
     break;         // ignore all the remaining Modifications
    }
@@ -797,6 +809,14 @@ protected:
     if( Bi > 0 )
      sink = i;
    }
+
+  // BenBound requires C >= 0 [see compute()]
+  f_negative_cost = false;
+  for( Index i = 0 ; i < narcs ; ++i )
+   if( ( ! DCRB->is_deleted( i ) ) && ( DCRB->get_C( i ) < 0 ) ) {
+    f_negative_cost = true;
+    break;
+    }
 
   if( ( source < 0 ) || ( sink < 0 ) )  // nothing to route
    return;
@@ -1069,11 +1089,12 @@ private:
    }
   };
  Inst f_last_inst;
- bool f_last_solved = false;   ///< BenBound has solved f_last_inst
- bool f_held_solved = false;   ///< BenBound has solved the instance it holds
- bool f_skip_same = false;     ///< see intSkipSame
- bool f_rmin_start = false;    ///< see intRminStart
- double f_last_rmin = 0;       ///< r_min of the last solve
+ bool f_last_solved = false;    ///< BenBound has solved f_last_inst
+ bool f_held_solved = false;    ///< BenBound has solved the instance it holds
+ bool f_negative_cost = false;  ///< some arc of the Block has C < 0
+ bool f_skip_same = false;      ///< see intSkipSame
+ bool f_rmin_start = false;     ///< see intRminStart
+ double f_last_rmin = 0;        ///< r_min of the last solve
  Index f_skipped = 0;
 
  /// true if a has the same instance as b with no larger costs

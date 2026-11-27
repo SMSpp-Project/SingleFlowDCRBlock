@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only as far as the largest capacity below it, where it took the whole range
   to its left as infeasible: a link of capacity c can make r_min <= c feasible
   where a larger r_min is not.
+- `SingleFlowDCRBendersSolver::compute()` throws if an arc has negative cost
+  `C`, which `BenBound` does not handle (its bound was clipped at 0), and
+  releases its own lock when it returns `kBlockLocked`.
 
 ## [0.4.0] - 2026-11-16
 
